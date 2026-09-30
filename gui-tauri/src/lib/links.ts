@@ -5,8 +5,7 @@ import { api } from "./api";
  * https project page — the backend refuses anything else.
  */
 
-/** Set once the project has a public home; links to it stay hidden until then. */
-export const PROJECT_URL = "";
+export const PROJECT_URL = "https://github.com/sujaisubbanna/utter-assistant";
 
 export const HF_MODELS = "https://huggingface.co/models";
 
