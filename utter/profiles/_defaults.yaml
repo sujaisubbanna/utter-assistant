@@ -1,0 +1,75 @@
+# Generic per-kind fallbacks. A profile only needs to declare what differs
+# from these; load() merges these shortcuts/search_url underneath each profile.
+defaults:
+  browser:
+    search_url: "https://duckduckgo.com/?q={q}"
+    shortcuts:
+      new_tab: ctrl+t
+      close_tab: ctrl+w
+      address_bar: ctrl+l
+      reload: ctrl+r
+      find: ctrl+f
+      back: alt+left
+      forward: alt+right
+      reopen_tab: ctrl+shift+t
+      new_window: ctrl+n
+      private_window: ctrl+shift+p
+  terminal:
+    shortcuts:
+      new_tab: ctrl+shift+t
+      close_tab: ctrl+shift+w
+      copy: ctrl+shift+c
+      paste: ctrl+shift+v
+      split_horizontal: ctrl+shift+o
+      split_vertical: ctrl+shift+e
+      find: ctrl+shift+f
+      increase_font: ctrl+plus
+      decrease_font: ctrl+minus
+      reset_font: ctrl+0
+  filemanager:
+    shortcuts:
+      new_window: ctrl+n
+      new_tab: ctrl+t
+      close_tab: ctrl+w
+      reload: ctrl+r
+      find: ctrl+f
+      back: alt+left
+      forward: alt+right
+      up: alt+up
+      home: alt+home
+      open: Return
+      delete: Delete
+      rename: F2
+  editor:
+    shortcuts:
+      new_file: ctrl+n
+      new_window: ctrl+shift+n
+      close_tab: ctrl+w
+      save: ctrl+s
+      find: ctrl+f
+      replace: ctrl+h
+      command_palette: ctrl+shift+p
+      go_to_line: ctrl+g
+      toggle_terminal: ctrl+grave
+  media:
+    shortcuts:
+      play_pause: space
+      next: ctrl+right
+      previous: ctrl+left
+      seek_forward: Right
+      seek_backward: Left
+      volume_up: Up
+      volume_down: Down
+      fullscreen: f
+  game:
+    shortcuts: {}
+  office:
+    shortcuts:
+      save: ctrl+s
+      find: ctrl+f
+      bold: ctrl+b
+      italic: ctrl+i
+  utility:
+    shortcuts: {}
+  other:
+    shortcuts: {}

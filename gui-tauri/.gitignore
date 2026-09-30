@@ -1,0 +1,16 @@
+# frontend
+node_modules/
+dist/
+*.local
+
+# rust
+src-tauri/target/
+
+# tauri generated
+src-tauri/gen/
+
+# icon source (the generated icon set is committed)
+icon-source.png
+
+# full-desktop grim captures (large); the window screenshots are kept
+screenshots/grim-*.png

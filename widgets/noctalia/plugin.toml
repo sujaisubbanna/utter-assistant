@@ -1,0 +1,85 @@
+id = "utter/utter"
+name = "Utter Assistant"
+version = "1.1.0"
+plugin_api = 30
+author = "Utter contributors"
+license = "MIT"
+description = "Shows the local utter assistant status in the bar and raises persistent overlay panels when it needs attention or is actively listening."
+dependencies = ["python", "utter"]
+tags = ["ai", "assistant", "bar", "service", "panel", "attention", "osd"]
+
+[[setting]]
+key = "refresh_seconds"
+type = "int"
+label_key = "settings.refresh_seconds.label"
+description_key = "settings.refresh_seconds.description"
+default = 2
+min = 1
+max = 30
+
+[[setting]]
+key = "python_cmd"
+type = "string"
+label_key = "settings.python_cmd.label"
+description_key = "settings.python_cmd.description"
+default = ""
+advanced = true
+
+[[setting]]
+key = "repo_root"
+type = "string"
+label_key = "settings.repo_root.label"
+description_key = "settings.repo_root.description"
+default = ""
+advanced = true
+
+[[setting]]
+key = "osd_enabled"
+type = "bool"
+label_key = "settings.osd_enabled.label"
+description_key = "settings.osd_enabled.description"
+default = true
+
+[[setting]]
+key = "osd_path"
+type = "string"
+label_key = "settings.osd_path.label"
+description_key = "settings.osd_path.description"
+default = ""
+advanced = true
+
+[[widget]]
+id = "utter"
+entry = "widget.luau"
+
+[[service]]
+id = "poller"
+entry = "poller.luau"
+
+[[panel]]
+id = "attention"
+entry = "attention.luau"
+width = 360
+height = 96
+placement = "floating"
+position = "top_right"
+persistent = true
+dismiss_on_outside_click = false
+keyboard_focus = "none"
+layer = "overlay"
+
+[[service]]
+id = "osd_poller"
+entry = "osd_poller.luau"
+
+[[panel]]
+id = "osd"
+entry = "osd.luau"
+width = 420
+height = 72
+placement = "floating"
+position = "bottom_center"
+persistent = true
+dismiss_on_outside_click = false
+keyboard_focus = "none"
+layer = "overlay"

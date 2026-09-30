@@ -1,0 +1,53 @@
+# Generic fallbacks. These are ordered after concrete profiles by load(), so a
+# specific app (foot, thunar, cursor, ...) always wins the spoken name.
+profiles:
+  generic-browser:
+    id: generic-browser
+    name: Web Browser
+    aliases: [web browser, default browser, internet browser]
+    launch: [xdg-open, "https://duckduckgo.com"]
+    terminal: false
+    new_window: [xdg-open, "https://duckduckgo.com"]
+    search_url: "https://duckduckgo.com/?q={q}"
+    shortcuts: {}
+    app_ids: []
+    mime_types: [x-scheme-handler/http, x-scheme-handler/https, text/html]
+    kind: browser
+  generic-terminal:
+    id: generic-terminal
+    # NB: not named "Terminal" — resolve() matches name before alias, and the
+    # curated foot profile owns the "terminal"/"shell" aliases.
+    name: Default Terminal
+    aliases: [terminal, shell, command line]
+    launch: [foot]
+    terminal: true
+    new_window: [foot]
+    search_url: null
+    shortcuts: {}
+    app_ids: [foot]
+    mime_types: []
+    kind: terminal
+  generic-filemanager:
+    id: generic-filemanager
+    name: File Manager
+    aliases: [file manager, files, folder, folders]
+    launch: [thunar]
+    terminal: false
+    new_window: [thunar]
+    search_url: null
+    shortcuts: {}
+    app_ids: [thunar]
+    mime_types: [inode/directory]
+    kind: filemanager
+  generic-editor:
+    id: generic-editor
+    name: Text Editor
+    aliases: [text editor, editor, code editor]
+    launch: [/usr/share/cursor/cursor]
+    terminal: false
+    new_window: [/usr/share/cursor/cursor, --new-window]
+    search_url: null
+    shortcuts: {}
+    app_ids: [Cursor]
+    mime_types: [text/plain]
+    kind: editor

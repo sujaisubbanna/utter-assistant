@@ -1,0 +1,34 @@
+# utter_py — the existing utter/ assistant wrapped as a protocol plugin.
+# Three version axes: protocol (wire), abi (runner<->plugin), capability (name@N).
+name = "utter_py"
+version = "0.1.0"
+kind = "bundle"
+protocol = "1.0"
+min_runner = "0.1.0"
+abi = 1
+
+runtime = "subprocess"
+transport = "stdio"
+# Run from the plugin directory so `python -m plugin` resolves; the runner
+# prepends the repo root to PYTHONPATH so `import utter` works.
+entrypoint = ["python", "-m", "plugin"]
+
+# Capabilities this plugin offers (versioned name@N).
+provides = [
+    "router.plan@1",
+    "action.open_url@1",
+    "action.terminal@1",
+    "action.niri@1",
+    "action.input@1",
+    "context.live@1",
+    "perception.screenshot@1",
+    "perception.a11y@1",
+]
+
+# Capabilities this plugin needs from the runner. A missing require is an error.
+requires = ["fs.tmp@1"]
+
+# Gated + consented; enforced where the platform allows, else advisory (TRUST.md §6).
+permissions = ["input-injection", "process-spawn", "screenshot", "accessibility"]
+
+platforms = ["linux-x86_64"]

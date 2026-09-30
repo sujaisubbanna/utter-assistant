@@ -1,0 +1,22 @@
+id: code
+name: Visual Studio Code
+aliases: [vs code, vscode, visual studio code, code editor]
+launch: [code]
+terminal: false
+new_window: [code, --new-window]
+search_url: null
+shortcuts:
+  new_file: ctrl+n
+  new_window: ctrl+shift+n
+  close_tab: ctrl+w
+  save: ctrl+s
+  find: ctrl+f
+  replace: ctrl+h
+  command_palette: ctrl+shift+p
+  go_to_line: ctrl+g
+  toggle_terminal: ctrl+grave
+  quick_open: ctrl+p
+  global_search: ctrl+shift+f
+app_ids: [code, Code, code-oss, code-url-handler, com.visualstudio.code]
+mime_types: [text/plain]
+kind: editor

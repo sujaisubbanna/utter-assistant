@@ -1,0 +1,536 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource-variable/outfit/wght.css";
+
+/* This app drives light/dark itself with a `.dark` class on <html> so the
+   three-state toggle (light / dark / system) stays in charge, independent of
+   the OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ *
+ * Palette
+ *
+ * Semantic tokens are CSS custom properties so a matugen palette
+ * (~/.local/share/utter/colors.css) can override them at runtime.
+ * Everything structural (hairlines, hover washes, the content panel,
+ * shadows) is *derived* from background/foreground/card below, so any
+ * palette — built-in or matugen — keeps the same depth and restraint.
+ * ------------------------------------------------------------------ */
+:root {
+  --background: #f3f3f1;
+  --foreground: #1a1a1a;
+
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  --primary: #f2c230;
+  --primary-foreground: #1a1a1a;
+  --secondary: #ebebe8;
+  --secondary-foreground: #262626;
+
+  --muted: #ebebe8;
+  --muted-foreground: #6b6b6b;
+
+  --accent: #f2c230;
+  --accent-foreground: #1a1a1a;
+
+  --destructive: #dc3e42;
+  --destructive-foreground: #ffffff;
+
+  --success: #20a05a;
+  --warning: #c26a0e;
+
+  --border: #e2e2de;
+  --input: #dcdcd7;
+  --ring: #c99a06;
+
+  --sidebar: var(--background);
+
+  /* derived */
+  --line: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --line-strong: color-mix(in oklab, var(--foreground) 13%, transparent);
+  --wash: color-mix(in oklab, var(--foreground) 4%, transparent);
+  --wash-strong: color-mix(in oklab, var(--foreground) 7%, transparent);
+  --chrome: var(--background);
+  --panel: color-mix(in oklab, var(--card) 62%, var(--background));
+  --field: color-mix(in oklab, var(--foreground) 3%, var(--card));
+  --accent-soft: color-mix(in oklab, var(--primary) 20%, transparent);
+  --accent-text: color-mix(in oklab, var(--primary) 45%, #5a4200);
+
+  --elev-card: 0 0 0 1px var(--line), 0 1px 2px rgb(20 20 20 / 0.04),
+    0 2px 6px -2px rgb(20 20 20 / 0.04);
+  --elev-panel: 0 0 0 1px var(--line), 0 1px 3px rgb(20 20 20 / 0.05),
+    0 8px 24px -12px rgb(20 20 20 / 0.08);
+  --elev-raised: 0 0 0 1px var(--line), 0 1px 2px rgb(20 20 20 / 0.08);
+  --elev-pop: 0 0 0 1px var(--line-strong), 0 12px 32px -8px rgb(20 20 20 / 0.18),
+    0 4px 10px -4px rgb(20 20 20 / 0.08);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  color-scheme: light;
+}
+
+html.dark {
+  --background: #161616;
+  --foreground: #ececec;
+
+  --card: #1f1f1f;
+  --card-foreground: #ececec;
+  --popover: #242424;
+  --popover-foreground: #ececec;
+
+  --primary: #f7c948;
+  --primary-foreground: #1a1400;
+  --secondary: #232323;
+  --secondary-foreground: #dcdcdc;
+
+  --muted: #232323;
+  --muted-foreground: #9c9c9c;
+
+  --accent: #f7c948;
+  --accent-foreground: #1a1400;
+
+  --destructive: #f2777a;
+  --destructive-foreground: #2a0508;
+
+  --success: #4cc38a;
+  --warning: #f59e42;
+
+  --border: #2b2b2b;
+  --input: #323232;
+  --ring: #f7c948;
+
+  --line: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --line-strong: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --wash: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --wash-strong: color-mix(in oklab, var(--foreground) 9%, transparent);
+  /* Chrome sinks below the content panel so the panel reads as a surface. */
+  --chrome: color-mix(in oklab, var(--background) 70%, black);
+  --panel: color-mix(in oklab, var(--background) 75%, var(--card));
+  --field: color-mix(in oklab, var(--foreground) 4%, var(--card));
+  --accent-soft: color-mix(in oklab, var(--primary) 14%, transparent);
+  --accent-text: var(--primary);
+
+  --elev-card: 0 0 0 1px var(--line), inset 0 1px 0 rgb(255 255 255 / 0.025),
+    0 1px 2px rgb(0 0 0 / 0.3);
+  --elev-panel: 0 0 0 1px var(--line), 0 10px 30px -12px rgb(0 0 0 / 0.5);
+  --elev-raised: 0 0 0 1px var(--line-strong), inset 0 1px 0 rgb(255 255 255 / 0.04),
+    0 1px 2px rgb(0 0 0 / 0.4);
+  --elev-pop: 0 0 0 1px var(--line-strong), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ *
+ * Tailwind theme bridge
+ *
+ * `inline` keeps the generated utilities pointing straight at the custom
+ * properties, so swapping the palette re-colours the whole UI live.
+ * ------------------------------------------------------------------ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-wash: var(--wash);
+  --color-wash-strong: var(--wash-strong);
+  --color-panel: var(--panel);
+  --color-chrome: var(--chrome);
+  --color-field: var(--field);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+
+  --font-sans: "Inter Variable", "Inter", "Adwaita Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Brand type: Outfit (SIL OFL) for titles and the wordmark; Inter for UI text. */
+  --font-display: "Outfit Variable", "Outfit", "Inter Variable", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-brand: var(--font-display);
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    monospace;
+
+  /* Type scale: 11 · 12 · 13 · 15 · 22 */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 16px;
+  --text-xs: 12px;
+  --text-xs--line-height: 17px;
+  --text-sm: 13px;
+  --text-sm--line-height: 19px;
+  --text-md: 15px;
+  --text-md--line-height: 22px;
+  --text-title: 22px;
+  --text-title--line-height: 28px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  --shadow-card: var(--elev-card);
+  --shadow-panel: var(--elev-panel);
+  --shadow-raised: var(--elev-raised);
+  --shadow-pop: var(--elev-pop);
+
+  --ease-out: var(--ease);
+}
+
+/* ------------------------------------------------------------------ *
+ * Base
+ * ------------------------------------------------------------------ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--line);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--chrome);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    font-optical-sizing: auto;
+    font-feature-settings: "cv11", "ss03";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+    color: var(--foreground);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  select option {
+    background: var(--popover);
+    color: var(--popover-foreground);
+  }
+
+  /* Thin, unobtrusive scrollbars that fade into the surfaces. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 26%, transparent);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+    background-clip: content-box;
+  }
+
+  .select-none-chrome {
+    user-select: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Components / utilities
+ * ------------------------------------------------------------------ */
+@layer components {
+  .focus-ring {
+    outline-offset: 2px;
+  }
+  .focus-ring:focus-visible,
+  .focus-ring:focus {
+    outline: 2px solid var(--ring);
+  }
+  .focus-ring:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Text fields: a quiet well that lights up with a soft accent halo. */
+  .field {
+    background: var(--field);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    transition:
+      box-shadow 140ms var(--ease),
+      background-color 140ms var(--ease);
+  }
+  .field:hover {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 22%, transparent);
+  }
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    background: var(--card);
+    box-shadow:
+      inset 0 0 0 1px var(--ring),
+      0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+  }
+
+  .field[type="number"]::-webkit-inner-spin-button,
+  .field[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .field[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow:
+      0 0 0 1px var(--line-strong),
+      0 1.5px 0 var(--line-strong);
+    white-space: nowrap;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 550;
+    letter-spacing: 0.01em;
+    color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
+  }
+
+  .range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    background: transparent;
+  }
+  .range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--primary) 0 var(--fill, 50%),
+      var(--wash-strong) var(--fill, 50%) 100%
+    );
+  }
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow:
+      0 0 0 1px rgb(0 0 0 / 0.12),
+      0 1px 3px rgb(0 0 0 / 0.2);
+    transition: transform 120ms var(--ease);
+  }
+  .range:hover::-webkit-slider-thumb {
+    transform: scale(1.08);
+  }
+  .range:focus-visible {
+    outline: none;
+  }
+  .range:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 1px var(--ring),
+      0 0 0 4px color-mix(in oklab, var(--ring) 28%, transparent);
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background: var(--wash-strong);
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--foreground) 6%, transparent),
+      transparent
+    );
+    animation: lv-shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Motion — 120–180 ms, one easing curve.
+ * ------------------------------------------------------------------ */
+@keyframes lv-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lv-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lv-dialog {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lv-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lv-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lv-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+@keyframes lv-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes lv-indet {
+  0% {
+    left: -35%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.animate-fade-up {
+  animation: lv-fade-up 180ms var(--ease) both;
+}
+.animate-pop {
+  animation: lv-pop 140ms var(--ease) both;
+}
+.animate-dialog {
+  animation: lv-dialog 180ms var(--ease) both;
+}
+.animate-fade {
+  animation: lv-fade 140ms var(--ease) both;
+}
+.animate-toast {
+  animation: lv-toast-in 180ms var(--ease) both;
+}
+.animate-dot-pulse {
+  animation: lv-pulse 1.8s ease-out infinite;
+}
+
+.stagger > * {
+  animation: lv-fade-up 180ms var(--ease) both;
+}
+.stagger > *:nth-child(2) {
+  animation-delay: 30ms;
+}
+.stagger > *:nth-child(3) {
+  animation-delay: 60ms;
+}
+.stagger > *:nth-child(4) {
+  animation-delay: 90ms;
+}
+.stagger > *:nth-child(n + 5) {
+  animation-delay: 120ms;
+}
+
+/* Smooth token changes when matugen regenerates the palette. */
+html.palette-transition,
+html.palette-transition * {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

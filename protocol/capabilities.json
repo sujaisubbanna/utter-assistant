@@ -1,0 +1,29 @@
+{
+  "registry_version": 1,
+  "note": "Single source of truth for capability strings. Entries are versioned name@N. Unknown capabilities are warnings; a missing 'requires' is an error.",
+  "capabilities": {
+    "stt.pull@1": {"owner": "utter-core", "desc": "runner supplies audio to the STT plugin"},    "stt.push@1": {"owner": "utter-core", "desc": "plugin captures audio itself"},
+    "stt.streaming@1": {"owner": "utter-core", "desc": "emits stt.partial notifications"},
+    "llm.complete@1": {"owner": "utter-core", "desc": "text completion"},
+    "router.plan@1": {"owner": "utter-core", "desc": "utterance + context -> ordered steps (rules + decision head)"},
+    "llm.choose@1": {"owner": "utter-core", "desc": "constrained decision over candidates"},
+    "llm.stream@1": {"owner": "utter-core", "desc": "llm.delta streaming"},
+    "perception.screenshot@1": {"owner": "utter-core", "desc": "screenshot capture"},
+    "perception.a11y@1": {"owner": "utter-core", "desc": "accessibility tree"},
+    "perception.vision_ground@1": {"owner": "utter-core", "desc": "ground a description to a point"},
+    "action.niri@1": {"owner": "utter-core", "desc": "compositor actions"},
+    "action.input@1": {"owner": "utter-core", "desc": "keyboard/mouse injection (high risk)"},
+    "action.open_url@1": {"owner": "utter-core", "desc": "open a URL"},
+    "action.terminal@1": {"owner": "utter-core", "desc": "run a shell command (off by default)"},
+    "tts.speak@1": {"owner": "utter-core", "desc": "speech output"},
+    "context.live@1": {"owner": "utter-core", "desc": "live desktop state"},
+    "ui.render@1": {"owner": "utter-core", "desc": "declarative UI"},
+    "audio.pcm_f32le@1": {"owner": "utter-core", "desc": "audio sample format"},
+    "audio.rate.16000@1": {"owner": "utter-core", "desc": "audio sample rate"},
+    "audio.channels.1@1": {"owner": "utter-core", "desc": "mono audio"},
+    "host.audio.ringbuffer@1": {"owner": "utter-core", "desc": "runner provides a shared audio ring buffer"},
+    "host.fd.pass@1": {"owner": "utter-core", "desc": "fd passing supported over socket transport"},
+    "fs.tmp@1": {"owner": "utter-core", "desc": "access to the runner tmp/handle store"},
+    "experimental/UiCustom@1": {"owner": "utter-core", "desc": "example extension namespace"}
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "terminal": [
+    "foot",
+    "-e"
+  ],
+  "claude code": [
+    "claude"
+  ],
+  "codex": [
+    "codex"
+  ],
+  "cursor agent": [
+    "cursor-agent"
+  ],
+  "opencode": [
+    "opencode"
+  ],
+  "grok": [
+    "grok"
+  ],
+  "grok bot": [
+    "grok"
+  ]
+}

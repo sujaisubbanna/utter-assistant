@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Utter</title>
+    <script>
+      // Set the theme class before first paint so there is no flash of the
+      // wrong palette. Kept dependency-free and in sync with src/lib/theme.ts.
+      (function () {
+        try {
+          var mode = localStorage.getItem("utter.theme") || "dark";
+          var dark =
+            mode === "dark" ||
+            (mode === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var el = document.documentElement;
+          el.classList.toggle("dark", dark);
+          el.dataset.themeMode = mode;
+          el.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+    <style>
+      /* Splash: painted before any JS so the window never opens blank. The two
+         halves of the mark swoop together, then the word arrives letter by
+         letter. Removed by src/App.tsx once settings have loaded. */
+      #splash {
+        --s-bg: #f3f3f1; --s-ink: #1a1a1a; --s-mut: #6b6b6b; --s-acc: #e6b41e; --s-ok: #20a05a;
+        position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 26px;
+        background: radial-gradient(60% 50% at 50% 44%, color-mix(in oklab, var(--s-acc) 12%, var(--s-bg)), var(--s-bg));
+        font-family: "Inter Variable", Inter, system-ui, sans-serif;
+        transition: opacity 400ms cubic-bezier(.4,0,.2,1), transform 400ms cubic-bezier(.4,0,.2,1);
+        -webkit-user-select: none; user-select: none;
+      }
+      html.dark #splash { --s-bg: #121212; --s-ink: #ececec; --s-mut: #9c9c9c; --s-acc: #f7c948; --s-ok: #4cc38a; }
+      #splash.out { opacity: 0; transform: scale(1.015); pointer-events: none; }
+      #splash .lockup { width: 380px; height: auto; overflow: visible; }
+      #splash .half, #splash .glyph { transform-box: fill-box; transform-origin: center; opacity: 0; }
+      #splash .half-l { fill: var(--s-acc); animation: s-left 620ms 60ms cubic-bezier(.18,1.25,.35,1) forwards; }
+      #splash .half-r { fill: var(--s-acc); filter: brightness(.82); animation: s-right 620ms 190ms cubic-bezier(.18,1.25,.35,1) forwards; }
+      html.dark #splash .half-r { filter: brightness(.9); }
+      #splash .glyph { fill: var(--s-ink); animation: s-letter 420ms cubic-bezier(.2,.9,.25,1) forwards; }
+      #splash .g1 { animation-delay: 560ms; } #splash .g2 { animation-delay: 615ms; } #splash .g3 { animation-delay: 670ms; }
+      #splash .g4 { animation-delay: 725ms; } #splash .g5 { animation-delay: 780ms; }
+      #splash .promise { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--s-mut); opacity: 0; animation: s-fade 420ms 960ms cubic-bezier(.2,.8,.2,1) forwards; }
+      #splash .promise svg { width: 14px; height: 14px; color: var(--s-ok); }
+      #splash .track { width: 120px; height: 3px; border-radius: 3px; overflow: hidden; background: color-mix(in oklab, var(--s-ink) 9%, transparent); opacity: 0; animation: s-fade 300ms 1100ms forwards; }
+      #splash .track i { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--s-acc); animation: s-slide 1.1s ease-in-out infinite; }
+      @keyframes s-left { from { opacity: 0; transform: translate(-34px, -10px) rotate(-14deg) scale(.9); } to { opacity: 1; transform: none; } }
+      @keyframes s-right { from { opacity: 0; transform: translate(34px, 14px) rotate(16deg) scale(.9); } to { opacity: 1; transform: none; } }
+      @keyframes s-letter { from { opacity: 0; transform: translateY(16px); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
+      @keyframes s-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @keyframes s-slide { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash, #splash * { animation: none !important; transition: none !important; }
+        #splash .half, #splash .glyph, #splash .promise, #splash .track { opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="splash" role="status" aria-live="polite" aria-label="Utter">
+      <svg class="lockup" viewBox="0 0 340 100" aria-hidden="true">
+        <g transform="translate(0 2) scale(1.08)">
+          <path class="half half-l" d="M6 19.5A12.5 12.5 0 0 1 31 19.5V44C31 55 38 62.5 48 62.5C51.5 62.5 55 62.0 58.5 60.8C54.0 68.5 45.3 74.5 36.8 77.5C20 75.5 6 64 6 46Z" />
+          <path class="half half-r" d="M69 19.5A12.5 12.5 0 0 1 94 19.5V46C94 66 77 80.5 52 80.5C49 80.5 46.5 80.2 44 79.8C53.7 77 59.7 71.5 63.7 65.5C66 59 69 53 69 46Z" />
+        </g>
+        <g transform="translate(118 88)">
+          <path class="glyph g1" d="M26.375 1.05Q20.029676258992808 1.05 15.064838129496405 -1.6750000000000003Q10.100000000000001 -4.4 7.312500000000001 -9.200954653937949Q4.525 -14.001909307875895 4.525 -20.2759502881425V-48.300000000000004H17.675V-20.6Q17.675 -17.59614285714286 18.696875 -15.465214285714287Q19.71875 -13.334285714285716 21.69639423076923 -12.192142857142859Q23.674038461538462 -11.05 26.399568965517247 -11.05Q30.5 -11.05 32.775000000000006 -13.5515Q35.050000000000004 -16.053 35.050000000000004 -20.6V-48.300000000000004H48.2V-20.275000000000002Q48.2 -13.925 45.425000000000004 -9.125Q42.650000000000006 -4.325 37.732374100719426 -1.6375000000000002Q32.81474820143885 1.05 26.375 1.05Z" />
+          <path class="glyph g2" d="M63.65 0.0V-68.35000000000001H76.8V0.0ZM52.4 -36.800000000000004V-48.300000000000004H88.05V-36.800000000000004Z" />
+          <path class="glyph g3" d="M100.55000000000001 0.0V-68.35000000000001H113.7V0.0ZM89.3 -36.800000000000004V-48.300000000000004H124.95V-36.800000000000004Z" />
+          <path class="glyph g4" d="M153.475 1.05Q145.925 1.05 139.9875 -2.2Q134.04999999999998 -5.45 130.625 -11.1875Q127.19999999999999 -16.925 127.19999999999999 -24.150000000000002Q127.19999999999999 -31.35 130.5625 -37.0375Q133.92499999999998 -42.725 139.71249999999998 -46.0375Q145.5 -49.35 152.625 -49.35Q159.575 -49.35 164.9125 -46.2375Q170.25 -43.125 173.3 -37.675Q176.35 -32.225 176.35 -25.25Q176.35 -23.975 176.2 -22.625Q176.05 -21.275000000000002 175.7 -19.6L135.04999999999998 -19.525000000000002V-29.275000000000002L169.6 -29.35L164.25 -25.325000000000003Q164.1 -29.625 162.7375 -32.5125Q161.375 -35.4 158.8375 -36.925Q156.3 -38.45 152.575 -38.45Q148.675 -38.45 145.8 -36.725Q142.92499999999998 -35.0 141.36249999999998 -31.8625Q139.79999999999998 -28.725 139.79999999999998 -24.35Q139.79999999999998 -19.950000000000003 141.46249999999998 -16.712500000000002Q143.125 -13.475000000000001 146.2 -11.7375Q149.275 -10.0 153.4 -10.0Q157.05 -10.0 160.075 -11.2625Q163.1 -12.525 165.3 -15.025L173.0 -7.275Q169.45 -3.1500000000000004 164.39999999999998 -1.0500000000000003Q159.35 1.05 153.475 1.05Z" />
+          <path class="glyph g5" d="M182.45 0.0V-48.300000000000004H195.6V0.0ZM195.6 -26.675 190.475 -30.125Q191.42499999999998 -38.95 195.72484662576687 -44.125Q200.02469325153373 -49.300000000000004 208.075 -49.300000000000004Q211.625 -49.300000000000004 214.4125 -48.125Q217.2 -46.95 219.45 -44.400000000000006L211.29999999999998 -34.95Q210.14999999999998 -36.2 208.60972222222222 -36.7875Q207.06944444444443 -37.375 205.04999999999998 -37.375Q200.85 -37.375 198.225 -34.75628930817611Q195.6 -32.13757861635221 195.6 -26.675Z" />
+        </g>
+      </svg>
+      <div class="promise">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 19.5 6v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6z" /><path d="m9 12 2.2 2.2L15.5 10" /></svg>
+        <span id="splash-promise">Private by design · runs entirely on your computer</span>
+      </div>
+      <div class="track" aria-hidden="true"><i></i></div>
+    </div>
+    <script>
+      // Localise the one splash line before React (and its i18n) loads.
+      (function () {
+        try {
+          var pref = localStorage.getItem("utter.lang") || "system";
+          var lang = pref === "system" ? (navigator.language || "en").slice(0, 2) : pref;
+          if (lang === "es")
+            document.getElementById("splash-promise").textContent =
+              "Privado por diseño · funciona por completo en tu ordenador";
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+[Unit]
+Description=utter context-aware voice -> desktop action daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# @REPO@ = your checkout path (see docs/CUSTOMISING.md).
+WorkingDirectory=@REPO@
+ExecStart=@REPO@/.venv-agent/bin/python -m utter.daemon
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,50 @@
+[Unit]
+Description=utter modular runner (plugin supervisor + trust boundary)
+Documentation=file:%h/.local/share/utter/docs/INSTALL.md
+# Bind to the graphical session: start after it, stop with it. Do NOT use
+# `systemctl --user enable --now` with linger — the runner needs the session.
+After=graphical-session.target
+PartOf=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+# The wrapper discovers WAYLAND_DISPLAY / DBUS_SESSION_BUS_ADDRESS / NIRI_SOCKET
+# and XDG_RUNTIME_DIR, then execs `python -m runner --config <config>`.
+# Override the repo/config with:
+#   systemctl --user edit utter-runner.service
+#   [Service]
+#   Environment=UTTER_REPO=%h/src/utter
+#   Environment=UTTER_CONFIG=%h/.config/utter/runner.toml
+# @REPO@ is replaced with the checkout path by install/install.sh.
+Environment=UTTER_REPO=@REPO@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@REPO@/scripts/utter-wayland-ready.sh
+Restart=on-failure
+RestartSec=2
+# Give plugins time to drain on stop; kill the whole process group (the runner
+# supervises plugin children).
+TimeoutStopSec=10
+KillMode=control-group
+
+# --- hardening ------------------------------------------------------------- #
+# NOTE: no PrivateTmp — the runner's data plane is tmp-file handles under
+# $XDG_RUNTIME_DIR, which PrivateTmp would hide from clients.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# systemd creates $XDG_RUNTIME_DIR/utter (sockets, handles) before the sandbox is set up.
+RuntimeDirectory=utter
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=%t/utter -%h/.local/state/utter -%h/.local/share/utter
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

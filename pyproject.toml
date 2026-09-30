@@ -1,0 +1,32 @@
+[project]
+name = "utter"
+version = "0.1.0"
+description = "Context-aware, local, always-on voice->desktop-action sidecar. Rules first, vision last."
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.31",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+agent = [
+    "evdev>=1.7",
+    "numpy>=1.26",
+]
+inference = [
+    "vllm>=0.10",
+]
+
+[project.scripts]
+utter = "utter.daemon:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["utter*"]
+
+[tool.setuptools.package-data]
+utter = ["profiles/*.yaml", "data/*.json"]

@@ -1,0 +1,44 @@
+# M3 runner config: drive the real utter/ assistant through the runner.
+#
+#   .venv-agent/bin/python -m runner --config config.m3.toml
+#
+# The plugin is the existing assistant wrapped as a bundle plugin. It runs with
+# cwd=plugins/utter_py (so `python -m plugin` resolves) and the runner
+# prepends the repo root to PYTHONPATH (so `import utter` works).
+#
+# Dry-run is controlled by the UTTER_DRY_RUN environment variable and
+# defaults to ON, so nothing touches the desktop unless you set
+# UTTER_DRY_RUN=0.
+
+[runner]
+rpc_timeout_ms = 30000        # the decision head HTTPs to :8001 (up to ~6s)
+confirm_timeout_ms = 30000
+
+[socket]
+# Dev override: the M3 verification client is a same-uid python process.
+allow_same_uid = true
+
+[policy]
+# action.terminal / action.input stay OFF by default (TRUST.md §4).
+enabled_ops = []
+disabled_ops = []
+
+[[plugin]]
+id = "utter"
+kind = "bundle"
+runtime = "subprocess"
+transport = "stdio"
+cwd = "plugins/utter_py"
+entrypoint = ["python", "-m", "plugin"]
+permissions = ["input-injection", "process-spawn", "screenshot", "accessibility"]
+provides = [
+    "router.plan@1",
+    "action.open_url@1",
+    "action.terminal@1",
+    "action.niri@1",
+    "action.input@1",
+    "context.live@1",
+    "perception.screenshot@1",
+    "perception.a11y@1",
+]
+requires = ["fs.tmp@1"]

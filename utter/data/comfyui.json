@@ -1,0 +1,12 @@
+{
+  "url": "http://127.0.0.1:8188",
+  "port": 8188,
+  "start_command": [
+    "${HOME}/ComfyUI/.venv/bin/python",
+    "main.py",
+    "--enable-manager",
+    "--reserve-vram",
+    "1.0"
+  ],
+  "cwd": "${HOME}/ComfyUI"
+}

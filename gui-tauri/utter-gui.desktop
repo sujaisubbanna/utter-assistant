@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=utter Settings
+Comment=Configure the utter voice → desktop-action assistant
+Exec=utter-gui
+Icon=org.utter.settings
+Terminal=false
+Categories=Utility;Settings;
+StartupNotify=true

@@ -1,0 +1,56 @@
+# Example utter runner config (M1).
+#
+# Spawns two plugins from the runner's own internal test plugin (one router,
+# one action). Copy and point `entrypoint` at a real plugin to use it.
+
+[runner]
+rpc_timeout_ms = 10000        # default per-plugin-call timeout
+confirm_timeout_ms = 30000    # how long to wait for host.confirm
+handle_ttl = 300              # seconds before an unreferenced handle is GC'd
+lossy_queue = 256             # bounded frames per lossy stream (drop-oldest)
+credit_window = 64            # reliable-stream credit window
+# socket_path = "/run/user/1000/utter/runner.sock"   # default if unset
+
+[socket]
+# M1 is default-deny: a client is accepted only if it matches `allow_binaries`
+# (verified via SO_PEERCRED /proc/<pid>/exe) or presents `token` via
+# `runner.auth`. `allow_same_uid = true` is a development escape hatch.
+allow_same_uid = true
+allow_binaries = []
+# token = "change-me"
+
+[security]
+# enforce = true spawns plugins under systemd-run --user --scope (preferred) or
+# bwrap, and makes runner.validate_plugin report `enforced: true` for
+# sandboxable permissions (filesystem.read/write, network, microphone, device).
+# When no wrapper is available the runner runs unhardened and reports every
+# permission as advisory. Set true in production.
+enforce = false
+
+[policy]
+# action.terminal and action.input are OFF by default (TRUST.md §4). To opt in,
+# list the op explicitly; confirmation is still required.
+#   enabled_ops = ["action.terminal"]
+enabled_ops = []
+disabled_ops = []
+
+[[plugin]]
+id = "fake-router"
+kind = "router"
+runtime = "subprocess"
+transport = "stdio"
+entrypoint = ["python3", "-m", "runner._test_echo_plugin", "--kind", "router"]
+permissions = []
+# Optional spawn overrides (M3):
+#   cwd = "plugins/utter_py"          # working directory for the plugin
+#   env = { UTTER_DRY_RUN = "1" }     # extra environment (merged over the runner's)
+# The runner always prepends the repo root to PYTHONPATH so plugins can
+# `import utter`.
+
+[[plugin]]
+id = "fake-action"
+kind = "action"
+runtime = "subprocess"
+transport = "stdio"
+entrypoint = ["python3", "-m", "runner._test_echo_plugin", "--kind", "action"]
+permissions = []

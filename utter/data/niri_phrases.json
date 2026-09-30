@@ -1,0 +1,1020 @@
+{
+  "phrases": {
+    "capture window": {
+      "args": [],
+      "command": "screenshot-window"
+    },
+    "center": {
+      "args": [],
+      "command": "center-column"
+    },
+    "center column": {
+      "args": [],
+      "command": "center-column"
+    },
+    "center visible columns": {
+      "args": [],
+      "command": "center-visible-columns"
+    },
+    "center window": {
+      "args": [],
+      "command": "center-column"
+    },
+    "clear dynamic cast target": {
+      "args": [],
+      "command": "clear-dynamic-cast-target"
+    },
+    "close": {
+      "args": [],
+      "command": "close-window"
+    },
+    "close active window": {
+      "args": [],
+      "command": "close-window"
+    },
+    "close overview": {
+      "args": [],
+      "command": "close-overview"
+    },
+    "close window": {
+      "args": [],
+      "command": "close-window"
+    },
+    "consume": {
+      "args": [],
+      "command": "consume-window-into-column"
+    },
+    "consume into column": {
+      "args": [],
+      "command": "consume-window-into-column"
+    },
+    "consume or expel window left": {
+      "args": [],
+      "command": "consume-or-expel-window-left"
+    },
+    "consume or expel window right": {
+      "args": [],
+      "command": "consume-or-expel-window-right"
+    },
+    "consume window": {
+      "args": [],
+      "command": "consume-window-into-column"
+    },
+    "consume window into column": {
+      "args": [],
+      "command": "consume-window-into-column"
+    },
+    "cycle height": {
+      "args": [],
+      "command": "switch-preset-window-height"
+    },
+    "cycle height back": {
+      "args": [],
+      "command": "switch-preset-window-height-back"
+    },
+    "cycle width": {
+      "args": [],
+      "command": "switch-preset-column-width"
+    },
+    "cycle width back": {
+      "args": [],
+      "command": "switch-preset-column-width-back"
+    },
+    "debug toggle damage": {
+      "args": [],
+      "command": "debug-toggle-damage"
+    },
+    "debug toggle opaque regions": {
+      "args": [],
+      "command": "debug-toggle-opaque-regions"
+    },
+    "do screen transition": {
+      "args": [],
+      "command": "do-screen-transition"
+    },
+    "exit niri": {
+      "args": [],
+      "command": "quit"
+    },
+    "expand column to available width": {
+      "args": [],
+      "command": "expand-column-to-available-width"
+    },
+    "expel": {
+      "args": [],
+      "command": "expel-window-from-column"
+    },
+    "expel from column": {
+      "args": [],
+      "command": "expel-window-from-column"
+    },
+    "expel window": {
+      "args": [],
+      "command": "expel-window-from-column"
+    },
+    "expel window from column": {
+      "args": [],
+      "command": "expel-window-from-column"
+    },
+    "first column": {
+      "args": [],
+      "command": "focus-column-first"
+    },
+    "float": {
+      "args": [],
+      "command": "toggle-window-floating"
+    },
+    "float window": {
+      "args": [],
+      "command": "toggle-window-floating"
+    },
+    "floating": {
+      "args": [],
+      "command": "toggle-window-floating"
+    },
+    "focus column": {
+      "args": [],
+      "command": "focus-column"
+    },
+    "focus column first": {
+      "args": [],
+      "command": "focus-column-first"
+    },
+    "focus column last": {
+      "args": [],
+      "command": "focus-column-last"
+    },
+    "focus column left": {
+      "args": [],
+      "command": "focus-column-left"
+    },
+    "focus column left or last": {
+      "args": [],
+      "command": "focus-column-left-or-last"
+    },
+    "focus column or monitor left": {
+      "args": [],
+      "command": "focus-column-or-monitor-left"
+    },
+    "focus column or monitor right": {
+      "args": [],
+      "command": "focus-column-or-monitor-right"
+    },
+    "focus column right": {
+      "args": [],
+      "command": "focus-column-right"
+    },
+    "focus column right or first": {
+      "args": [],
+      "command": "focus-column-right-or-first"
+    },
+    "focus down": {
+      "args": [],
+      "command": "focus-window-down"
+    },
+    "focus first column": {
+      "args": [],
+      "command": "focus-column-first"
+    },
+    "focus floating": {
+      "args": [],
+      "command": "focus-floating"
+    },
+    "focus last column": {
+      "args": [],
+      "command": "focus-column-last"
+    },
+    "focus left": {
+      "args": [],
+      "command": "focus-column-left"
+    },
+    "focus monitor": {
+      "args": [],
+      "command": "focus-monitor"
+    },
+    "focus monitor down": {
+      "args": [],
+      "command": "focus-monitor-down"
+    },
+    "focus monitor left": {
+      "args": [],
+      "command": "focus-monitor-left"
+    },
+    "focus monitor next": {
+      "args": [],
+      "command": "focus-monitor-next"
+    },
+    "focus monitor previous": {
+      "args": [],
+      "command": "focus-monitor-previous"
+    },
+    "focus monitor right": {
+      "args": [],
+      "command": "focus-monitor-right"
+    },
+    "focus monitor up": {
+      "args": [],
+      "command": "focus-monitor-up"
+    },
+    "focus next monitor": {
+      "args": [],
+      "command": "focus-monitor-next"
+    },
+    "focus previous monitor": {
+      "args": [],
+      "command": "focus-monitor-previous"
+    },
+    "focus previous window": {
+      "args": [],
+      "command": "focus-window-previous"
+    },
+    "focus right": {
+      "args": [],
+      "command": "focus-column-right"
+    },
+    "focus tiling": {
+      "args": [],
+      "command": "focus-tiling"
+    },
+    "focus up": {
+      "args": [],
+      "command": "focus-window-up"
+    },
+    "focus window": {
+      "args": [],
+      "command": "focus-window"
+    },
+    "focus window bottom": {
+      "args": [],
+      "command": "focus-window-bottom"
+    },
+    "focus window down": {
+      "args": [],
+      "command": "focus-window-down"
+    },
+    "focus window down or column left": {
+      "args": [],
+      "command": "focus-window-down-or-column-left"
+    },
+    "focus window down or column right": {
+      "args": [],
+      "command": "focus-window-down-or-column-right"
+    },
+    "focus window down or top": {
+      "args": [],
+      "command": "focus-window-down-or-top"
+    },
+    "focus window in column": {
+      "args": [],
+      "command": "focus-window-in-column"
+    },
+    "focus window or monitor down": {
+      "args": [],
+      "command": "focus-window-or-monitor-down"
+    },
+    "focus window or monitor up": {
+      "args": [],
+      "command": "focus-window-or-monitor-up"
+    },
+    "focus window or workspace down": {
+      "args": [],
+      "command": "focus-window-or-workspace-down"
+    },
+    "focus window or workspace up": {
+      "args": [],
+      "command": "focus-window-or-workspace-up"
+    },
+    "focus window previous": {
+      "args": [],
+      "command": "focus-window-previous"
+    },
+    "focus window top": {
+      "args": [],
+      "command": "focus-window-top"
+    },
+    "focus window up": {
+      "args": [],
+      "command": "focus-window-up"
+    },
+    "focus window up or bottom": {
+      "args": [],
+      "command": "focus-window-up-or-bottom"
+    },
+    "focus window up or column left": {
+      "args": [],
+      "command": "focus-window-up-or-column-left"
+    },
+    "focus window up or column right": {
+      "args": [],
+      "command": "focus-window-up-or-column-right"
+    },
+    "focus workspace": {
+      "args": [],
+      "command": "focus-workspace"
+    },
+    "focus workspace down": {
+      "args": [],
+      "command": "focus-workspace-down"
+    },
+    "focus workspace previous": {
+      "args": [],
+      "command": "focus-workspace-previous"
+    },
+    "focus workspace up": {
+      "args": [],
+      "command": "focus-workspace-up"
+    },
+    "full screen": {
+      "args": [],
+      "command": "fullscreen-window"
+    },
+    "fullscreen": {
+      "args": [],
+      "command": "fullscreen-window"
+    },
+    "fullscreen window": {
+      "args": [],
+      "command": "fullscreen-window"
+    },
+    "go down": {
+      "args": [],
+      "command": "focus-window-down"
+    },
+    "go left": {
+      "args": [],
+      "command": "focus-column-left"
+    },
+    "go right": {
+      "args": [],
+      "command": "focus-column-right"
+    },
+    "go to first column": {
+      "args": [],
+      "command": "focus-column-first"
+    },
+    "go to last column": {
+      "args": [],
+      "command": "focus-column-last"
+    },
+    "go to next workspace": {
+      "args": [],
+      "command": "focus-workspace-down"
+    },
+    "go to previous workspace": {
+      "args": [],
+      "command": "focus-workspace-up"
+    },
+    "go up": {
+      "args": [],
+      "command": "focus-window-up"
+    },
+    "help": {
+      "args": [],
+      "command": "help"
+    },
+    "last column": {
+      "args": [],
+      "command": "focus-column-last"
+    },
+    "last used workspace": {
+      "args": [],
+      "command": "focus-workspace-previous"
+    },
+    "load config file": {
+      "args": [],
+      "command": "load-config-file"
+    },
+    "maximize": {
+      "args": [],
+      "command": "maximize-column"
+    },
+    "maximize column": {
+      "args": [],
+      "command": "maximize-column"
+    },
+    "maximize window": {
+      "args": [],
+      "command": "maximize-column"
+    },
+    "maximize window to edges": {
+      "args": [],
+      "command": "maximize-window-to-edges"
+    },
+    "minimize window": {
+      "args": [],
+      "command": "minimize-window"
+    },
+    "move column left": {
+      "args": [],
+      "command": "move-column-left"
+    },
+    "move column left or to monitor left": {
+      "args": [],
+      "command": "move-column-left-or-to-monitor-left"
+    },
+    "move column right": {
+      "args": [],
+      "command": "move-column-right"
+    },
+    "move column right or to monitor right": {
+      "args": [],
+      "command": "move-column-right-or-to-monitor-right"
+    },
+    "move column to first": {
+      "args": [],
+      "command": "move-column-to-first"
+    },
+    "move column to index": {
+      "args": [],
+      "command": "move-column-to-index"
+    },
+    "move column to last": {
+      "args": [],
+      "command": "move-column-to-last"
+    },
+    "move column to monitor": {
+      "args": [],
+      "command": "move-column-to-monitor"
+    },
+    "move column to monitor down": {
+      "args": [],
+      "command": "move-column-to-monitor-down"
+    },
+    "move column to monitor left": {
+      "args": [],
+      "command": "move-column-to-monitor-left"
+    },
+    "move column to monitor next": {
+      "args": [],
+      "command": "move-column-to-monitor-next"
+    },
+    "move column to monitor previous": {
+      "args": [],
+      "command": "move-column-to-monitor-previous"
+    },
+    "move column to monitor right": {
+      "args": [],
+      "command": "move-column-to-monitor-right"
+    },
+    "move column to monitor up": {
+      "args": [],
+      "command": "move-column-to-monitor-up"
+    },
+    "move column to next workspace": {
+      "args": [],
+      "command": "move-column-to-workspace-down"
+    },
+    "move column to previous workspace": {
+      "args": [],
+      "command": "move-column-to-workspace-up"
+    },
+    "move column to workspace": {
+      "args": [],
+      "command": "move-column-to-workspace"
+    },
+    "move column to workspace down": {
+      "args": [],
+      "command": "move-column-to-workspace-down"
+    },
+    "move column to workspace up": {
+      "args": [],
+      "command": "move-column-to-workspace-up"
+    },
+    "move down": {
+      "args": [],
+      "command": "move-window-down"
+    },
+    "move floating window": {
+      "args": [],
+      "command": "move-floating-window"
+    },
+    "move left": {
+      "args": [],
+      "command": "move-column-left"
+    },
+    "move right": {
+      "args": [],
+      "command": "move-column-right"
+    },
+    "move to first column": {
+      "args": [],
+      "command": "move-column-to-first"
+    },
+    "move to last column": {
+      "args": [],
+      "command": "move-column-to-last"
+    },
+    "move to monitor down": {
+      "args": [],
+      "command": "move-column-to-monitor-down"
+    },
+    "move to monitor left": {
+      "args": [],
+      "command": "move-column-to-monitor-left"
+    },
+    "move to monitor right": {
+      "args": [],
+      "command": "move-column-to-monitor-right"
+    },
+    "move to monitor up": {
+      "args": [],
+      "command": "move-column-to-monitor-up"
+    },
+    "move to next monitor": {
+      "args": [],
+      "command": "move-column-to-monitor-next"
+    },
+    "move to next workspace": {
+      "args": [],
+      "command": "move-column-to-workspace-down"
+    },
+    "move to previous monitor": {
+      "args": [],
+      "command": "move-column-to-monitor-previous"
+    },
+    "move to previous workspace": {
+      "args": [],
+      "command": "move-column-to-workspace-up"
+    },
+    "move to workspace down": {
+      "args": [],
+      "command": "move-column-to-workspace-down"
+    },
+    "move to workspace up": {
+      "args": [],
+      "command": "move-column-to-workspace-up"
+    },
+    "move up": {
+      "args": [],
+      "command": "move-window-up"
+    },
+    "move window down": {
+      "args": [],
+      "command": "move-window-down"
+    },
+    "move window down or to workspace down": {
+      "args": [],
+      "command": "move-window-down-or-to-workspace-down"
+    },
+    "move window to floating": {
+      "args": [],
+      "command": "move-window-to-floating"
+    },
+    "move window to monitor": {
+      "args": [],
+      "command": "move-window-to-monitor"
+    },
+    "move window to monitor down": {
+      "args": [],
+      "command": "move-window-to-monitor-down"
+    },
+    "move window to monitor left": {
+      "args": [],
+      "command": "move-window-to-monitor-left"
+    },
+    "move window to monitor next": {
+      "args": [],
+      "command": "move-window-to-monitor-next"
+    },
+    "move window to monitor previous": {
+      "args": [],
+      "command": "move-window-to-monitor-previous"
+    },
+    "move window to monitor right": {
+      "args": [],
+      "command": "move-window-to-monitor-right"
+    },
+    "move window to monitor up": {
+      "args": [],
+      "command": "move-window-to-monitor-up"
+    },
+    "move window to next workspace": {
+      "args": [],
+      "command": "move-window-to-workspace-down"
+    },
+    "move window to previous workspace": {
+      "args": [],
+      "command": "move-window-to-workspace-up"
+    },
+    "move window to tiling": {
+      "args": [],
+      "command": "move-window-to-tiling"
+    },
+    "move window to workspace": {
+      "args": [],
+      "command": "move-window-to-workspace"
+    },
+    "move window to workspace down": {
+      "args": [],
+      "command": "move-window-to-workspace-down"
+    },
+    "move window to workspace up": {
+      "args": [],
+      "command": "move-window-to-workspace-up"
+    },
+    "move window up": {
+      "args": [],
+      "command": "move-window-up"
+    },
+    "move window up or to workspace up": {
+      "args": [],
+      "command": "move-window-up-or-to-workspace-up"
+    },
+    "move workspace down": {
+      "args": [],
+      "command": "move-workspace-down"
+    },
+    "move workspace to index": {
+      "args": [],
+      "command": "move-workspace-to-index"
+    },
+    "move workspace to monitor": {
+      "args": [],
+      "command": "move-workspace-to-monitor"
+    },
+    "move workspace to monitor down": {
+      "args": [],
+      "command": "move-workspace-to-monitor-down"
+    },
+    "move workspace to monitor left": {
+      "args": [],
+      "command": "move-workspace-to-monitor-left"
+    },
+    "move workspace to monitor next": {
+      "args": [],
+      "command": "move-workspace-to-monitor-next"
+    },
+    "move workspace to monitor previous": {
+      "args": [],
+      "command": "move-workspace-to-monitor-previous"
+    },
+    "move workspace to monitor right": {
+      "args": [],
+      "command": "move-workspace-to-monitor-right"
+    },
+    "move workspace to monitor up": {
+      "args": [],
+      "command": "move-workspace-to-monitor-up"
+    },
+    "move workspace up": {
+      "args": [],
+      "command": "move-workspace-up"
+    },
+    "next height": {
+      "args": [],
+      "command": "switch-preset-window-height"
+    },
+    "next monitor": {
+      "args": [],
+      "command": "focus-monitor-next"
+    },
+    "next width": {
+      "args": [],
+      "command": "switch-preset-column-width"
+    },
+    "next window": {
+      "args": [],
+      "command": "next-window"
+    },
+    "next workspace": {
+      "args": [],
+      "command": "focus-workspace-down"
+    },
+    "open overview": {
+      "args": [],
+      "command": "open-overview"
+    },
+    "overview": {
+      "args": [],
+      "command": "toggle-overview"
+    },
+    "power off monitors": {
+      "args": [],
+      "command": "power-off-monitors"
+    },
+    "power on monitors": {
+      "args": [],
+      "command": "power-on-monitors"
+    },
+    "preset height": {
+      "args": [],
+      "command": "switch-preset-window-height"
+    },
+    "preset height back": {
+      "args": [],
+      "command": "switch-preset-window-height-back"
+    },
+    "preset width": {
+      "args": [],
+      "command": "switch-preset-column-width"
+    },
+    "preset width back": {
+      "args": [],
+      "command": "switch-preset-column-width-back"
+    },
+    "previous height": {
+      "args": [],
+      "command": "switch-preset-window-height-back"
+    },
+    "previous monitor": {
+      "args": [],
+      "command": "focus-monitor-previous"
+    },
+    "previous width": {
+      "args": [],
+      "command": "switch-preset-column-width-back"
+    },
+    "previous window": {
+      "args": [],
+      "command": "focus-window-previous"
+    },
+    "previous workspace": {
+      "args": [],
+      "command": "focus-workspace-up"
+    },
+    "quit": {
+      "args": [],
+      "command": "quit"
+    },
+    "quit niri": {
+      "args": [],
+      "command": "quit"
+    },
+    "reset window height": {
+      "args": [],
+      "command": "reset-window-height"
+    },
+    "screen off": {
+      "args": [],
+      "command": "power-off-monitors"
+    },
+    "screen on": {
+      "args": [],
+      "command": "power-on-monitors"
+    },
+    "screenshot": {
+      "args": [],
+      "command": "screenshot-screen"
+    },
+    "screenshot area": {
+      "args": [],
+      "command": "screenshot"
+    },
+    "screenshot display": {
+      "args": [],
+      "command": "screenshot-screen"
+    },
+    "screenshot region": {
+      "args": [],
+      "command": "screenshot"
+    },
+    "screenshot screen": {
+      "args": [],
+      "command": "screenshot-screen"
+    },
+    "screenshot ui": {
+      "args": [],
+      "command": "screenshot"
+    },
+    "screenshot window": {
+      "args": [],
+      "command": "screenshot-window"
+    },
+    "send to first column": {
+      "args": [],
+      "command": "move-column-to-first"
+    },
+    "send to last column": {
+      "args": [],
+      "command": "move-column-to-last"
+    },
+    "set column display": {
+      "args": [],
+      "command": "set-column-display"
+    },
+    "set column width": {
+      "args": [],
+      "command": "set-column-width"
+    },
+    "set dynamic cast monitor": {
+      "args": [],
+      "command": "set-dynamic-cast-monitor"
+    },
+    "set dynamic cast window": {
+      "args": [],
+      "command": "set-dynamic-cast-window"
+    },
+    "set window height": {
+      "args": [],
+      "command": "set-window-height"
+    },
+    "set window urgent": {
+      "args": [],
+      "command": "set-window-urgent"
+    },
+    "set window width": {
+      "args": [],
+      "command": "set-window-width"
+    },
+    "set workspace name": {
+      "args": [],
+      "command": "set-workspace-name"
+    },
+    "shift down": {
+      "args": [],
+      "command": "move-window-down"
+    },
+    "shift left": {
+      "args": [],
+      "command": "move-column-left"
+    },
+    "shift right": {
+      "args": [],
+      "command": "move-column-right"
+    },
+    "shift up": {
+      "args": [],
+      "command": "move-window-up"
+    },
+    "show hotkey overlay": {
+      "args": [],
+      "command": "show-hotkey-overlay"
+    },
+    "show overview": {
+      "args": [],
+      "command": "toggle-overview"
+    },
+    "spawn": {
+      "args": [],
+      "command": "spawn"
+    },
+    "spawn sh": {
+      "args": [],
+      "command": "spawn-sh"
+    },
+    "stop cast": {
+      "args": [],
+      "command": "stop-cast"
+    },
+    "swap window left": {
+      "args": [],
+      "command": "swap-window-left"
+    },
+    "swap window right": {
+      "args": [],
+      "command": "swap-window-right"
+    },
+    "switch focus between floating and tiling": {
+      "args": [],
+      "command": "switch-focus-between-floating-and-tiling"
+    },
+    "switch layout": {
+      "args": [],
+      "command": "switch-layout"
+    },
+    "switch preset column width": {
+      "args": [],
+      "command": "switch-preset-column-width"
+    },
+    "switch preset column width back": {
+      "args": [],
+      "command": "switch-preset-column-width-back"
+    },
+    "switch preset window height": {
+      "args": [],
+      "command": "switch-preset-window-height"
+    },
+    "switch preset window height back": {
+      "args": [],
+      "command": "switch-preset-window-height-back"
+    },
+    "switch preset window width": {
+      "args": [],
+      "command": "switch-preset-window-width"
+    },
+    "switch preset window width back": {
+      "args": [],
+      "command": "switch-preset-window-width-back"
+    },
+    "switch width": {
+      "args": [],
+      "command": "switch-preset-column-width"
+    },
+    "switch width back": {
+      "args": [],
+      "command": "switch-preset-column-width-back"
+    },
+    "tab display": {
+      "args": [],
+      "command": "toggle-column-tabbed-display"
+    },
+    "tab into column": {
+      "args": [],
+      "command": "consume-window-into-column"
+    },
+    "tabbed": {
+      "args": [],
+      "command": "toggle-column-tabbed-display"
+    },
+    "tabbed column": {
+      "args": [],
+      "command": "toggle-column-tabbed-display"
+    },
+    "take screenshot": {
+      "args": [],
+      "command": "screenshot-screen"
+    },
+    "tile down": {
+      "args": [],
+      "command": "move-window-down"
+    },
+    "tile left": {
+      "args": [],
+      "command": "move-column-left"
+    },
+    "tile right": {
+      "args": [],
+      "command": "move-column-right"
+    },
+    "tile up": {
+      "args": [],
+      "command": "move-window-up"
+    },
+    "toggle column tabbed": {
+      "args": [],
+      "command": "toggle-column-tabbed-display"
+    },
+    "toggle column tabbed display": {
+      "args": [],
+      "command": "toggle-column-tabbed-display"
+    },
+    "toggle debug tint": {
+      "args": [],
+      "command": "toggle-debug-tint"
+    },
+    "toggle floating": {
+      "args": [],
+      "command": "toggle-window-floating"
+    },
+    "toggle fullscreen": {
+      "args": [],
+      "command": "fullscreen-window"
+    },
+    "toggle keyboard shortcuts inhibit": {
+      "args": [],
+      "command": "toggle-keyboard-shortcuts-inhibit"
+    },
+    "toggle overview": {
+      "args": [],
+      "command": "toggle-overview"
+    },
+    "toggle tabbed": {
+      "args": [],
+      "command": "toggle-column-tabbed-display"
+    },
+    "toggle window floating": {
+      "args": [],
+      "command": "toggle-window-floating"
+    },
+    "toggle window minimized": {
+      "args": [],
+      "command": "toggle-window-minimized"
+    },
+    "toggle window rule opacity": {
+      "args": [],
+      "command": "toggle-window-rule-opacity"
+    },
+    "toggle window urgent": {
+      "args": [],
+      "command": "toggle-window-urgent"
+    },
+    "toggle windowed fullscreen": {
+      "args": [],
+      "command": "toggle-windowed-fullscreen"
+    },
+    "unminimize window": {
+      "args": [],
+      "command": "unminimize-window"
+    },
+    "unset window urgent": {
+      "args": [],
+      "command": "unset-window-urgent"
+    },
+    "unset workspace name": {
+      "args": [],
+      "command": "unset-workspace-name"
+    },
+    "untab": {
+      "args": [],
+      "command": "expel-window-from-column"
+    },
+    "workspace down": {
+      "args": [],
+      "command": "focus-workspace-down"
+    },
+    "workspace up": {
+      "args": [],
+      "command": "focus-workspace-up"
+    }
+  }
+}

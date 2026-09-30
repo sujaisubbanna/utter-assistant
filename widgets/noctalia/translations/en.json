@@ -1,0 +1,25 @@
+{
+  "title": "Utter Assistant",
+  "settings": {
+    "refresh_seconds": {
+      "label": "Refresh interval",
+      "description": "Seconds between assistant status checks"
+    },
+    "python_cmd": {
+      "label": "Python interpreter",
+      "description": "Interpreter used to run `-m assistant status --json` (blank = auto-detect .venv-agent)"
+    },
+    "repo_root": {
+      "label": "Repo root",
+      "description": "Path to the utter checkout (blank = install-time default)"
+    },
+    "osd_enabled": {
+      "label": "Assistant OSD",
+      "description": "Show the on-screen listening overlay while push-to-talk is active"
+    },
+    "osd_path": {
+      "label": "OSD state file",
+      "description": "Override the $XDG_RUNTIME_DIR/utter/osd.json state file path"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+# Compatibility & deprecation policy
+
+## 1. Version axes (all distinct)
+| Axis | Where | Meaning |
+|------|-------|---------|
+| **protocol** | `protocol/PROTOCOL.md`, manifest `protocol` | wire/JSON-RPC framing + method envelope (`major.minor`) |
+| **abi** | manifest `abi` | runner↔plugin call semantics (integer) |
+| **capability** | `protocol/capabilities.json` | vocabulary entries, versioned `name@N` |
+| **plugin** | manifest `version` | the plugin's own semver (independent) |
+
+`protocol.hello` returns the **negotiated** protocol/abi; it is not merely checked.
+
+## 2. Support policy
+- Runner supports protocol **N-2** (current N = 1.0, abi 1).
+- **Major mismatch** → refuse with `-32004 incompatible version`.
+- **Minor drift** → allow + warn.
+- Capability checks: **unknown capability = warning** (LSP rule — ignore what you don't
+  understand); **missing `requires` = error** (fail closed, `-32005`).
+- Platform/arch mismatch → refuse at load.
+
+## 3. Capability registry governance
+- `protocol/capabilities.json` is the **single source of truth** (owner + versioned).
+- **Adding** a capability → minor protocol bump; old runners warn, don't break.
+- **Renaming/removing** a capability → **major** bump + deprecation entry, kept for N-2.
+- **`experimental/` prefix** is a collision-free namespace for extension (owner-controlled,
+  no compatibility promise).
+- Every capability entry may carry `deprecated: {since, replacement}`.
+
+## 4. Deprecation process
+1. Mark the entry/capability `deprecated` in the registry with a `since` version + replacement.
+2. Runner emits a deprecation **warning** (visible in `doctor`), keeps working.
+3. Removal is only allowed after **two** protocol minors past `since`.
+4. `doctor` reports drift between a plugin's declared axes and the lockfile.
+
+## 5. Config schema migration
+- Each plugin declares `config_schema` (JSON Schema, versioned).
+- The runner validates strictly (unknown/mistyped keys → warn, and are surfaced in the GUI),
+  and runs any declared migration for older config before use.
+- Config migrations are recorded so downgrades are at least detectable.
+
+## 6. Install lockfile
+- The installer records `name → {version, protocol, abi, digest}` in
+  `$XDG_STATE_HOME/utter/install.json`.
+- `doctor` compares **recorded vs actual** and reports drift; upgrades are explicit.
+
+## 7. SDK versioning
+- Plugin SDKs (Python, Rust, then TypeScript) pin the **protocol major** and are generated
+  from `protocol/plugin.schema.json` + the capability registry where possible.
+- Breaking SDK changes follow the same N-2 rule as the protocol.
+
+## 8. Doctor output (stable fields)
+```json
+{
+  "ok": true,
+  "runner": {"protocol": "1.0", "abi": 1, "version": "0.4.0"},
+  "plugins": [
+    {"id": "...", "kind": "...", "epoch": 0, "status": "ok",
+     "negotiated": {"protocol": "1.0", "abi": 1},
+     "unknown_capabilities": [], "missing_requires": [],
+     "permissions": [{"name": "microphone", "enforced": true, "advisory": false}],
+     "deprecations": []}
+  ],
+  "drift": []
+}
+```

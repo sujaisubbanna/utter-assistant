@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Utter</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b2b"/><stop offset="1" stop-color="#121212"/></linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".42" r=".55"><stop offset="0" stop-color="#f7c948" stop-opacity=".22"/><stop offset="1" stop-color="#f7c948" stop-opacity="0"/></radialGradient>
+    <linearGradient id="mk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd966"/><stop offset="1" stop-color="#f2b705"/></linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#glow)"/>
+  <rect x="65.5" y="65.5" width="893" height="893" rx="206.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="3"/>
+  <g transform="translate(512 512) scale(5.6) translate(-50 -43.75)" fill="url(#mk)"><path d="M6 19.5A12.5 12.5 0 0 1 31 19.5V44C31 55 38 62.5 48 62.5C51.5 62.5 55 62.0 58.5 60.8C54.0 68.5 45.3 74.5 36.8 77.5C20 75.5 6 64 6 46Z"/><path d="M69 19.5A12.5 12.5 0 0 1 94 19.5V46C94 66 77 80.5 52 80.5C49 80.5 46.5 80.2 44 79.8C53.7 77 59.7 71.5 63.7 65.5C66 59 69 53 69 46Z" opacity=".88"/></g>
+</svg>

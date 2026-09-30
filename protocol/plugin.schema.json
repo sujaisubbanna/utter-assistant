@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://utter.dev/schema/plugin-1.0.json",
+  "title": "utter plugin manifest",
+  "description": "Manifest for a utter plugin. The canonical on-disk form is utter-plugin.toml; this schema validates its JSON equivalent. Framing/handshake are frozen in protocol/PROTOCOL.md.",
+  "type": "object",
+  "required": ["name", "version", "kind", "protocol", "abi", "runtime", "transport", "entrypoint"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$",
+      "description": "Unique plugin id, e.g. utter-stt-whisper."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
+      "description": "Plugin's own semver."
+    },
+    "kind": {
+      "enum": ["stt", "router", "knowledge", "llm", "perceive", "action", "input", "tts", "context", "ui", "bundle"]
+    },
+    "description": { "type": "string", "maxLength": 280 },
+    "homepage": { "type": "string", "format": "uri" },
+    "license": { "type": "string" },
+    "protocol": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Wire protocol version this plugin implements (major.minor)."
+    },
+    "abi": { "type": "integer", "minimum": 1, "description": "Runner<->plugin call semantics version." },
+    "min_runner": { "type": "string", "description": "Minimum runner version (semver range)." },
+    "max_protocol": { "type": "string", "description": "Optional upper bound on protocol major.minor." },
+    "runtime": { "enum": ["subprocess", "wasm", "native"] },
+    "transport": {
+      "enum": ["stdio", "connect", "listen"],
+      "description": "stdio = runner spawns it. connect/listen = persistent unix-socket plugin."
+    },
+    "entrypoint": {
+      "oneOf": [
+        { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        { "type": "string" }
+      ],
+      "description": "argv for subprocess, or a .wasm path for wasm."
+    },
+    "env": { "type": "object", "additionalProperties": { "type": "string" } },
+    "socket_path": { "type": "string", "description": "For transport=connect|listen, relative to $XDG_RUNTIME_DIR/utter/plugins/." },
+    "provides": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^([a-z0-9._-]+(\\/[A-Za-z0-9._-]+)?@\\d+|experimental\\/[A-Za-z0-9._-]+@\\d+)$" },
+      "description": "Capabilities this plugin offers, versioned name@N (see protocol/capabilities.json)."
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^([a-z0-9._-]+(\\/[A-Za-z0-9._-]+)?@\\d+|experimental\\/[A-Za-z0-9._-]+@\\d+)$" },
+      "description": "Capabilities the runner must provide. A missing require is an error (fail closed)."
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "enum": ["microphone", "screenshot", "accessibility", "input-injection", "process-spawn", "network", "filesystem.read", "filesystem.write", "clipboard", "notifications", "keyring"]
+      },
+      "description": "Gated capabilities. Enforced where possible; otherwise labelled advisory in doctor."
+    },
+    "platforms": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^linux-(x86_64|aarch64)$" }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string", "description": "e.g. hf:org/repo, https URL, or registry ref." },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "path": { "type": "string", "description": "Expected install path relative to the model store." }
+        }
+      }
+    },
+    "config_schema": {
+      "type": "string",
+      "description": "Path (relative to the plugin) to a JSON Schema describing the plugin's settings."
+    },
+    "settings": {
+      "type": "object",
+      "description": "Inline defaults for settings; validated by config_schema when present."
+    }
+  }
+}

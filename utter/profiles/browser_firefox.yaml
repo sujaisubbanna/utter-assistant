@@ -1,0 +1,27 @@
+id: firefox
+name: Firefox
+aliases: [firefox, mozilla firefox, browser]
+launch: [firefox]
+terminal: false
+new_window: [firefox, --new-window]
+search_url: "https://duckduckgo.com/?q={q}"
+shortcuts:
+  new_tab: ctrl+t
+  close_tab: ctrl+w
+  address_bar: ctrl+l
+  reload: ctrl+r
+  find: ctrl+f
+  back: alt+left
+  forward: alt+right
+  reopen_tab: ctrl+shift+t
+  new_window: ctrl+n
+  private_window: ctrl+shift+p
+  history: ctrl+h
+  downloads: ctrl+shift+y
+app_ids: [firefox, org.mozilla.firefox, Firefox]
+mime_types:
+  - x-scheme-handler/http
+  - x-scheme-handler/https
+  - text/html
+  - application/pdf
+kind: browser

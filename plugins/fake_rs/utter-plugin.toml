@@ -1,0 +1,17 @@
+# fake_rs — minimal Rust fake plugin for the M0 conformance suite.
+name = "fake_rs"
+version = "0.1.0"
+kind = "action"
+protocol = "1.0"
+min_runner = "0.1.0"
+abi = 1
+
+runtime = "subprocess"
+transport = "stdio"
+entrypoint = ["plugins/fake_rs/target/release/fake_rs"]
+
+provides = ["action.open_url@1", "experimental/fake_rs@1"]
+requires = ["context.live@1"]
+permissions = ["network"]
+
+platforms = ["linux-x86_64"]

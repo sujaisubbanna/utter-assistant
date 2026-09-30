@@ -1,0 +1,14 @@
+.venv/
+.venv-agent/
+models/
+__pycache__/
+*.pyc
+.uv/
+*.log
+.cache/
+run/
+plugins/fake_rs/target/
+tests/conformance/generated/
+dist/
+gui-tauri/node_modules/
+gui-tauri/src-tauri/target/

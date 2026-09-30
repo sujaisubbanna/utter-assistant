@@ -1,0 +1,36 @@
+[package]
+name = "utter"
+version = "0.1.0"
+description = "Modern Tauri settings app for the utter voice→desktop assistant"
+authors = ["utter"]
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.90"
+
+# The library holds all logic so the same code can be reused from tests.
+[lib]
+name = "utter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+# Production builds embed the frontend from `frontendDist` and talk to the
+# `tauri://` custom protocol. Without this feature Tauri expects `devUrl`
+# (the Vite dev server) — `pnpm tauri build` enables it for you.
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+notify = "8"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

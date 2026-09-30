@@ -1,0 +1,88 @@
+name: pages
+
+# Publish the hosted installer so users can run:
+#   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+on:
+  push:
+    branches: [main]
+    paths:
+      - "install.sh"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Assemble site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp install.sh _site/install.sh
+          chmod +x _site/install.sh
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>utter — install</title>
+            <style>
+              body { font: 16px/1.6 system-ui, sans-serif; max-width: 46rem;
+                     margin: 4rem auto; padding: 0 1rem; color: #1a1a1a; }
+              code, pre { background: #f4f4f4; border-radius: 6px; }
+              code { padding: .15em .35em; }
+              pre { padding: 1rem; overflow-x: auto; }
+              h1 { margin-bottom: .2rem; }
+              .muted { color: #666; }
+            </style>
+          </head>
+          <body>
+            <h1>utter</h1>
+            <p class="muted">Local, context-aware voice → desktop-action assistant.</p>
+            <h2>Install</h2>
+            <pre><code>curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash</code></pre>
+            <p>Prefer a native package (deb/rpm) with sudo?</p>
+            <pre><code>curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --package</code></pre>
+            <p>Uninstall:</p>
+            <pre><code>curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --uninstall</code></pre>
+            <p class="muted">See <a href="https://github.com/sujaisubbanna/utter-assistant">the repository</a>
+               for docs and releases.</p>
+          </body>
+          </html>
+          HTML
+          echo "--- site ---"
+          ls -la _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

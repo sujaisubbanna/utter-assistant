@@ -1,0 +1,19 @@
+[package]
+name = "fake_rs"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal fake utter plugin (Rust) for the M0 conformance suite"
+license = "Apache-2.0"
+
+[[bin]]
+name = "fake_rs"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"

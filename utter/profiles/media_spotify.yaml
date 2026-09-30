@@ -1,0 +1,20 @@
+id: spotify
+name: Spotify
+aliases: [spotify, music]
+launch: [spotify]
+terminal: false
+new_window: null
+search_url: null
+shortcuts:
+  play_pause: space
+  next: ctrl+right
+  previous: ctrl+left
+  volume_up: ctrl+up
+  volume_down: ctrl+down
+  search: ctrl+k
+  like: alt+shift+b
+  shuffle: ctrl+s
+  repeat: ctrl+r
+app_ids: [spotify, Spotify, com.spotify.Client]
+mime_types: [x-scheme-handler/spotify]
+kind: media

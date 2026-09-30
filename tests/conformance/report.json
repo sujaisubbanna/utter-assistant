@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-09-30T22:51:13+0530",
+  "socket": "/tmp/tmp.AYYcz2P3RC/utter/runner.sock",
+  "latency": {
+    "n": 200,
+    "p50_ms": 0.024,
+    "p95_ms": 0.07,
+    "p99_ms": 0.131,
+    "max_ms": 0.429,
+    "min_ms": 0.021,
+    "mean_ms": 0.033
+  },
+  "backpressure": {
+    "runner_stream_subscribe": true,
+    "stream_id": "stream-1",
+    "frames_received": 35201,
+    "seq_gaps": 145,
+    "drop_oldest_observed": true,
+    "status_calls_while_streaming": 38,
+    "runner_stayed_responsive": true
+  },
+  "cancel": {
+    "cancelled": true,
+    "error_code": -32002,
+    "detail": "cancelled",
+    "cancel_latency_ms": 1.601,
+    "idempotent": true,
+    "peer_usable_after_cancel": true,
+    "runner_cancel_idempotent": true
+  },
+  "handles": {
+    "handle": "handle://752ac64a64d415295357548a268a61f6ca9b431b7fc5eae3884d4c8e969f3a80",
+    "created_sha256": "752ac64a64d415295357548a268a61f6ca9b431b7fc5eae3884d4c8e969f3a80",
+    "fetched_sha256": "752ac64a64d415295357548a268a61f6ca9b431b7fc5eae3884d4c8e969f3a80",
+    "hash_match": true,
+    "bytes": 24,
+    "stat_size": 24,
+    "fd_pass_socket": {
+      "supported": true,
+      "kind": "memfd",
+      "bytes": 18
+    }
+  },
+  "crash_restart": {
+    "epoch_before": 0,
+    "killed_pid": 1858118,
+    "inflight_errored": true,
+    "inflight_error_code": -32000,
+    "inflight_error_message": "connection closed",
+    "epoch_after": 1,
+    "new_epoch": true,
+    "subsequent_ok": true
+  },
+  "backpressure_e2e": {
+    "supported": true,
+    "stream_id": "stream-2",
+    "mode": "lossy",
+    "frames_received": 92,
+    "seq_gaps": 22,
+    "drop_oldest_observed": true,
+    "status_calls_while_streaming": 23,
+    "runner_stayed_responsive": true,
+    "stream_stop_idempotent": true
+  },
+  "reliable_flow": {
+    "supported": true,
+    "stream_id": "stream-3",
+    "mode": "reliable",
+    "max_seq_before_pause": 64,
+    "max_seq_after_pause": 64,
+    "paused": true,
+    "ack_ok": true,
+    "max_seq_after_ack": 403411,
+    "resumed": true
+  },
+  "invoke": {
+    "supported": true,
+    "fake_rs_ok": true,
+    "fake_rs_result": {
+      "detail": "opened https://www.youtube.com",
+      "ok": true,
+      "op": "ensure_url"
+    },
+    "fake_py_plan_steps": 1,
+    "fake_py_plan_ok": true,
+    "screen_terminal_rejected": true,
+    "screen_terminal_code": -32006
+  },
+  "validate_plugin": {
+    "supported": true,
+    "ok": true,
+    "negotiated": {
+      "protocol": "1.0",
+      "abi": 1
+    },
+    "unknown_capabilities": [],
+    "missing_requires": [],
+    "permissions": [
+      {
+        "name": "filesystem.read",
+        "enforced": false
+      },
+      {
+        "name": "filesystem.write",
+        "enforced": false
+      },
+      {
+        "name": "network",
+        "enforced": false
+      }
+    ]
+  },
+  "handles_fd": {
+    "handle.fetch": {
+      "endpoint": true,
+      "unknown_handle_rejected": true,
+      "code": -32000
+    },
+    "handle.stat": {
+      "endpoint": true,
+      "unknown_handle_rejected": true,
+      "code": -32000
+    },
+    "fd.pass": {
+      "endpoint": true,
+      "unknown_handle_rejected": true,
+      "code": -32000
+    },
+    "create": {
+      "handle": "handle://e81a010733122976f1a88eb4a219f06f9fa68d3c004af4bf2aee5cfe19d56364",
+      "size": 22
+    },
+    "fetch_inline": {
+      "sha256_match": true,
+      "size": 22
+    },
+    "fetch_too_large": {
+      "rejected": true,
+      "code": -32007
+    },
+    "fd_pass_handle": {
+      "result": {},
+      "fds": 1,
+      "content_match": true
+    },
+    "fd_pass_memfd": {
+      "result": {
+        "kind": "memfd",
+        "size": 4096
+      },
+      "fds": 1,
+      "content_match": true
+    },
+    "scm_rights_round_trip": true,
+    "ring_semantics": "not-yet-supported: runner memfd.ring is a plain memfd"
+  },
+  "default_deny": {
+    "unlisted_rejected": true,
+    "allow_listed_accepted": true
+  }
+}

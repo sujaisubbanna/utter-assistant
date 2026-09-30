@@ -1,0 +1,23 @@
+id: org.gnome.Nautilus
+name: Files
+aliases: [nautilus, gnome files, nautilus files]
+launch: [nautilus]
+terminal: false
+new_window: [nautilus, --new-window]
+search_url: null
+shortcuts:
+  new_window: ctrl+n
+  new_tab: ctrl+t
+  close_tab: ctrl+w
+  reload: ctrl+r
+  find: ctrl+f
+  back: alt+left
+  forward: alt+right
+  up: alt+up
+  home: alt+home
+  open: Return
+  delete: Delete
+  rename: F2
+app_ids: [org.gnome.Nautilus, nautilus, Nautilus]
+mime_types: [inode/directory]
+kind: filemanager

@@ -1,0 +1,77 @@
+# utter configuration. Copy to ~/.config/utter/config.toml and edit.
+
+[general]
+# How the daemon is triggered.
+#   hotkey  = own global push-to-talk via evdev
+#   bridge  = reuse vocalinux recognition (lowest latency, no duplicate STT)
+trigger = "hotkey"
+
+[hotkey]
+# evdev key name to hold for push-to-talk.
+key = "KEY_RIGHTCTRL"
+
+[ptt]
+# Two dedicated push-to-talk keys, both driven by utter's raw evdev listener
+# (so vocalinux's own shortcut should be set to an unused combo).
+#   dictation = transcript is typed into the focused field.
+#   assistant = transcript is run as a screen action (no prefix needed).
+# NOTE: this machine's keyd maps physical Right Alt -> Insert, so the assistant
+# key is KEY_INSERT (i.e. hold Right Alt).
+dictation_key = "KEY_F13"
+assistant_key = "KEY_INSERT"
+
+[audio]
+sample_rate = 16000
+channels = 1
+device = ""          # empty = default input
+
+[stt]
+# local whisper backend: "faster_whisper" | "whisper_cpp" | "none" (when bridge supplies text)
+backend = "faster_whisper"
+model = "distil-small.en"
+device = "cuda"
+compute_type = "float16"
+
+[router]
+# rules first; the tiny planner LLM is only consulted when no rule matches.
+llm_fallback = true
+llm_base_url = "http://127.0.0.1:8001/v1"
+llm_model = "qwen3-4b"
+# Jev-style constrained decision head: minimum predicted probability to act.
+decide_threshold = 0.5
+
+[vision]
+enabled = true
+base_url = "http://127.0.0.1:8000/v1"
+model = "uitars"
+target_width = 1344          # UI-TARS recommended; biggest latency lever
+cuda_visible_devices = "1"   # RTX 3090 Ti
+
+[actions]
+require_confirm = ["send", "submit", "delete", "purchase", "pay", "confirm order"]
+click_duration_ms = 40
+# Browser for web actions ("open youtube"): a profile or app id such as "firefox".
+# Empty = the browser you're looking at, else any open one, else the desktop default.
+preferred_browser = ""
+
+[sleep]
+# Say a trigger phrase in assistant mode to free the GPU: the model services
+# below are stopped and the speech model is unloaded; only the listener stays
+# alive. Hold a push-to-talk key to wake everything up again.
+enabled = true
+trigger = ["go to sleep"]
+services = ["utter-vision", "utter-planner"]
+unload_speech = true
+
+[osd]
+# Optional on-screen display for assistant mode (Noctalia overlay panel).
+# Disable entirely with UTTER_OSD=0 or enabled=false.
+enabled = true
+position = "bottom_center"
+dismiss_ms = 1200
+stream = true
+stream_interval_ms = 700
+window_s = 6
+
+[daemon]
+log_level = "INFO"

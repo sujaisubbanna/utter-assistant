@@ -1,0 +1,31 @@
+# fake_py — deterministic fake plugin used by the M0/M1 conformance suite.
+# Three version axes: protocol (wire), abi (runner<->plugin), capability (name@N).
+name = "fake_py"
+version = "0.1.0"
+kind = "bundle"
+protocol = "1.0"
+min_runner = "0.1.0"
+abi = 1
+
+runtime = "subprocess"
+transport = "stdio"
+entrypoint = ["python", "plugins/fake_py/plugin.py"]
+
+# Capabilities this plugin offers (versioned name@N).
+provides = [
+    "action.open_url@1",
+    "action.terminal@1",
+    "context.live@1",
+    "fs.tmp@1",
+    "host.fd.pass@1",
+    "host.audio.ringbuffer@1",
+    "experimental/fake_py@1",
+]
+
+# Capabilities this plugin needs from the runner. A missing require is an error.
+requires = ["context.live@1", "fs.tmp@1"]
+
+# Gated + consented; enforced where the platform allows, else advisory (TRUST.md §6).
+permissions = ["filesystem.read", "filesystem.write", "network"]
+
+platforms = ["linux-x86_64"]
