@@ -34,14 +34,42 @@ export function useAsync<T>(
   return { ...state, reload };
 }
 
-/** Poll a function on an interval while the component is mounted. */
-export function usePoll(fn: () => void, intervalMs: number, enabled = true): void {
+/**
+ * Poll a function while the component is mounted.
+ *
+ * These polls shell out (the `assistant` CLI, `systemctl`), so they are deliberately
+ * gentle: nothing runs while the window is in the background, a run that is still in
+ * flight is never overlapped, and the poll catches up as soon as the window becomes
+ * visible again.
+ */
+export function usePoll(
+  fn: () => void | Promise<void>,
+  intervalMs: number,
+  enabled = true,
+): void {
   const fnRef = useRef(fn);
   fnRef.current = fn;
   useEffect(() => {
     if (!enabled || intervalMs <= 0) return;
-    const id = window.setInterval(() => fnRef.current(), intervalMs);
-    return () => window.clearInterval(id);
+    let busy = false;
+    const run = async () => {
+      if (busy || document.visibilityState !== "visible") return;
+      busy = true;
+      try {
+        await fnRef.current();
+      } finally {
+        busy = false;
+      }
+    };
+    const id = window.setInterval(() => void run(), intervalMs);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void run();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [intervalMs, enabled]);
 }
 

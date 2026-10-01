@@ -20,6 +20,7 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { usePoll } from "../lib/hooks";
 import { LINKS } from "../lib/links";
 import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
 import { useRunnerStatus } from "../lib/status";
@@ -116,9 +117,10 @@ export function GeneralPage() {
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 4000);
-    return () => window.clearInterval(id);
   }, [load]);
+
+  // This one shells out to systemctl; keep it slow and stop when backgrounded.
+  usePoll(() => load(), 15000);
 
   const actionLabel = (action: string) =>
     action === "start" || action === "restart" || action === "stop"
