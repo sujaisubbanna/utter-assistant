@@ -172,16 +172,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ------------------------------------------------------------------ #
-  # macOS (Apple Silicon) — experimental.
+  # macOS — Apple Silicon + Intel.
   #   * builds the Python core tarball (same contents + macos/ helpers) and the
-  #     Tauri .app/.dmg on macos-14 (arm64);
-  #   * the app is NOT code-signed or notarised: Gatekeeper will complain on
-  #     first launch (right-click -> Open, or `xattr -dr com.apple.quarantine`);
+  #     Tauri .app/.dmg on macos-14 (both Apple Silicon and Intel targets);
+  #   * codesigned + notarized when valid Apple secrets exist, otherwise unsigned;
   #   * assets are attached to the same GitHub Release with their own
-  #     sha256sums-macos.txt so the Linux job above stays untouched.
+  #     sha256sums-macos-<arch>.txt so the Linux job above stays untouched.
   # ------------------------------------------------------------------ #
   build-macos:
     runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: aarch64
+            name: Apple Silicon
+          - target: x86_64-apple-darwin
+            arch: x86_64
+            name: Intel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -225,12 +234,13 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "gui-tauri/src-tauri -> target"
+          key: ${{ matrix.target }}
 
       - name: Platform self-test (detection + macOS backend selection)
         run: |
@@ -261,7 +271,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x scripts/build-macos-runtime.sh
-          scripts/build-macos-runtime.sh --version "${{ steps.ver.outputs.version }}"
+          scripts/build-macos-runtime.sh --version "${{ steps.ver.outputs.version }}" --arch "${{ matrix.target }}"
 
       - name: Install GUI dependencies
         if: steps.gui.outputs.present == 'true'
@@ -270,20 +280,58 @@ jobs:
 
       - name: Build GUI bundles (app, dmg) — signed + notarized when the Apple secrets exist
         if: steps.gui.outputs.present == 'true'
-        # Code signing + notarization happen automatically once these repository
-        # secrets exist (Apple Developer account needed). Empty values are
-        # ignored by the Tauri CLI, so the build stays unsigned without them —
-        # and Gatekeeper then reports the downloaded app as "damaged" until
-        # `xattr -cr /Applications/utter.app` is run once.
+        # Fail-safe codesigning and notarization:
+        # If complete and valid Apple secrets exist, codesign and notarize.
+        # If secrets are absent, empty, or invalid, build unsigned and report clearly.
+        # An invalid or missing secret never fails the build.
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RAW_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          RAW_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          RAW_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          RAW_APPLE_ID: ${{ secrets.APPLE_ID }}
+          RAW_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          RAW_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         working-directory: gui-tauri
-        run: pnpm dlx @tauri-apps/cli build --bundles app,dmg --target aarch64-apple-darwin
+        shell: bash
+        run: |
+          set -eo pipefail
+          CAN_SIGN=0
+          if [[ -n "${RAW_APPLE_CERTIFICATE:-}" && -n "${RAW_APPLE_CERTIFICATE_PASSWORD:-}" ]]; then
+            TMP_P12="$(mktemp /tmp/apple_cert.XXXXXX.p12)"
+            if echo "$RAW_APPLE_CERTIFICATE" | base64 --decode > "$TMP_P12" 2>/dev/null && [ -s "$TMP_P12" ]; then
+              if openssl pkcs12 -info -noout -passin "pass:$RAW_APPLE_CERTIFICATE_PASSWORD" -in "$TMP_P12" >/dev/null 2>&1; then
+                CAN_SIGN=1
+              else
+                echo "::warning::Apple certificate could not be read with provided password; building unsigned."
+              fi
+            else
+              echo "::warning::Apple certificate is empty or invalid base64; building unsigned."
+            fi
+            rm -f "$TMP_P12"
+          fi
+
+          if [[ "$CAN_SIGN" == "1" ]]; then
+            echo "Apple signing secrets validated. Preparing signed build..."
+            export APPLE_CERTIFICATE="$RAW_APPLE_CERTIFICATE"
+            export APPLE_CERTIFICATE_PASSWORD="$RAW_APPLE_CERTIFICATE_PASSWORD"
+            [[ -n "${RAW_APPLE_SIGNING_IDENTITY:-}" ]] && export APPLE_SIGNING_IDENTITY="$RAW_APPLE_SIGNING_IDENTITY"
+            if [[ -n "${RAW_APPLE_ID:-}" && -n "${RAW_APPLE_PASSWORD:-}" && -n "${RAW_APPLE_TEAM_ID:-}" ]]; then
+              echo "Notarization credentials provided."
+              export APPLE_ID="$RAW_APPLE_ID"
+              export APPLE_PASSWORD="$RAW_APPLE_PASSWORD"
+              export APPLE_TEAM_ID="$RAW_APPLE_TEAM_ID"
+            fi
+            echo "Running Tauri build (signed)..."
+            if ! pnpm dlx @tauri-apps/cli build --bundles app,dmg --target "${{ matrix.target }}"; then
+              echo "::warning::Signed build failed; falling back to unsigned build..."
+              unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+              pnpm dlx @tauri-apps/cli build --bundles app,dmg --target "${{ matrix.target }}"
+            fi
+          else
+            echo "Apple signing secrets absent or incomplete. Building unsigned .app and .dmg."
+            unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+            pnpm dlx @tauri-apps/cli build --bundles app,dmg --target "${{ matrix.target }}"
+          fi
 
       - name: Collect + rename artifacts
         shell: bash
@@ -291,32 +339,32 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.ver.outputs.version }}"
           mkdir -p release
-          cp "dist/utter-core-${VERSION}.tar.gz" "release/utter-core-${VERSION}-macos.tar.gz"
+          cp "dist/utter-core-${VERSION}.tar.gz" "release/utter-core-${VERSION}-macos-${{ matrix.arch }}.tar.gz"
 
           if [[ "${{ steps.gui.outputs.present }}" == "true" ]]; then
-            BUNDLE="gui-tauri/src-tauri/target/aarch64-apple-darwin/release/bundle"
+            BUNDLE="gui-tauri/src-tauri/target/${{ matrix.target }}/release/bundle"
             DMG="$(find "$BUNDLE/dmg" -name '*.dmg' | head -1 || true)"
-            [[ -n "$DMG" ]] && cp "$DMG" "release/utter-gui_${VERSION}_aarch64.dmg"
+            [[ -n "$DMG" ]] && cp "$DMG" "release/utter-gui_${VERSION}_${{ matrix.arch }}.dmg"
             APP="$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app' | head -1 || true)"
             if [[ -n "$APP" ]]; then
               # .app bundles are directories: ship a tarball that keeps the
               # executable bits and symlinks intact.
-              COPYFILE_DISABLE=1 tar -czf "release/utter-gui_${VERSION}_aarch64.app.tar.gz" \
+              COPYFILE_DISABLE=1 tar -czf "release/utter-gui_${VERSION}_${{ matrix.arch }}.app.tar.gz" \
                 -C "$(dirname "$APP")" "$(basename "$APP")"
             fi
           fi
 
           cd release
-          shasum -a 256 ./* > sha256sums-macos.txt
-          echo "--- release assets (macOS) ---"
+          shasum -a 256 ./* > sha256sums-macos-${{ matrix.arch }}.txt
+          echo "--- release assets (macOS ${{ matrix.arch }}) ---"
           ls -lh
-          echo "--- sha256sums-macos.txt ---"
-          cat sha256sums-macos.txt
+          echo "--- sha256sums-macos-${{ matrix.arch }}.txt ---"
+          cat sha256sums-macos-${{ matrix.arch }}.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: utter-release-${{ steps.ver.outputs.version }}-macos
+          name: utter-release-${{ steps.ver.outputs.version }}-macos-${{ matrix.arch }}
           path: release/*
           if-no-files-found: error
 

@@ -245,7 +245,7 @@ class SocketServer:
 # -- macOS peer credentials (no SO_PEERCRED / procfs there) ------------------
 # ``LOCAL_PEERCRED`` (level 0 = SOL_LOCAL) returns ``struct xucred``:
 #   u_int cr_version; uid_t cr_uid; short cr_ngroups; gid_t cr_groups[16];
-# and ``LOCAL_PEERPID`` returns the peer pid. Both are untested here (Linux CI).
+# and ``LOCAL_PEERPID`` returns the peer pid. Both are tested via stubs.
 _SOL_LOCAL = 0
 _LOCAL_PEERCRED = 0x001
 _LOCAL_PEERPID = 0x002
@@ -254,24 +254,40 @@ _XUCRED_FMT = "IIh16I"
 
 def _peer_creds_darwin(sock: Any) -> tuple[int, int, int] | None:
     try:
-        raw = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERCRED, struct.calcsize(_XUCRED_FMT) + 2)
+        # Buffer must be at least sizeof(struct xucred); 128 bytes avoids EINVAL on 64-bit Darwin.
+        raw = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERCRED, 128)
+        if len(raw) < struct.calcsize(_XUCRED_FMT):
+            return None
         fields = struct.unpack_from(_XUCRED_FMT, raw)
-        uid = int(fields[1])
-        gid = int(fields[3]) if fields[2] > 0 else -1
-        pid_raw = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERPID, struct.calcsize("i"))
-        pid = struct.unpack("i", pid_raw)[0]
-        return pid, uid, gid
+        version, uid, ngroups = fields[0], fields[1], fields[2]
+        if version != 0:  # XUCRED_VERSION on Darwin is 0
+            return None
+        gid = int(fields[3]) if ngroups > 0 else -1
+        pid_raw = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERPID, 16)
+        if len(pid_raw) < 4:
+            return None
+        pid = struct.unpack("i", pid_raw[:4])[0]
+        if pid <= 0:
+            return None
+        return pid, int(uid), gid
     except (AttributeError, OSError, struct.error):
         return None
 
 
 def _exe_darwin(pid: int) -> str | None:
     """``proc_pidpath`` via libproc (ctypes); None if unavailable."""
+    if pid <= 0:
+        return None
     try:
         import ctypes
         import ctypes.util
 
-        libproc = ctypes.CDLL(ctypes.util.find_library("proc") or "libproc.dylib")
+        libname = ctypes.util.find_library("proc") or "libproc.dylib"
+        try:
+            libproc = ctypes.CDLL(libname)
+        except OSError:
+            libproc = ctypes.CDLL("/usr/lib/libproc.dylib")
+
         buf = ctypes.create_string_buffer(4096)
         n = libproc.proc_pidpath(int(pid), buf, ctypes.sizeof(buf))
         if n <= 0:
