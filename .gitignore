@@ -1,5 +1,5 @@
-.venv/
-.venv-agent/
+.venv
+.venv-agent
 models/
 __pycache__/
 *.pyc
