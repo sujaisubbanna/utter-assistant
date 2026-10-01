@@ -94,9 +94,11 @@ clear error; without Accessibility typed text silently goes nowhere.
 ## Install: drag and drop
 
 1. Download `utter-gui_<ver>_aarch64.dmg` from the release page (Apple Silicon).
-2. Drag **utter** to Applications. The app is **not code-signed or notarised**,
-   so the first launch is right-click → *Open* (or
-   `xattr -dr com.apple.quarantine /Applications/utter.app`).
+2. Drag **utter** to Applications. Until the release is signed (below), macOS
+   reports the downloaded app as **"damaged"**: that is Gatekeeper refusing an
+   unsigned, quarantined app, not a bad download. Clear the flag once:
+   `xattr -cr /Applications/utter.app` (or download with `curl`, which never
+   sets it). On macOS 15+ right-click → *Open* no longer bypasses this.
 3. Open it. The **Set up** page installs the rest by itself:
    - it unpacks the Python runtime and the assistant that ship inside the app
      (`Contents/Resources/runtime.tar.gz`, ~150 MB: a relocatable CPython from
@@ -139,6 +141,15 @@ A GUI built from source has no bundled runtime; it finds the checkout through
 `UTTER_REPO`, `~/Library/Application Support/utter/core` (a symlink
 `macos/setup.sh` creates) or `~/utter-assistant`. `install.sh` (the Linux
 wizard) refuses to run on macOS and points here.
+
+### Signing and notarization
+
+The workflows sign and notarize the app automatically when these repository
+secrets exist (an Apple Developer account is required): `APPLE_CERTIFICATE`
+(base64 `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`
+(`Developer ID Application: …`), `APPLE_ID`, `APPLE_PASSWORD` (app-specific
+password) and `APPLE_TEAM_ID`. The Tauri CLI reads them directly; without them
+the build is unsigned and users need the `xattr` step above.
 
 ### How the bundle is built
 
