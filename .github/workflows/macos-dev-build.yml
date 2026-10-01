@@ -11,6 +11,11 @@ name: macos-dev-build
 # or: xattr -dr com.apple.quarantine /Applications/utter.app
 on:
   workflow_dispatch:
+  # workflow_dispatch only works once the file is on the default branch; until
+  # then every push to the macOS branch produces a tester build.
+  push:
+    branches:
+      - feat/macos-support
 
 permissions:
   contents: read
