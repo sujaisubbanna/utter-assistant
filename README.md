@@ -288,6 +288,12 @@ an **experimental macOS port**. See [CHANGELOG.md](CHANGELOG.md).
 - [ ] **Optimise for GPUs with less memory**: smaller default models, quantised builds and sharing one GPU between the models, so Utter runs well on 8 GB cards (and on CPU-only machines)
 - [ ] **macOS: finish and verify** — the experimental port landed ([docs/MACOS.md](docs/MACOS.md)) with a Metal-native runtime (Ollama / whisper.cpp / VocaMac, no NVIDIA assumptions); it still needs testing on real Apple hardware, a signed and notarized app, and launchd controls in the settings app
 - [ ] **Windows version**
+- [ ] **Personal memory with [mem0](https://github.com/mem0ai/mem0)**. Give Utter a memory of you so it stops asking the same things and starts acting on standing preferences. Sketch:
+  - **What it stores.** Small facts and preferences, not transcripts: *"my editor is Cursor"*, *"the browser I mean by 'open X' is Helium"*, *"playing jazz = Spotify"*, *"they say 'the box' for the terminal"*. Each entry keeps its source and a confidence.
+  - **When it is consulted.** A memory lookup runs *before* the rules when no rule matched, and its hits are injected into the decision head as **candidates** — so memory can only **select** among prepared actions, never author `args` (it stays inside the provenance rule; screen/OCR text is still untrusted, memory is user-owned and is not treated as an instruction source).
+  - **When it is written.** Either on an explicit *"remember that …"* (its own intent, confirmed by the user) or, off by default, after a user accepts a suggestion twice. Utter asks *"always use Helium for that?"* and only then writes.
+  - **Where it lives.** Locally and offline: a mem0 store under `~/.local/share/utter/memory/` using the embedded path (SQLite + a local embedding model from the existing model store), never a hosted API. The `assistant` CLI gains `memory list|search|forget|export` and every entry is inspectable and deletable from the settings app.
+  - **Safety.** Memory may raise a *preference*, never a permission: it cannot enable `terminal`/`input`, cannot lower a confirmation, and cannot override an app profile. Facts are redacted from logs like other secrets.
 - [ ] **Support for more apps**: more hand-tuned app profiles and actions
 - [ ] **Key sequences for app actions**: let one action press several keys in order (e.g. `/`, then type, then Enter) so common steps don't need vision
 - [ ] **More text-to-speech voices**: support for other TTS engines beyond eSpeak, Speech Dispatcher and Piper
