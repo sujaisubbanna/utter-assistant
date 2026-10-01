@@ -278,6 +278,10 @@ export function SetupPage() {
         if (status.bundled && (!status.installed || status.update_available) && !autoInstalled.current) {
           autoInstalled.current = true;
           void runInstall();
+        } else if (status.installed && !status.agents_installed && !autoInstalled.current) {
+          // Agents from an older build (or none): rewrite them to launch through this app.
+          autoInstalled.current = true;
+          void api.macosReinstallAgents().then(setInstall).catch((err) => setInstallError(String(err)));
         }
       })
       .catch((err) => setInstallError(String(err)));

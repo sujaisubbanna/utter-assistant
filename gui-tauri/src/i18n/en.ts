@@ -408,7 +408,7 @@ export const en = {
       startFailed: "Couldn't start it: {detail}",
     },
     note: {
-      process: "Permissions are granted to the Python that runs the assistant ({process}), not to this window — that's the name to look for in System Settings.",
+      process: "Permissions are granted to utter (this app). The assistant runs inside it, so one grant covers the prompts, the background agent and this page.",
       install: "If a permission stays off after you switch it on, restart the assistant from the row above.",
     },
   },
