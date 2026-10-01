@@ -2,15 +2,118 @@ import { useState } from "react";
 
 import { Icon } from "../components/icons";
 import { PageBody, PageHeader } from "../components/PageHeader";
-import { ConfigList, ConfigNumber, ConfigSwitch, SwitchSetting } from "../components/Setting";
+import {
+  ConfigList,
+  ConfigNumber,
+  ConfigSelect,
+  ConfigSwitch,
+  SwitchSetting,
+} from "../components/Setting";
 import { Button } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
 import { Modal } from "../components/ui/Modal";
-import { Tile } from "../components/ui/Row";
+import { Row, Tile } from "../components/ui/Row";
 import { useToast } from "../components/ui/Toast";
 import { useI18n } from "../i18n";
 import { useConfig } from "../lib/config";
+import { usePlatform } from "../lib/platform";
 import { DANGEROUS_OPS } from "../lib/services";
+
+/**
+ * App-targeted actions — how "<app> type …" reaches the target window.
+ * The round-trip is Wayland-specific, so the knobs shown vary by platform:
+ * Linux gets the full set plus [wayland]; macOS gets a note (no round-trip,
+ * keys are posted straight to the target process); anything else gets mode only.
+ */
+function AppTargetingSection() {
+  const { t } = useI18n();
+  const { isMac, os } = usePlatform();
+  const isLinux = os === "linux";
+
+  if (isMac) {
+    return (
+      <Section title={t("safety.targeting.title")} description={t("safety.targeting.description")}>
+        <Row leading={<Tile icon="info" />} title={t("safety.targeting.macNote")} />
+      </Section>
+    );
+  }
+
+  return (
+    <>
+      <Section title={t("safety.targeting.title")} description={t("safety.targeting.description")}>
+        <ConfigSelect
+          section="target"
+          k="mode"
+          title={t("safety.targeting.mode")}
+          description={t("safety.targeting.modeHint")}
+          fallback="round_trip"
+          options={[
+            { value: "round_trip", label: t("safety.targeting.modes.round_trip") },
+            { value: "leave", label: t("safety.targeting.modes.leave") },
+            { value: "off", label: t("safety.targeting.modes.off") },
+          ]}
+        />
+        {isLinux ? (
+          <>
+            <ConfigSelect
+              section="target"
+              k="restore"
+              title={t("safety.targeting.restore")}
+              description={t("safety.targeting.restoreHint")}
+              fallback="if_unchanged"
+              options={[
+                { value: "if_unchanged", label: t("safety.targeting.restores.if_unchanged") },
+                { value: "always", label: t("safety.targeting.restores.always") },
+                { value: "never", label: t("safety.targeting.restores.never") },
+              ]}
+            />
+            <ConfigNumber
+              section="target"
+              k="focus_timeout_ms"
+              title={t("safety.targeting.timeout")}
+              description={t("safety.targeting.timeoutHint")}
+              fallback={500}
+              min={0}
+              max={5000}
+              step={50}
+              suffix={t("common.ms")}
+            />
+          </>
+        ) : (
+          <Row leading={<Tile icon="info" />} title={t("safety.targeting.otherNote")} />
+        )}
+      </Section>
+
+      {isLinux && (
+        <Section
+          title={t("safety.targeting.wayland.title")}
+          description={t("safety.targeting.wayland.description")}
+        >
+          <ConfigSelect
+            section="wayland"
+            k="cross_workspace"
+            title={t("safety.targeting.wayland.crossWorkspace")}
+            description={t("safety.targeting.wayland.crossWorkspaceHint")}
+            fallback="auto"
+            options={[
+              { value: "auto", label: t("safety.targeting.wayland.crossWorkspaces.auto") },
+              { value: "ask", label: t("safety.targeting.wayland.crossWorkspaces.ask") },
+              { value: "allow", label: t("safety.targeting.wayland.crossWorkspaces.allow") },
+              { value: "refuse", label: t("safety.targeting.wayland.crossWorkspaces.refuse") },
+            ]}
+          />
+          <ConfigSwitch
+            section="wayland"
+            k="assume_animations_off"
+            title={t("safety.targeting.wayland.animationsOff")}
+            description={t("safety.targeting.wayland.animationsOffHint")}
+            fallback={false}
+          />
+        </Section>
+      )}
+    </>
+  );
+}
 
 export function SafetyPage() {
   const { t, tn } = useI18n();
@@ -94,6 +197,8 @@ export function SafetyPage() {
             />
           ))}
         </Section>
+
+        <AppTargetingSection />
 
         <Section title={t("safety.limits.title")} description={t("safety.limits.description")}>
           <ConfigList

@@ -702,6 +702,46 @@ export const en = {
       click: "Click length",
       clickHint: "How long each simulated click is held.",
     },
+    targeting: {
+      title: "App targeting",
+      description:
+        "Send typing or key presses to a specific app instead of wherever the cursor is. For example, “codex type ok” types into Codex even while you look elsewhere.",
+      mode: "Targeted input",
+      modeHint:
+        "Round-trip focuses the app, acts, then returns. Stay leaves it focused. Off refuses targeted typing.",
+      modes: {
+        round_trip: "Round-trip (focus, act, return)",
+        leave: "Stay on target",
+        off: "Off",
+      },
+      restore: "Restore focus",
+      restoreHint: "After acting, return to the window you were using.",
+      restores: {
+        if_unchanged: "Only if I haven't moved",
+        always: "Always return",
+        never: "Never return",
+      },
+      timeout: "Focus time-out",
+      timeoutHint: "How long to wait for the target window to take focus. Advanced.",
+      macNote:
+        "On macOS, the assistant posts keys directly to the target app's process without changing focus. This is keyboard-only and experimental.",
+      otherNote: "App targeting is available on Linux and experimental on macOS.",
+      wayland: {
+        title: "Wayland",
+        description:
+          "With compositor animations on, targeting an app on another workspace briefly scrolls; turn animations off in your compositor for a near-instant switch.",
+        crossWorkspace: "Cross-workspace targeting",
+        crossWorkspaceHint: "Whether targeting an app on another workspace is allowed.",
+        crossWorkspaces: {
+          auto: "Automatic",
+          ask: "Ask first",
+          allow: "Allow",
+          refuse: "Refuse",
+        },
+        animationsOff: "Compositor animations are off",
+        animationsOffHint: "Lets automatic cross-workspace targeting skip the prompt.",
+      },
+    },
   },
 
   diagnostics: {
