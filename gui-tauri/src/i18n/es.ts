@@ -709,6 +709,46 @@ export const es: Messages = {
       click: "Duración del clic",
       clickHint: "Cuánto se mantiene cada clic simulado.",
     },
+    targeting: {
+      title: "Objetivo de aplicaciones",
+      description:
+        "Envía texto o pulsaciones a una aplicación concreta en lugar de donde esté el cursor. Por ejemplo, «codex type ok» escribe en Codex aunque estés mirando otra cosa.",
+      mode: "Entrada dirigida",
+      modeHint:
+        "Ida y vuelta enfoca la aplicación, actúa y vuelve. Permanecer la deja enfocada. Desactivado rechaza la escritura dirigida.",
+      modes: {
+        round_trip: "Ida y vuelta (enfocar, actuar, volver)",
+        leave: "Permanecer en el objetivo",
+        off: "Desactivado",
+      },
+      restore: "Restaurar el foco",
+      restoreHint: "Al terminar, vuelve a la ventana que estabas usando.",
+      restores: {
+        if_unchanged: "Solo si no me he movido",
+        always: "Volver siempre",
+        never: "No volver nunca",
+      },
+      timeout: "Tiempo de enfoque",
+      timeoutHint: "Cuánto esperar a que la ventana de destino reciba el foco. Avanzado.",
+      macNote:
+        "En macOS, el asistente envía las teclas directamente al proceso de la aplicación de destino sin cambiar el foco. Solo funciona con el teclado y es experimental.",
+      otherNote: "El objetivo de aplicaciones está disponible en Linux y es experimental en macOS.",
+      wayland: {
+        title: "Wayland",
+        description:
+          "Con las animaciones del compositor activadas, apuntar a una aplicación de otro escritorio provoca un breve desplazamiento; desactiva las animaciones en tu compositor para un cambio casi instantáneo.",
+        crossWorkspace: "Objetivo entre escritorios",
+        crossWorkspaceHint: "Si se permite apuntar a una aplicación de otro escritorio.",
+        crossWorkspaces: {
+          auto: "Automático",
+          ask: "Preguntar antes",
+          allow: "Permitir",
+          refuse: "Rechazar",
+        },
+        animationsOff: "Las animaciones del compositor están desactivadas",
+        animationsOffHint: "Permite que el objetivo automático entre escritorios omita la pregunta.",
+      },
+    },
   },
 
   diagnostics: {
