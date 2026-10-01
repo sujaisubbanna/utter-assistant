@@ -1,9 +1,11 @@
 # build output
 dist/
+# demo media copied in at build time (the repo keeps one copy in docs/media)
+public/media/
 # generated types
 .astro/
 # dependencies
-node_modules/
+node_modules
 # logs
 npm-debug.log*
 pnpm-debug.log*

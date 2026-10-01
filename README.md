@@ -26,15 +26,17 @@
 ## 🎬 Demo
 
 <div align="center">
-  <a href="docs/media/utter-demo.mp4"><img src="docs/media/utter-demo-poster.png" alt="Watch the Utter demo: opening YouTube, searching by dictation and playing a video, hands-free" width="820"></a>
+  <a href="https://sujaisubbanna.github.io/utter-assistant/demo/"><img src="docs/media/utter-demo-poster.png" alt="Watch the Utter demo: opening YouTube, searching by dictation and playing a video, hands-free" width="820"></a>
   <br>
   <sub><b>▶ Watch the demo</b> (47 s): “Open YouTube” → “Click the search box” → <i>dictate</i> “Rick Astley, never gonna give you up” → “Press enter” → “Click the first video”. No hands.</sub>
 </div>
 
 <!--
-  For an inline player on GitHub: edit this README on github.com, drag
+  The thumbnail links to the docs site's demo page, which has a real <video>
+  player (GitHub's Markdown cannot play a relative file link). For a native
+  inline player here as well, edit this README on github.com, drag
   docs/media/utter-demo.mp4 into the editor, and put the user-attachments URL it
-  inserts on its own line here.
+  inserts on its own line above.
 -->
 
 <details>

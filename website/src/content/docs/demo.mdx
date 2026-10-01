@@ -1,0 +1,27 @@
+---
+title: Demo
+description: Watch Utter open apps, click and dictate — hands-free.
+sidebar:
+  order: 2
+  label: Demo
+---
+
+Holding a key and speaking is the whole interface. This 47-second clip runs hands-free:
+**“Open YouTube”** → **“Click the search box”** → *dictate* **“Rick Astley, never gonna
+give you up”** → **“Press enter”** → **“Click the first video”**.
+
+<video
+  controls
+  preload="metadata"
+  playsinline
+  poster={`${import.meta.env.BASE_URL}media/utter-demo-poster.png`}
+  width="820"
+  style={{ maxWidth: '100%', height: 'auto', borderRadius: '10px' }}
+>
+  <source src={`${import.meta.env.BASE_URL}media/utter-demo.mp4`} type="video/mp4" />
+  Your browser cannot play this video —{' '}
+  <a href={`${import.meta.env.BASE_URL}media/utter-demo.mp4`}>download it instead</a>.
+</video>
+
+Nothing in this clip leaves the machine: speech recognition, the small model that
+chooses the action, and the screenshots it looks at all run locally.
