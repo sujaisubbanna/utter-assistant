@@ -23,6 +23,8 @@ export interface PlatformInfo {
   os: string;
   arch: string;
   macos: boolean;
+  /** Wayland compositor id: "niri" | "kwin" | "unknown". */
+  compositor: string;
 }
 
 export interface PermissionItem {

@@ -144,6 +144,48 @@ pub struct PlatformInfo {
     pub os: String,
     pub arch: String,
     pub macos: bool,
+    /// Wayland compositor id: "niri" | "kwin" | "unknown". Mirrors
+    /// `utter/context/compositor.py::detect` so the UI can gate
+    /// compositor-specific settings (e.g. the `[wayland]` app-target knobs).
+    pub compositor: String,
+}
+
+/// Detect the compositor from the same environment signals the Python side
+/// uses (`XDG_CURRENT_DESKTOP`, `KDE_FULL_SESSION`, `KDE_SESSION_VERSION`,
+/// `XDG_SESSION_DESKTOP`, `DESKTOP_SESSION`, `NIRI_SOCKET`).
+fn detect_compositor() -> String {
+    let env = |k: &str| std::env::var(k).unwrap_or_default();
+    let desktop = env("XDG_CURRENT_DESKTOP").to_lowercase();
+    let tokens: Vec<&str> = desktop.split([':', ';']).map(str::trim).collect();
+    if tokens.contains(&"niri") {
+        return "niri".to_string();
+    }
+    if tokens.contains(&"kde") {
+        return "kwin".to_string();
+    }
+    let full = env("KDE_FULL_SESSION").trim().to_lowercase();
+    if matches!(full.as_str(), "true" | "1" | "yes") {
+        return "kwin".to_string();
+    }
+    if !env("KDE_SESSION_VERSION").trim().is_empty() {
+        return "kwin".to_string();
+    }
+    for var in ["XDG_SESSION_DESKTOP", "DESKTOP_SESSION"] {
+        let low = env(var).trim().to_lowercase();
+        if low.is_empty() {
+            continue;
+        }
+        if low.contains("niri") {
+            return "niri".to_string();
+        }
+        if low == "plasma" || low.starts_with("plasma") {
+            return "kwin".to_string();
+        }
+    }
+    if !env("NIRI_SOCKET").is_empty() {
+        return "niri".to_string();
+    }
+    "unknown".to_string()
 }
 
 #[tauri::command]
@@ -152,6 +194,7 @@ pub fn platform_info() -> PlatformInfo {
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
         macos: IS_MACOS,
+        compositor: detect_compositor(),
     }
 }
 

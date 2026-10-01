@@ -27,13 +27,36 @@ import { DANGEROUS_OPS } from "../lib/services";
  */
 function AppTargetingSection() {
   const { t } = useI18n();
-  const { isMac, os } = usePlatform();
-  const isLinux = os === "linux";
+  const { isMac, isWayland } = usePlatform();
+  const { get } = useConfig();
 
   if (isMac) {
     return (
       <Section title={t("safety.targeting.title")} description={t("safety.targeting.description")}>
         <Row leading={<Tile icon="info" />} title={t("safety.targeting.macNote")} />
+      </Section>
+    );
+  }
+
+  // The `[wayland]` knobs only apply on a compositor Utter has a backend for
+  // (niri/KWin). On X11 or an unknown compositor, targeting is not available,
+  // so the tuning is hidden rather than shown inapplicable.
+  if (!isWayland) {
+    return (
+      <Section title={t("safety.targeting.title")} description={t("safety.targeting.description")}>
+        <ConfigSelect
+          section="target"
+          k="mode"
+          title={t("safety.targeting.mode")}
+          description={t("safety.targeting.modeHint")}
+          fallback="round_trip"
+          options={[
+            { value: "round_trip", label: t("safety.targeting.modes.round_trip") },
+            { value: "leave", label: t("safety.targeting.modes.leave") },
+            { value: "off", label: t("safety.targeting.modes.off") },
+          ]}
+        />
+        <Row leading={<Tile icon="info" />} title={t("safety.targeting.otherNote")} />
       </Section>
     );
   }
@@ -53,42 +76,35 @@ function AppTargetingSection() {
             { value: "off", label: t("safety.targeting.modes.off") },
           ]}
         />
-        {isLinux ? (
-          <>
-            <ConfigSelect
-              section="target"
-              k="restore"
-              title={t("safety.targeting.restore")}
-              description={t("safety.targeting.restoreHint")}
-              fallback="if_unchanged"
-              options={[
-                { value: "if_unchanged", label: t("safety.targeting.restores.if_unchanged") },
-                { value: "always", label: t("safety.targeting.restores.always") },
-                { value: "never", label: t("safety.targeting.restores.never") },
-              ]}
-            />
-            <ConfigNumber
-              section="target"
-              k="focus_timeout_ms"
-              title={t("safety.targeting.timeout")}
-              description={t("safety.targeting.timeoutHint")}
-              fallback={500}
-              min={0}
-              max={5000}
-              step={50}
-              suffix={t("common.ms")}
-            />
-          </>
-        ) : (
-          <Row leading={<Tile icon="info" />} title={t("safety.targeting.otherNote")} />
-        )}
+        <ConfigSelect
+          section="target"
+          k="restore"
+          title={t("safety.targeting.restore")}
+          description={t("safety.targeting.restoreHint")}
+          fallback="if_unchanged"
+          options={[
+            { value: "if_unchanged", label: t("safety.targeting.restores.if_unchanged") },
+            { value: "always", label: t("safety.targeting.restores.always") },
+            { value: "never", label: t("safety.targeting.restores.never") },
+          ]}
+        />
+        <ConfigNumber
+          section="target"
+          k="focus_timeout_ms"
+          title={t("safety.targeting.timeout")}
+          description={t("safety.targeting.timeoutHint")}
+          fallback={500}
+          min={0}
+          max={5000}
+          step={50}
+          suffix={t("common.ms")}
+        />
       </Section>
 
-      {isLinux && (
-        <Section
-          title={t("safety.targeting.wayland.title")}
-          description={t("safety.targeting.wayland.description")}
-        >
+      <Section
+        title={t("safety.targeting.wayland.title")}
+        description={t("safety.targeting.wayland.description")}
+      >
           <ConfigSelect
             section="wayland"
             k="cross_workspace"
@@ -110,7 +126,6 @@ function AppTargetingSection() {
             fallback={false}
           />
         </Section>
-      )}
     </>
   );
 }

@@ -8,14 +8,26 @@ import type { PlatformInfo } from "./types";
  * `std::env::consts::OS`, so a Linux build never shows macOS screens and vice
  * versa. Until the answer arrives we assume Linux (the original target).
  */
-const DEFAULT: PlatformInfo = { os: "linux", arch: "x86_64", macos: false };
+const DEFAULT: PlatformInfo = { os: "linux", arch: "x86_64", macos: false, compositor: "unknown" };
 
 interface PlatformApi extends PlatformInfo {
   isMac: boolean;
   ready: boolean;
+  /** True only on a Wayland compositor Utter has a backend for (niri/KWin). */
+  isWayland: boolean;
+  /** niri/KWin expose no background key injection — app targeting is a round-trip. */
+  isNiri: boolean;
+  isKwin: boolean;
 }
 
-const PlatformContext = createContext<PlatformApi>({ ...DEFAULT, isMac: false, ready: false });
+const PlatformContext = createContext<PlatformApi>({
+  ...DEFAULT,
+  isMac: false,
+  ready: false,
+  isWayland: false,
+  isNiri: false,
+  isKwin: false,
+});
 
 export function PlatformProvider({ children }: { children: ReactNode }) {
   const [info, setInfo] = useState<PlatformInfo>(DEFAULT);
@@ -29,7 +41,17 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       .finally(() => setReady(true));
   }, []);
 
-  const value = useMemo<PlatformApi>(() => ({ ...info, isMac: info.macos, ready }), [info, ready]);
+  const value = useMemo<PlatformApi>(
+    () => ({
+      ...info,
+      isMac: info.macos,
+      ready,
+      isWayland: info.os === "linux" && (info.compositor === "niri" || info.compositor === "kwin"),
+      isNiri: info.compositor === "niri",
+      isKwin: info.compositor === "kwin",
+    }),
+    [info, ready],
+  );
   return <PlatformContext.Provider value={value}>{children}</PlatformContext.Provider>;
 }
 
