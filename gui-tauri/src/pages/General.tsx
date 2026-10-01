@@ -64,7 +64,7 @@ function StatusHero({ onStart, busy }: { onStart: () => void; busy: boolean }) {
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
           style={{ background: `color-mix(in oklab, ${color} 12%, transparent)` }}
         >
-          <StatusDot tone={tone} pulse={state === "running"} className="h-2.5 w-2.5" />
+          <StatusDot tone={tone} className="h-2.5 w-2.5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">

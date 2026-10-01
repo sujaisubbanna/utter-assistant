@@ -84,14 +84,19 @@ function Shell() {
       <Titlebar route={route} />
       <div className="flex min-h-0 flex-1">
         <Sidebar active={route} onNavigate={navigate} version={version} />
-        <main
-          ref={mainRef}
-          className="mb-2 mr-2 min-h-0 flex-1 overflow-y-auto rounded-xl bg-panel shadow-panel"
-        >
-          <div key={route} className="animate-fade-up">
-            <Page />
-          </div>
-        </main>
+        {/* Shadow and rounding live on this non-scrolling wrapper. Putting
+            shadow-panel on the scroller itself repainted the whole panel every
+            frame, which is what made scrolling feel laggy under WebKitGTK. */}
+        <div className="mb-2 mr-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-panel shadow-panel">
+          <main
+            ref={mainRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+          >
+            <div key={route} className="animate-fade-up">
+              <Page />
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );

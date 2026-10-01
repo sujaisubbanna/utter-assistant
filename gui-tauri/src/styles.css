@@ -458,10 +458,10 @@ html.dark {
 @keyframes lv-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 45%, transparent);
+    opacity: 1;
   }
-  70% {
-    box-shadow: 0 0 0 5px transparent;
+  50% {
+    opacity: 0.35;
   }
 }
 
@@ -496,7 +496,11 @@ html.dark {
   animation: lv-toast-in 180ms var(--ease) both;
 }
 .animate-dot-pulse {
-  animation: lv-pulse 1.8s ease-out infinite;
+  /* Opacity only: compositable, so an always-visible pulse does not repaint
+     every frame. Animating box-shadow here pinned WebKitWebProcess at ~4% CPU
+     with DMABUF disabled and made the whole window feel laggy. */
+  animation: lv-pulse 1.8s ease-in-out infinite;
+  will-change: opacity;
 }
 
 .stagger > * {
@@ -522,6 +526,13 @@ html.palette-transition * {
     background-color 180ms ease,
     border-color 180ms ease,
     color 180ms ease !important;
+}
+
+/* Long lists: let WebKit skip layout and paint for rows that are off-screen
+   while scrolling. Paired with .min-h-[52px] on Row. */
+.cv-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
 }
 
 @media (prefers-reduced-motion: reduce) {
