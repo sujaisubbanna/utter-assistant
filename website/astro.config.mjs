@@ -5,6 +5,10 @@ import rehypeBaseLinks from './src/plugins/rehype-base-links.mjs';
 
 const REPO = 'https://github.com/sujaisubbanna/utter-assistant';
 const BASE = '/utter-assistant';
+// Absolute origin + subpath, used for canonical-adjacent tags (OG image). The
+// site is served from a GitHub Pages project subpath, so fileWithBase() is not
+// enough here — social crawlers need a fully-qualified URL.
+const SITE = `https://sujaisubbanna.github.io${BASE}`;
 
 // The site is served by GitHub Pages from a project subpath, so every asset
 // and internal link must be prefixed with `base`. Starlight and Astro handle
@@ -20,7 +24,19 @@ export default defineConfig({
     starlight({
       title: 'Utter',
       description:
-        'Utter turns your voice into actions on your Linux desktop. Local, offline and private.',
+        'Utter turns your voice into actions on Linux and macOS. Hold a key, say what you want, and it happens. Local, offline and private.',
+      // Global head additions. Starlight already emits title/description/
+      // canonical/OG/Twitter defaults from frontmatter; this adds the social
+      // preview image (absolute, so crawlers can fetch it) and points
+      // twitter:image at the same asset.
+      head: [
+        { tag: 'meta', attrs: { property: 'og:image', content: `${SITE}/og.png` } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: 'The Utter settings app, with the wordmark Utter.' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE}/og.png` } },
+        { tag: 'meta', attrs: { name: 'twitter:image:alt', content: 'The Utter settings app, with the wordmark Utter.' } },
+      ],
       logo: {
         light: './src/assets/utter-wordmark.svg',
         dark: './src/assets/utter-wordmark-dark.svg',
