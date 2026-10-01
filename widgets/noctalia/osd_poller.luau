@@ -102,6 +102,12 @@ local function apply(sample)
 		sinceFinal = 0
 		publish(sample)
 		openPanel()
+	elseif st == "loading" then
+		-- Models are coming up after wake / cold start: keep the panel open
+		-- (idle would otherwise close it) until the emitter clears it.
+		sinceFinal = 0
+		publish(sample)
+		openPanel()
 	elseif st == "final" then
 		sinceFinal = nowMs()
 		publish(sample)

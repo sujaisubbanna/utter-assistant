@@ -72,6 +72,10 @@ unload_speech = true
 # while you work. Waking is the same: hold a push-to-talk key.
 on_idle = true
 idle_minutes = 15
+# How long the OSD may show "models are coming up" while the model services
+# restart after wake / on cold start, before it clears on its own. Readiness is
+# polled from each server's /v1/models; this is only the bounded fallback.
+model_ready_timeout_s = 30
 
 [osd]
 # Optional on-screen display for assistant mode (Noctalia overlay panel).
