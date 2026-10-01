@@ -282,108 +282,136 @@ def _shortcut_step(ctx: Context, profiles: dict, name: str) -> Optional[Step]:
     return Step(Action.KEY, {"chord": key}, tier=Tier.KEYBOARD, description=f"{name} in {app}")
 
 
-def plan(utterance: str, ctx: Context, profiles: dict) -> Optional[Plan]:
-    t = normalize(utterance)
-    raw = utterance.strip()
-    if not t:
-        return None
+def _make_plan(utterance: str, steps, source: str = "rules",
+               confidence: float = 1.0, needs: bool = False) -> Plan:
+    return Plan(utterance=utterance, steps=steps, source=source,
+                confidence=confidence, needs_perception=needs)
 
-    def P(steps, source="rules", confidence=1.0, needs=False):
-        return Plan(utterance=utterance, steps=steps, source=source,
-                    confidence=confidence, needs_perception=needs)
 
+# Sentinel: a matcher has claimed the utterance but has no cheap plan, so the
+# chain must stop and the caller should escalate. This mirrors the original
+# plan()'s early ``return None`` for an explicit but unknown "open X".
+_ESCALATE = object()
+
+
+# --- ordered matcher chain --------------------------------------------------
+# Each matcher returns a Plan when it handles the utterance, None to let the
+# next matcher try, or _ESCALATE to stop with no plan. The tuple order below is
+# the contract: first match wins and must not change (pinned by
+# tests/router/test_rules_order.py).
+
+
+def _custom(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     focused_profile = profiles.get(ctx.focused_app) if ctx.focused_app else None
     custom_chord = (getattr(focused_profile, "commands", {}) or {}).get(t) if focused_profile else None
     if custom_chord:
-        return P([Step(Action.KEY, {"chord": custom_chord}, tier=Tier.KEYBOARD,
-                       description=f"custom command: {t}")])
+        return _make_plan(utterance, [Step(Action.KEY, {"chord": custom_chord}, tier=Tier.KEYBOARD,
+                                           description=f"custom command: {t}")])
+    return None
 
-    browser = _is_browser(ctx, profiles)
 
-    # --- niri compositor actions (no app/model needed) ----------------------
+def _niri(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     na = _niri_action(t)
     if na is not None:
-        return P([Step(Action.NIRI, na, tier=Tier.APP, description=t)])
+        return _make_plan(utterance, [Step(Action.NIRI, na, tier=Tier.APP, description=t)])
+    return None
 
-    # --- media control via MPRIS (Cine/Plezy/mpv/browser) -------------------
+
+def _media(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     if t in MEDIA_MAP:
-        return P([Step(Action.MEDIA, {"command": MEDIA_MAP[t]}, tier=Tier.APP, description=t)])
+        return _make_plan(utterance, [Step(Action.MEDIA, {"command": MEDIA_MAP[t]},
+                                          tier=Tier.APP, description=t)])
+    return None
 
-    # --- CLI agents in a terminal -------------------------------------------
+
+def _cli_agent(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:open|launch|start|run|spawn)\s+(.+)$", t)
     if m and m.group(1).strip() in CLI_AGENTS:
         argv = CLI_AGENTS[m.group(1).strip()]
         if _is_terminal(ctx, profiles):
-            return P([Step(Action.TERMINAL, {"command": " ".join(argv)}, tier=Tier.APP,
-                           description=f"run {argv[0]}")])
-        return P([Step(Action.LAUNCH_APP, {"app": "foot", "argv": [*TERMINAL_LAUNCH, *argv]},
-                       tier=Tier.APP, description=f"launch {argv[0]}")])
+            return _make_plan(utterance, [Step(Action.TERMINAL, {"command": " ".join(argv)},
+                                              tier=Tier.APP, description=f"run {argv[0]}")])
+        return _make_plan(utterance, [Step(Action.LAUNCH_APP,
+                                          {"app": "foot", "argv": [*TERMINAL_LAUNCH, *argv]},
+                                          tier=Tier.APP, description=f"launch {argv[0]}")])
+    return None
 
-    # --- terminal: run a shell command in the focused terminal --------------
+
+def _terminal(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:run|execute|terminal run)\s+(?:command\s+)?(.+)$", raw, re.I | re.S)
     if m and _is_terminal(ctx, profiles):
         cmd = re.sub(r'^["\']|["\']$', "", m.group(1).strip())
-        return P([Step(Action.TERMINAL, {"command": cmd}, tier=Tier.APP,
-                       description=f"run {cmd}")])
-
+        return _make_plan(utterance, [Step(Action.TERMINAL, {"command": cmd}, tier=Tier.APP,
+                                           description=f"run {cmd}")])
     if t in ("clear", "clear terminal", "clear screen") and _is_terminal(ctx, profiles):
-        return P([Step(Action.TERMINAL, {"command": "clear"}, tier=Tier.APP, description="clear")])
+        return _make_plan(utterance, [Step(Action.TERMINAL, {"command": "clear"}, tier=Tier.APP,
+                                           description="clear")])
+    return None
 
-    # --- ComfyUI ------------------------------------------------------------
+
+def _comfy(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     if t in ("launch comfy", "launch comfyui", "launch comfy ui", "start comfy",
              "start comfyui", "start comfy ui", "boot comfy"):
-        return P([Step(Action.LAUNCH_APP, {"app": "foot", "argv": ["foot", "-e", COMFY_LAUNCH]},
-                       tier=Tier.APP, description="start ComfyUI (git pull, deps, start.sh)")])
+        return _make_plan(utterance, [Step(Action.LAUNCH_APP,
+                                          {"app": "foot", "argv": ["foot", "-e", COMFY_LAUNCH]},
+                                          tier=Tier.APP,
+                                          description="start ComfyUI (git pull, deps, start.sh)")])
     if t in ("open comfyui", "open comfy ui", "comfyui", "comfy ui", "comfy"):
-        return P([Step(Action.ENSURE_URL, {"url": COMFY_URL, "site": "comfyui"}, tier=Tier.APP,
-                       description="open ComfyUI")])
+        return _make_plan(utterance, [Step(Action.ENSURE_URL, {"url": COMFY_URL, "site": "comfyui"},
+                                          tier=Tier.APP, description="open ComfyUI")])
     if t in ("queue prompt", "generate image", "run workflow") and "comfy" in ctx.focused_title.lower():
-        return P([Step(Action.CLICK_ELEMENT, {"description": "Queue Prompt"},
-                       tier=Tier.VISION, description="queue prompt")],
-                 confidence=0.7, needs=True)
+        return _make_plan(utterance, [Step(Action.CLICK_ELEMENT, {"description": "Queue Prompt"},
+                                           tier=Tier.VISION, description="queue prompt")],
+                          confidence=0.7, needs=True)
+    return None
 
-    # --- open URL / domain early (explicit) --------------------------------
+
+def _open(utterance: str, t: str, raw: str, ctx: Context, profiles: dict):
     m = re.match(r"^(?:open|go to|navigate to|visit)\s+(.+)$", raw, re.I)
-    if m:
-        target = m.group(1).strip()
-        new_tab = bool(re.search(r"\b(new tab|new window)\b", target, re.I))
-        target = re.sub(r"\s+in a (new tab|new window)$", "", target, flags=re.I)
-        target = re.sub(r"\s+(new tab|new window)$", "", target, flags=re.I)
-        tl = target.lower()
-        if URL_RE.match(target):
-            url = target if tl.startswith("http") else "https://" + target
-            return P([Step(Action.ENSURE_URL, {"url": url, "site": _site_key(target)},
-                           tier=Tier.APP, description=f"open {url}")])
-        if DOMAIN_RE.match(target) and "." in target:
-            return P([Step(Action.ENSURE_URL, {"url": "https://" + target, "site": _site_key(target)},
-                           tier=Tier.APP, description=f"open {target}")])
-        # known site?
-        if tl in SITES:
-            return P([Step(Action.ENSURE_URL, {"url": SITES[tl], "site": tl},
-                           tier=Tier.APP, description=f"open {tl}")])
-        # installed app?
-        prof = profiles.get(tl) or _resolve(profiles, tl)
-        if prof:
-            return P([Step(Action.ENSURE_APP, {"app": prof.id,
-                                               "argv": getattr(prof, "launch", None)},
-                           tier=Tier.APP, description=f"open {prof.name}")])
-        # unknown -> nothing cheap; escalate
+    if not m:
         return None
+    target = m.group(1).strip()
+    target = re.sub(r"\s+in a (new tab|new window)$", "", target, flags=re.I)
+    target = re.sub(r"\s+(new tab|new window)$", "", target, flags=re.I)
+    tl = target.lower()
+    if URL_RE.match(target):
+        url = target if tl.startswith("http") else "https://" + target
+        return _make_plan(utterance, [Step(Action.ENSURE_URL, {"url": url, "site": _site_key(target)},
+                                          tier=Tier.APP, description=f"open {url}")])
+    if DOMAIN_RE.match(target) and "." in target:
+        return _make_plan(utterance, [Step(Action.ENSURE_URL,
+                                          {"url": "https://" + target, "site": _site_key(target)},
+                                          tier=Tier.APP, description=f"open {target}")])
+    # known site?
+    if tl in SITES:
+        return _make_plan(utterance, [Step(Action.ENSURE_URL, {"url": SITES[tl], "site": tl},
+                                          tier=Tier.APP, description=f"open {tl}")])
+    # installed app?
+    prof = profiles.get(tl) or _resolve(profiles, tl)
+    if prof:
+        return _make_plan(utterance, [Step(Action.ENSURE_APP, {"app": prof.id,
+                                                              "argv": getattr(prof, "launch", None)},
+                                          tier=Tier.APP, description=f"open {prof.name}")])
+    # unknown -> nothing cheap; escalate
+    return _ESCALATE
 
-    # --- switch/focus app or site (contextual) ------------------------------
+
+def _site(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:switch to|focus|go to app|show)\s+(.+)$", t)
     if m:
         tgt = m.group(1).strip()
         if tgt in SITES:
-            return P([Step(Action.ENSURE_URL, {"url": SITES[tgt], "site": tgt}, tier=Tier.APP,
-                           description=f"switch to {tgt}")])
+            return _make_plan(utterance, [Step(Action.ENSURE_URL, {"url": SITES[tgt], "site": tgt},
+                                              tier=Tier.APP, description=f"switch to {tgt}")])
         prof = _resolve(profiles, tgt)
         if prof:
-            return P([Step(Action.ENSURE_APP, {"app": prof.id,
-                                               "argv": getattr(prof, "launch", None)},
-                           tier=Tier.APP, description=f"focus {prof.name}")])
+            return _make_plan(utterance, [Step(Action.ENSURE_APP,
+                                              {"app": prof.id, "argv": getattr(prof, "launch", None)},
+                                              tier=Tier.APP, description=f"focus {prof.name}")])
+    return None
 
-    # --- close an app/site window (focus it first, then close) --------------
+
+def _close(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^close\s+(.+)$", t)
     if m:
         tgt = m.group(1).strip()
@@ -398,16 +426,21 @@ def plan(utterance: str, ctx: Context, profiles: dict) -> Optional[Plan]:
                                                "argv": getattr(prof, "launch", None)},
                            tier=Tier.APP, description=f"focus {prof.name}")
         if pre is not None:
-            return P([pre, Step(Action.NIRI, {"command": "close-window", "args": []},
-                                tier=Tier.APP, description="close window")])
+            return _make_plan(utterance, [pre, Step(Action.NIRI,
+                                                   {"command": "close-window", "args": []},
+                                                   tier=Tier.APP, description="close window")])
+    return None
 
-    # --- search -------------------------------------------------------------
+
+def _search(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
+    browser = _is_browser(ctx, profiles)
     # site-specific first: "search youtube for lofi"
     m = re.match(r"^(?:search|look up)\s+(.+?)\s+for\s+(.+)$", raw, re.I)
     if m and m.group(1).strip().lower() in SITE_SEARCH:
         site, q = m.group(1).strip().lower(), m.group(2).strip()
-        return P([Step(Action.OPEN_URL, {"url": SITE_SEARCH[site].format(q=q.replace(' ', '+'))},
-                       tier=Tier.APP, description=f"search {site} for {q}")])
+        return _make_plan(utterance, [Step(Action.OPEN_URL,
+                                          {"url": SITE_SEARCH[site].format(q=q.replace(' ', '+'))},
+                                          tier=Tier.APP, description=f"search {site} for {q}")])
 
     # generic: "search for X" / "google X"
     m = re.match(r"^(?:search(?: the web)?|google|look up)\s+(?:for\s+)?(.+)$", raw, re.I)
@@ -417,77 +450,134 @@ def plan(utterance: str, ctx: Context, profiles: dict) -> Optional[Plan]:
             prof = profiles.get(ctx.focused_app)
             search_url = getattr(prof, "search_url", None) if prof else None
             template = search_url or "https://www.google.com/search?q={q}"
-            return P([Step(Action.OPEN_URL, {"url": template.format(q=q.replace(' ', '+'))},
-                           tier=Tier.APP, description=f"search {q}")])
-        return P([Step(Action.OPEN_URL, {"url": f"https://www.google.com/search?q={q.replace(' ', '+')}"},
-                       tier=Tier.APP, description=f"search {q}")])
+            return _make_plan(utterance, [Step(Action.OPEN_URL,
+                                              {"url": template.format(q=q.replace(' ', '+'))},
+                                              tier=Tier.APP, description=f"search {q}")])
+        return _make_plan(utterance, [Step(Action.OPEN_URL,
+                                          {"url": f"https://www.google.com/search?q={q.replace(' ', '+')}"},
+                                          tier=Tier.APP, description=f"search {q}")])
+    return None
 
-    # --- app shortcuts (T2) -------------------------------------------------
-    shortcut_map = {
-        "new tab": "new_tab",
-        "close tab": "close_tab",
-        "reload": "reload",
-        "refresh": "reload",
-        "go back": "back",
-        "back": "back",
-        "go forward": "forward",
-        "forward": "forward",
-        "address bar": "address_bar",
-        "url bar": "address_bar",
-        "focus address bar": "address_bar",
-        "reopen tab": "reopen_tab",
-        "restore tab": "reopen_tab",
-        "find on page": "find",
-        "next tab": "next_tab",
-        "previous tab": "prev_tab",
-    }
-    if t in shortcut_map and browser:
-        step = _shortcut_step(ctx, profiles, shortcut_map[t])
+
+_APP_SHORTCUTS = {
+    "new tab": "new_tab",
+    "close tab": "close_tab",
+    "reload": "reload",
+    "refresh": "reload",
+    "go back": "back",
+    "back": "back",
+    "go forward": "forward",
+    "forward": "forward",
+    "address bar": "address_bar",
+    "url bar": "address_bar",
+    "focus address bar": "address_bar",
+    "reopen tab": "reopen_tab",
+    "restore tab": "reopen_tab",
+    "find on page": "find",
+    "next tab": "next_tab",
+    "previous tab": "prev_tab",
+}
+
+_EDITING = {
+    "copy": "ctrl+c", "paste": "ctrl+v", "cut": "ctrl+x",
+    "undo": "ctrl+z", "redo": "ctrl+shift+z",
+    "select all": "ctrl+a", "save": "ctrl+s",
+}
+
+
+def _shortcut(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
+    browser = _is_browser(ctx, profiles)
+    if t in _APP_SHORTCUTS and browser:
+        step = _shortcut_step(ctx, profiles, _APP_SHORTCUTS[t])
         if step:
-            return P([step])
+            return _make_plan(utterance, [step])
+    return None
 
-    # --- generic keys -------------------------------------------------------
+
+def _key(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:press|hit|type key)\s+(.+)$", t)
     if m:
         token = m.group(1).strip()
         chord = _COMMON_KEYS.get(token, token)
-        return P([Step(Action.KEY, {"chord": chord}, tier=Tier.KEYBOARD,
-                       description=f"press {chord}")])
+        return _make_plan(utterance, [Step(Action.KEY, {"chord": chord}, tier=Tier.KEYBOARD,
+                                          description=f"press {chord}")])
+    return None
 
-    # --- editing shortcuts --------------------------------------------------
-    editing = {
-        "copy": "ctrl+c", "paste": "ctrl+v", "cut": "ctrl+x",
-        "undo": "ctrl+z", "redo": "ctrl+shift+z",
-        "select all": "ctrl+a", "save": "ctrl+s",
-    }
-    if t in editing:
-        return P([Step(Action.KEY, {"chord": editing[t]}, tier=Tier.KEYBOARD,
-                       description=t)])
 
-    # --- typing (preserve original casing) ---------------------------------
+def _editing(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
+    if t in _EDITING:
+        return _make_plan(utterance, [Step(Action.KEY, {"chord": _EDITING[t]}, tier=Tier.KEYBOARD,
+                                          description=t)])
+    return None
+
+
+def _type(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:type|write|enter)\s+(.+)$", raw, re.I | re.S)
     if m:
         text = m.group(1).strip()
         text = re.sub(r'^["\']|["\']$', "", text)
-        return P([Step(Action.TYPE_TEXT, {"text": text}, tier=Tier.APP,
-                       description=f"type {text!r}")])
+        return _make_plan(utterance, [Step(Action.TYPE_TEXT, {"text": text}, tier=Tier.APP,
+                                          description=f"type {text!r}")])
+    return None
 
-    # --- scrolling ----------------------------------------------------------
+
+def _scroll(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     if re.search(r"\bscroll (down|up)\b", t) or re.search(r"\bpage (down|up)\b", t):
         direction = "down" if "down" in t else "up"
-        return P([Step(Action.SCROLL, {"direction": direction, "amount": 5},
-                       tier=Tier.KEYBOARD, description=f"scroll {direction}")])
+        return _make_plan(utterance, [Step(Action.SCROLL, {"direction": direction, "amount": 5},
+                                          tier=Tier.KEYBOARD, description=f"scroll {direction}")])
+    return None
 
-    # --- click by description -> needs perception (T1 a11y, else T3 vision) --
+
+def _click(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:click|press|tap|hit)\s+(?:on\s+)?(.+)$", t)
     if m:
         desc = m.group(1).strip()
         if desc not in _COMMON_KEYS:  # "press enter" already handled above
-            return P([Step(Action.CLICK_ELEMENT, {"description": desc},
-                           tier=Tier.VISION, description=f"click {desc}")],
-                     confidence=0.6, needs=True)
-
+            return _make_plan(utterance, [Step(Action.CLICK_ELEMENT, {"description": desc},
+                                              tier=Tier.VISION, description=f"click {desc}")],
+                              confidence=0.6, needs=True)
     return None
+
+
+_MATCHERS = (
+    _custom,     # custom per-app command phrases
+    _niri,       # compositor actions
+    _media,      # MPRIS media control
+    _cli_agent,  # CLI agents (claude/codex/...) in a terminal
+    _terminal,   # run/clear a shell command in the focused terminal
+    _comfy,      # ComfyUI launch/open/queue
+    _open,       # explicit open URL / domain / site / app
+    _site,       # switch/focus app or site
+    _close,      # focus then close a window
+    _search,     # site-specific then generic web search
+    _shortcut,   # browser keyboard shortcuts
+    _key,        # generic key presses
+    _editing,    # copy/paste/undo/save shortcuts
+    _type,       # dictated text
+    _scroll,     # scroll/page
+    _click,      # click by description (needs perception)
+)
+
+
+def plan(utterance: str, ctx: Context, profiles: dict) -> Optional[Plan]:
+    """Return the deterministic Plan for an utterance, or None to escalate.
+
+    Walks the ordered matcher chain (first match wins); returns None when the
+    command needs accessibility/vision. Keep this fast and predictable.
+    """
+    t = normalize(utterance)
+    raw = utterance.strip()
+    if not t:
+        return None
+    for matcher in _MATCHERS:
+        result = matcher(utterance, t, raw, ctx, profiles)
+        if result is _ESCALATE:
+            return None
+        if result is not None:
+            return result
+    return None
+
 
 
 def _site_key(text: str) -> str:
