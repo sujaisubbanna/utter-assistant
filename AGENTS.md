@@ -62,6 +62,18 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
   profiling justifies it (local RPC is already ~0.04 ms; inference dominates).
 - Keep the legacy assistant running: changes to `utter/**` must not break the systemd units.
 
+## Branching & releases
+- **Never commit to `main`.** Every change lands on a feature branch — `fix/…`, `feat/…`
+  or `chore/…` — pushed to `origin` for review. `main` is only advanced once the change is
+  accepted.
+- **Releases are cut on request, not per change.** When the owner asks for a release:
+  1. add or update `CHANGELOG.md` with the user-visible changes;
+  2. bump the **minor** version everywhere it lives — `pyproject.toml`,
+     `gui-tauri/package.json`, `gui-tauri/src-tauri/Cargo.toml`,
+     `gui-tauri/src-tauri/tauri.conf.json` (and any version shown in the UI);
+  3. merge to `main`, then tag `v<version>` and push the tag — the `release` workflow
+     builds the AppImage/deb/rpm bundles plus the core tarball and attaches them.
+
 ## How-to pointers
 - **Architecture**: `docs/ARCHITECTURE.md`
 - **Write a plugin**: `docs/PLUGINS.md`
