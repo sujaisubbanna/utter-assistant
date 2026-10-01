@@ -12,7 +12,7 @@
 
 **Hands-free, private and completely offline.** Hold a key, say what you want, and Utter does it.
 
-![Platform: Linux](https://img.shields.io/badge/platform-Linux%20(Wayland)-f7c948)
+![Platform: Linux](https://img.shields.io/badge/platform-Linux%20(Wayland%3A%20niri%20%7C%20KDE%20Plasma)-f7c948)
 ![macOS: experimental](https://img.shields.io/badge/macOS-experimental-8a8f98)
 ![Runs offline](https://img.shields.io/badge/runs-100%25%20offline-20a05a)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f1f1f)
@@ -121,7 +121,9 @@ Under the hood, a tiny **runner** supervises swappable **plugins** (speech, deci
 
 ## 🚀 Getting started
 
-> **Requirements:** Linux on Wayland (niri is the first-class target), PipeWire, and Python 3.12+.
+> **Requirements:** Linux on Wayland — **niri** and **KDE Plasma (KWin)** are first-class, other
+> compositors get partial support (dictation, typing, launching; no window actions) — plus PipeWire and
+> Python 3.12+. Plasma specifics: [docs/PLASMA.md](docs/PLASMA.md).
 > **macOS** is experimental and untested on real hardware: see [docs/MACOS.md](docs/MACOS.md)
 > (native Speech.framework + whisper.cpp voice, Quartz hotkeys, unsigned `.dmg`).
 > An NVIDIA GPU is recommended for the larger models but not required. Building the settings app

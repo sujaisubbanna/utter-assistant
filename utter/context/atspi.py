@@ -84,7 +84,7 @@ def find_app(app_id: Optional[str]):
     wanted = app_id
     if not wanted:
         try:
-            from utter.context.niri import focused_window
+            from utter.context.desktop import focused_window
 
             fw = focused_window()
             wanted = fw.app_id if fw else None

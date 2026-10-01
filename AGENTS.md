@@ -6,8 +6,9 @@ Guidance for AI agents (and humans) working in this repo.
 A local, context-aware **voice → desktop-action** assistant, being turned into a modular,
 open-source, plug-and-play product: a tiny **runner** (supervisor + trust boundary) plus
 swappable **plugins** for STT, decision ("Jev head"), LLM, perception, actions, TTS, context
-and UI. **Linux first** (Wayland/niri); **macOS is experimental** (native Speech/Quartz
-backends behind `utter/platform.py`, see `docs/MACOS.md`).
+and UI. **Linux first** (Wayland: niri and KDE Plasma/KWin via `utter/context/compositor.py`,
+see `docs/PLASMA.md`); **macOS is experimental** (native Speech/Quartz backends behind
+`utter/platform.py`, see `docs/MACOS.md`).
 
 Two things coexist in this repo right now:
 1. **The original Python assistant** (`utter/`) — production code, currently run by

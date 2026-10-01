@@ -60,6 +60,7 @@ export default defineConfig({
             { label: 'Trust and safety', slug: 'guides/trust-and-safety' },
             { label: 'Theming', slug: 'guides/theming' },
             { label: 'Noctalia widget and OSD', slug: 'guides/noctalia' },
+            { label: 'KDE Plasma', slug: 'guides/kde-plasma' },
             { label: 'macOS (experimental)', slug: 'guides/macos' },
           ],
         },

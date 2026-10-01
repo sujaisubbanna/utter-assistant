@@ -130,8 +130,30 @@ class MacosConfig:
 
 
 @dataclass
+class KwinConfig:
+    """KDE Plasma (KWin) backend settings (``[kwin]``). Ignored on niri.
+
+    Nothing here changes niri behaviour: the section only tunes how the KWin
+    backend talks to Plasma when ``[general] compositor`` resolves to "kwin".
+    """
+    # Screenshot path: "auto" tries spectacle, then the XDG portal, then grim.
+    screenshot: str = "auto"
+    # Clipboard read: "auto" tries klipper over D-Bus, then wl-paste.
+    clipboard: str = "auto"
+    # Use `kdotool` for window queries/actions when it is installed.
+    use_kdotool: bool = True
+    # Fall back to a tiny KWin script (org.kde.kwin.Scripting) for window queries.
+    use_scripts: bool = True
+    script_timeout_s: float = 3.0
+    # ydotool absolute-pointer multiplier on KWin (niri keeps its measured 0.5).
+    pointer_abs_factor: float = 1.0
+
+
+@dataclass
 class GeneralConfig:
     trigger: str = "bridge"
+    # Compositor backend: "auto" (detect niri / KDE Plasma), "niri" or "kwin".
+    compositor: str = "auto"
 
 
 @dataclass
@@ -147,6 +169,7 @@ class Config:
     sleep: SleepConfig = field(default_factory=SleepConfig)
     osd: OsdConfig = field(default_factory=OsdConfig)
     macos: MacosConfig = field(default_factory=MacosConfig)
+    kwin: KwinConfig = field(default_factory=KwinConfig)
     log_level: str = "INFO"
 
 
@@ -177,6 +200,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.sleep, raw.get("sleep", {}))
         _merge(cfg.osd, raw.get("osd", {}))
         _merge(cfg.macos, raw.get("macos", {}))
+        _merge(cfg.kwin, raw.get("kwin", {}))
         if "log_level" in raw.get("daemon", {}):
             cfg.log_level = raw["daemon"]["log_level"]
     return cfg

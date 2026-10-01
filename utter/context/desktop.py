@@ -3,10 +3,15 @@
 Re-exports the provider for the host platform so the daemon, executor and the
 ``utter_py`` plugin never import a compositor module directly:
 
-    Linux  -> :mod:`utter.context.niri`   (``niri msg --json``; unchanged)
-    macOS  -> :mod:`utter.macos.desktop`  (NSWorkspace + Accessibility + CGWindowList)
+    Linux / niri   -> :mod:`utter.context.niri`            (``niri msg --json``; unchanged)
+    Linux / KWin   -> :mod:`utter.context.backends.kwin`   (KDE Plasma over D-Bus / kdotool)
+    Linux / other  -> :mod:`utter.context.backends.fallback` (reports unsupported)
+    macOS          -> :mod:`utter.macos.desktop`           (NSWorkspace + Accessibility + CGWindowList)
 
-The functions below share one signature on both platforms:
+Which Linux backend is used is decided by :mod:`utter.context.compositor`
+(``[general] compositor = "auto" | "niri" | "kwin"``, or ``UTTER_COMPOSITOR``).
+
+The functions below share one signature on every platform:
 ``focused_window``, ``list_windows``, ``find_windows``, ``list_monitors``,
 ``focus_window``, ``focus_window_on_workspace``, ``build_context``.
 """
@@ -16,14 +21,34 @@ from utter import platform
 
 
 def provider():
-    """The platform's context module (resolved on every call so tests can flip it)."""
+    """The platform's context module (resolved on every call so tests can flip it).
+
+    On niri this is still the :mod:`utter.context.niri` module itself, so the
+    original behaviour (and its tests) are untouched.
+    """
     if platform.is_macos():
         from utter.macos import desktop as _mac
 
         return _mac
-    from utter.context import niri as _niri
+    from utter.context import compositor
 
-    return _niri
+    name = compositor.active_name()
+    if name == compositor.NIRI:
+        from utter.context import niri as _niri
+
+        return _niri
+    return compositor.backend_for(name)
+
+
+def backend():
+    """The full compositor backend module (provider surface + window actions)."""
+    if platform.is_macos():
+        from utter.macos import desktop as _mac
+
+        return _mac
+    from utter.context import compositor
+
+    return compositor.active()
 
 
 def focused_window():
@@ -65,5 +90,5 @@ def windows_as_dicts() -> list:
     return out
 
 
-__all__ = ["provider", "focused_window", "list_windows", "find_windows", "list_monitors",
+__all__ = ["provider", "backend", "focused_window", "list_windows", "find_windows", "list_monitors",
            "focus_window", "focus_window_on_workspace", "build_context", "windows_as_dicts"]

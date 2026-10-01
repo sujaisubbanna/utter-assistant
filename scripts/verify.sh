@@ -38,6 +38,9 @@ echo "== voice: push-to-talk rescan leak =="
 echo "== platform: macOS detection + backend selection (runs on Linux) =="
 "$PY" tests/platform/test_macos_detection.py || rc=1
 
+echo "== platform: compositor detection + KWin backend (no live Plasma needed) =="
+"$PY" tests/platform/test_compositor_detection.py || rc=1
+
 echo "== runner unit =="
 "$PY" -m runner._selftest || rc=1
 

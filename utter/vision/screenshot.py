@@ -101,14 +101,30 @@ def capture_output(output_name: str) -> tuple[str, Rect]:
 def capture() -> tuple[str, Rect]:
     """Capture the focused output (v1: single monitor).
 
-    Returns ``(png_path, logical_rect)`` for the focused output. Falls back to
-    the first reported output when niri has no focused output. On macOS the
-    capture is delegated to :mod:`utter.macos.screenshot` (``screencapture``).
+    Returns ``(png_path, logical_rect)`` for the focused output. On niri this is
+    :func:`capture_niri` (``grim``, unchanged). On macOS the capture is delegated
+    to :mod:`utter.macos.screenshot` (``screencapture``). On any other compositor
+    the active backend's ``screenshot()`` is used (KWin: spectacle -> portal ->
+    grim), which raises :class:`utter.context.compositor.CompositorUnsupported`
+    when nothing works.
     """
     if platform.is_macos():
         from utter.macos import screenshot as _mac
 
         return _mac.capture()
+    from utter.context import compositor
+
+    backend = compositor.active()
+    if getattr(backend, "NAME", compositor.NIRI) != compositor.NIRI:
+        return backend.screenshot()
+    return capture_niri()
+
+
+def capture_niri() -> tuple[str, Rect]:
+    """The original niri path: focused output via ``niri msg``, pixels via ``grim``.
+
+    Falls back to the first reported output when niri has no focused output.
+    """
     outputs = list_outputs()
     name = focused_output_name()
     if not name or name not in outputs:

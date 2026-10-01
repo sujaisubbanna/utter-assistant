@@ -66,6 +66,7 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
         "plugins": [],
         "drift": [],
         "deps": deps_mod.probe_deps(),
+        "compositor": compositor_section(),
         "connected": False,
     }
 
@@ -123,11 +124,45 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
     return report
 
 
+def compositor_section() -> dict:
+    """Detected compositor + active backend + capabilities (never raises, never acts)."""
+    try:
+        from utter.context import compositor
+
+        p = compositor.probe()
+    except Exception as exc:  # noqa: BLE001 - doctor must always produce a report
+        return {"detected": "unknown", "active": "unknown", "error": str(exc), "capabilities": {}}
+    det = p.get("detected") or {}
+    return {
+        "platform": p.get("platform"),
+        "requested": p.get("requested"),
+        "detected": det.get("compositor"),
+        "session_type": det.get("session_type"),
+        "desktop": det.get("desktop"),
+        "plasma_version": det.get("plasma_version"),
+        "evidence": det.get("evidence") or [],
+        "active": p.get("active"),
+        "reason": p.get("reason"),
+        "available": p.get("available"),
+        "capabilities": p.get("capabilities") or {},
+        "tools": {k: v for k, v in (p.get("tools") or {}).items() if not isinstance(v, dict)},
+    }
+
+
 def human(report: dict) -> str:
     lines: list[str] = []
     runner = report.get("runner", {})
     lines.append(f"runner: protocol {runner.get('protocol')} abi {runner.get('abi')} "
                  f"version {runner.get('version')}")
+    comp = report.get("compositor") or {}
+    if comp:
+        lines.append(f"compositor: detected {comp.get('detected')} -> backend {comp.get('active')}"
+                     + (f" (plasma {comp.get('plasma_version')})" if comp.get("plasma_version") else "")
+                     + (f" [{comp.get('session_type')}]" if comp.get("session_type") else ""))
+        caps = comp.get("capabilities") or {}
+        missing = [k for k, v in caps.items() if not v]
+        if missing:
+            lines.append(f"  unavailable: {', '.join(missing)}")
     if not report.get("connected"):
         lines.append(f"  NOT CONNECTED: {report.get('error', 'runner socket unavailable')}")
     else:
