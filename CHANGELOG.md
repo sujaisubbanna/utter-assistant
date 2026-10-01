@@ -5,7 +5,17 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2026-10-01
+## [0.1.3] - 2026-10-01
+
+### Added
+- **macOS Metal-native local runtime.** A platform-aware resolution layer (`utter/runtime.py`)
+  selects the local inference runtime for LLM, vision, STT and TTS: on Apple Silicon it
+  prefers Ollama, LM Studio or llama.cpp with Metal acceleration and avoids CUDA/NVIDIA
+  assumptions, while Linux defaults are unchanged. `assistant doctor` reports detected
+  hardware and suggested profiles, and the settings Diagnostics page shows the detected
+  runtime. Docs: `docs/MACOS.md`. Tests: `tests/platform/test_macos_runtime.py`.
+
+[0.1.2]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.2
 
 ### Added
 - **KDE Plasma (KWin) support.** A compositor abstraction (`utter/context/compositor.py`,
@@ -115,5 +125,4 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
-[0.1.2]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.1
