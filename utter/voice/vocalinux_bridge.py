@@ -119,11 +119,33 @@ def _play(name: str) -> None:
 
 def _type_and_report(original, injector, text: str) -> bool:
     """Type a dictation transcript and show the result on the overlay."""
+    try:
+        from .. import sleep as _sleep
+        _sleep.touch("dictation")
+    except Exception:
+        pass
     ok = bool(original(injector, text))
     if _state.get("mode") == "dictation":
         _osd_emit("final", text, ok)
         _play("typed" if ok else "not_detected")
     return ok
+
+
+def _idle_begin(token: str) -> None:
+    """Hold the idle-sleep timer while `token` (e.g. listening) is in progress."""
+    try:
+        from .. import sleep as _sleep
+        _sleep.idle().begin(token)
+    except Exception:
+        logger.debug("idle begin(%s) failed", token, exc_info=True)
+
+
+def _idle_end(token: str) -> None:
+    try:
+        from .. import sleep as _sleep
+        _sleep.idle().end(token)
+    except Exception:
+        logger.debug("idle end(%s) failed", token, exc_info=True)
 
 
 def _run_callback(cb: Callback, text: str) -> bool:
@@ -144,6 +166,9 @@ def _start_ptt_hotkey(key_name: str, mode: str) -> None:
         if held["v"]:
             return  # auto-repeat: ignore until release
         held["v"] = True
+        # A key press is Utter activity: hold the idle-sleep timer until
+        # recognition has gone back to IDLE (or failed to start).
+        _idle_begin("listen")
         # Asleep? Any push-to-talk key wakes Utter, then listens as usual.
         try:
             from .. import sleep as _sleep
@@ -164,6 +189,7 @@ def _start_ptt_hotkey(key_name: str, mode: str) -> None:
         if m is None:
             logger.warning("%s key pressed but recognition manager not ready", mode)
             _osd_idle()
+            _idle_end("listen")
             return
         # Show the overlay for the duration of the hold, styled per mode.
         _osd_listening(mode)
@@ -172,9 +198,11 @@ def _start_ptt_hotkey(key_name: str, mode: str) -> None:
             logger.info("%s PTT started=%s", mode, started)
             if not started:
                 _osd_idle()
+                _idle_end("listen")
         except Exception:
             logger.exception("%s start_recognition failed", mode)
             _osd_idle()
+            _idle_end("listen")
 
     def on_release() -> None:
         if not held["v"]:
@@ -183,13 +211,16 @@ def _start_ptt_hotkey(key_name: str, mode: str) -> None:
         if mode == "assistant":
             _state["assistant_until"] = time.time() + _ASSISTANT_GRACE_S
         m = _state.get("manager")
-        if m is not None:
-            try:
-                m.stop_recognition()
-            except Exception:
-                logger.exception("%s stop_recognition failed", mode)
-                # Failure path: don't leave the overlay stuck on "listening".
-                _osd_idle()
+        if m is None:
+            _idle_end("listen")
+            return
+        try:
+            m.stop_recognition()
+        except Exception:
+            logger.exception("%s stop_recognition failed", mode)
+            # Failure path: don't leave the overlay stuck on "listening".
+            _osd_idle()
+            _idle_end("listen")
 
     threading.Thread(target=_hotkey.listen, args=(on_press, on_release, key_name),
                      daemon=True, name=f"utter-ptt-{mode}").start()
@@ -272,6 +303,9 @@ def install(
                                     _state.get("assistant_until", 0.0), time.time() + 3.0)
                             _state["mode"] = None
                             _osd_emit("on_recognition_idle")
+                            # Listening (and transcribing) is over: release
+                            # the idle-sleep hold; the countdown restarts now.
+                            _idle_end("listen")
                     self.register_state_callback(_on_state)
                 except Exception:
                     logger.exception("could not register recognition state callback")

@@ -62,6 +62,12 @@ enabled = true
 trigger = ["go to sleep"]
 services = ["utter-vision", "utter-planner"]
 unload_speech = true
+# Also fall asleep by itself after idle_minutes without any Utter activity
+# (a push-to-talk key, a spoken command, or waking). Typing or clicking
+# elsewhere on the desktop does not count, so Utter still frees the GPU
+# while you work. Waking is the same: hold a push-to-talk key.
+on_idle = true
+idle_minutes = 15
 
 [osd]
 # Optional on-screen display for assistant mode (Noctalia overlay panel).

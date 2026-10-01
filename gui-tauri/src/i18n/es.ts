@@ -168,6 +168,11 @@ export const es: Messages = {
       triggerHint: "Dila tal cual, p. ej. «go to sleep». Separa las frases con comas.",
       speech: "Descargar también la voz",
       speechHint: "Libera más memoria. La voz se recarga en una fracción de segundo al despertar.",
+      idle: "Reposo por inactividad",
+      idleHint: "Entra en reposo por sí solo cuando llevas un rato sin usar Utter. Escribir o hacer clic en otras apps no cuenta.",
+      idleMinutes: "Tiempo de inactividad",
+      idleMinutesHint: "Minutos sin pulsar una tecla de hablar ni decir una orden antes de que Utter entre en reposo.",
+      minutesUnit: "min",
     },
     appearance: {
       title: "Apariencia",

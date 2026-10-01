@@ -80,6 +80,11 @@ class SleepConfig:
     services: list[str] = field(default_factory=lambda: ["utter-vision", "utter-planner"])
     # Also drop the speech model inside the listener (reloaded on wake).
     unload_speech: bool = True
+    # Fall asleep by itself after idle_minutes without Utter activity (a
+    # push-to-talk key, a spoken command, or waking). Desktop input elsewhere
+    # does not count. Independent of `enabled`, which gates the trigger phrase.
+    on_idle: bool = True
+    idle_minutes: float = 15
 
 
 @dataclass

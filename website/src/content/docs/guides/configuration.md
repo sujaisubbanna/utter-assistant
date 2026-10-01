@@ -101,6 +101,8 @@ Defaults are those shipped in `config.default.toml`.
 | `trigger` | `["go to sleep"]` | phrases that put Utter to sleep (assistant mode only) |
 | `services` | `["utter-vision", "utter-planner"]` | user units stopped on sleep |
 | `unload_speech` | `true` | also unload the speech model |
+| `on_idle` | `true` | also fall asleep after `idle_minutes` without Utter activity (independent of `enabled`) |
+| `idle_minutes` | `15` | minutes without a push-to-talk key, a spoken command or a wake before Utter sleeps by itself; desktop input elsewhere does not count, and the timer waits while Utter is listening or running a command |
 
 ### `[osd]`
 

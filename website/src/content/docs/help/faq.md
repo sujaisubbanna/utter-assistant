@@ -17,6 +17,16 @@ CPU with whisper.cpp. A GPU makes speech faster and is needed for the optional d
 vision models. The comfortable setup for all three is a 16 GB or larger NVIDIA card; see
 [Models](/guides/models/) for the recommendation per GPU class.
 
+### Why did Utter go to sleep by itself?
+
+By default Utter sleeps after 15 minutes without being used, so the graphics card is free while
+you work on something else. Only *Utter* activity keeps it awake: a push-to-talk key, a spoken
+command, or waking up. Typing or clicking in other apps does not count, and it never dozes off
+while it is listening or carrying out a command. Hold either push-to-talk key to wake it; speech
+is back in a fraction of a second and the bigger models reload in the background. Turn it off
+or change the time under **Sleep when idle** on the General page, or set `[sleep] on_idle` and
+`idle_minutes` in the config file.
+
 ### Does it work on X11, GNOME, KDE, Hyprland, sway?
 
 Utter targets **Wayland**, and the niri compositor is the first-class target for window and

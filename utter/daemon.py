@@ -130,6 +130,13 @@ class Utter:
         if not utterance:
             return False
         from . import sleep as _sleep
+        # A spoken command is Utter activity, and the idle timer must not put
+        # the models to sleep while the command is still being carried out.
+        with _sleep.idle(self.cfg).busy("command"):
+            return self._handle_utterance(utterance)
+
+    def _handle_utterance(self, utterance: str) -> bool:
+        from . import sleep as _sleep
         sleeper = _sleep.get(self.cfg)
         if sleeper.matches(utterance):
             log.info("sleep trigger: %r", utterance)
@@ -165,11 +172,19 @@ class Utter:
         import numpy as np
         import sounddevice as sd
 
+        from . import sleep as _sleep
+
         stt = Transcriber(self.cfg.stt)
         rec_lock = threading.Lock()
         chunks: list = []
+        sleeper = _sleep.get(self.cfg)
+        idle = _sleep.idle(self.cfg)
 
         def record_start():
+            idle.begin("listen")
+            if sleeper.asleep:
+                sleeper.wake()
+                _play("wake")
             with rec_lock:
                 chunks.clear()
             log.info("PTT down - listening")
@@ -184,21 +199,25 @@ class Utter:
             record_start.stream = stream  # type: ignore[attr-defined]
 
         def record_stop():
-            stream = getattr(record_start, "stream", None)
-            if stream is None:
-                return
-            stream.stop(); stream.close()
-            with rec_lock:
-                data = np.concatenate(chunks) if chunks else np.zeros((0, 1), dtype="float32")
-            audio = data.reshape(-1).astype("float32")
-            if audio.size < self.cfg.audio.sample_rate * 0.2:
-                log.info("too short, ignoring")
-                return
-            text = stt.transcribe(audio)
-            log.info("transcript: %r", text)
-            if text:
-                self.handle_utterance(text)
+            try:
+                stream = getattr(record_start, "stream", None)
+                if stream is None:
+                    return
+                stream.stop(); stream.close()
+                with rec_lock:
+                    data = np.concatenate(chunks) if chunks else np.zeros((0, 1), dtype="float32")
+                audio = data.reshape(-1).astype("float32")
+                if audio.size < self.cfg.audio.sample_rate * 0.2:
+                    log.info("too short, ignoring")
+                    return
+                text = stt.transcribe(audio)
+                log.info("transcript: %r", text)
+                if text:
+                    self.handle_utterance(text)
+            finally:
+                idle.end("listen")
 
+        idle.start()
         hotkey.listen(record_start, record_stop, key_name=self.cfg.hotkey.key)
 
     def run_bridge(self) -> None:
@@ -212,6 +231,8 @@ class Utter:
         )
         log.info("vocalinux bridge installed (dictation=%s, assistant=%s)",
                  self.cfg.ptt.dictation_key, self.cfg.ptt.assistant_key)
+        from . import sleep as _sleep
+        _sleep.idle(self.cfg).start()
         saved = sys.argv
         sys.argv = [saved[0]]
         try:

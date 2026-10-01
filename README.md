@@ -70,13 +70,17 @@ Each mode has its own start sound, so you can tell them apart without looking. C
 
 Say **“go to sleep”** (in assistant mode) and Utter frees your graphics card. The AI model services stop, the speech model is unloaded, and only a tiny listener stays alive. **Hold either push-to-talk key to wake it**: speech is back in a fraction of a second, and the bigger models reload in the background.
 
-The phrase is up to you. Change it on the **General** page, or in `~/.config/utter/config.toml`:
+Utter also **falls asleep by itself** after a while without being used (15 minutes by default). Only *Utter* activity counts: a push-to-talk key, a spoken command, or waking up. Typing and clicking in other apps do not, so the GPU gets freed while you work. It never dozes off mid-sentence or mid-command, and waking is the same key press. Turn it off or change the time on the **General** page (“Sleep when idle”).
+
+The phrase and the timer are up to you. Change them on the **General** page, or in `~/.config/utter/config.toml`:
 
 ```toml
 [sleep]
 trigger = ["go to sleep", "take a break"]
 services = ["utter-vision", "utter-planner"]   # what gets unloaded
 unload_speech = true
+on_idle = true                                 # sleep by itself when unused…
+idle_minutes = 15                              # …after this long
 ```
 
 ## 🔒 Completely offline

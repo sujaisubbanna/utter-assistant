@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { LanguageSelect } from "../components/LanguageSelect";
-import { ConfigList, ConfigSwitch } from "../components/Setting";
+import { ConfigList, ConfigNumber, ConfigSwitch } from "../components/Setting";
 import { PrivacyCard } from "../components/Privacy";
 import { DesktopColoursRow } from "../components/DesktopColours";
 import { PageBody, PageHeader, PageNote } from "../components/PageHeader";
@@ -155,6 +155,7 @@ export function GeneralPage() {
   const unitMap = new Map((units ?? []).map((unit) => [unit.id, unit]));
   const installed = enabled && !["not-found", "masked"].includes(enabled);
   const trigger = String(get("general", "trigger", "hotkey"));
+  const sleepOnIdle = Boolean(get("sleep", "on_idle", true));
 
   return (
     <>
@@ -221,6 +222,25 @@ export function GeneralPage() {
             title={t("general.sleep.speech")}
             description={t("general.sleep.speechHint")}
             fallback
+          />
+          <ConfigSwitch
+            section="sleep"
+            k="on_idle"
+            title={t("general.sleep.idle")}
+            description={t("general.sleep.idleHint")}
+            fallback
+          />
+          <ConfigNumber
+            section="sleep"
+            k="idle_minutes"
+            title={t("general.sleep.idleMinutes")}
+            description={t("general.sleep.idleMinutesHint")}
+            fallback={15}
+            min={1}
+            max={1440}
+            step={1}
+            suffix={t("general.sleep.minutesUnit")}
+            disabled={!sleepOnIdle}
           />
         </Section>
 
