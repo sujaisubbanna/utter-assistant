@@ -252,8 +252,8 @@ from utter.macos import pointer  # noqa: E402
 from utter.types import Action, ActionResult, Tier  # noqa: E402
 
 calls: list = []
-inject.send_key = lambda chord, backend="quartz": calls.append(("key", chord, backend)) or ActionResult(True, Action.KEY, Tier.KEYBOARD, "stub")
-inject.type_text = lambda text, backend="quartz": calls.append(("type", text, backend)) or ActionResult(True, Action.TYPE_TEXT, Tier.KEYBOARD, "stub")
+inject.send_key = lambda chord, backend="quartz", pid=None: calls.append(("key", chord, backend)) or ActionResult(True, Action.KEY, Tier.KEYBOARD, "stub")
+inject.type_text = lambda text, backend="quartz", pid=None: calls.append(("type", text, backend)) or ActionResult(True, Action.TYPE_TEXT, Tier.KEYBOARD, "stub")
 pointer.click_point = lambda x, y, button="left": calls.append(("click", x, y)) or ActionResult(True, Action.CLICK_POINT, Tier.KEYBOARD, "stub")
 keyboard._macos_backend = lambda: "applescript"
 with forced("darwin"):

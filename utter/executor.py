@@ -69,15 +69,71 @@ class Executor:
 
     def _do_key(self, step: Step) -> ActionResult:
         from .actions import keyboard
-        return keyboard.send_key(step.args["chord"])
+        # macOS: a targeted window is injected natively to its pid (no focus
+        # change). On Linux this is always None, so the focused/round-trip path
+        # is untouched.
+        return keyboard.send_key(step.args["chord"], pid=self._macos_target_pid(step))
 
     def _do_type_text(self, step: Step) -> ActionResult:
         from .actions import keyboard
-        return keyboard.type_text(step.args["text"])
+        return keyboard.type_text(step.args["text"], pid=self._macos_target_pid(step))
 
     def _do_scroll(self, step: Step) -> ActionResult:
         from .actions import mouse
         return mouse.scroll(step.args.get("direction", "down"), step.args.get("amount", 5))
+
+    # -- native macOS background input -------------------------------------
+    def _macos_target_pid(self, step: Step) -> Optional[int]:
+        """PID to background-post to on macOS, or ``None`` for focused input.
+
+        Experimental native macOS alternative to the Wayland focus round-trip:
+        when a step targets a window (``args.window_id`` / ``args.app``) and the
+        installed PyObjC exposes ``CGEventPostToPid``, return that window's pid
+        so the key/text is posted straight to the process **without changing
+        focus**. On Linux (or when the API is unavailable) this returns ``None``
+        and the caller falls back to the existing focused post. Never raises.
+        """
+        try:
+            from . import platform as _platform
+            if not _platform.is_macos():
+                return None
+            if step.args.get("window_id") is None and step.args.get("app") is None:
+                return None
+            from .macos import inject
+            if not inject.background_post_supported():
+                log.debug("macOS background pid-post unsupported; falling back to focus")
+                return None
+            target = self._macos_target_window(step)
+            pid = int(getattr(target, "pid", 0) or 0)
+            return pid or None
+        except Exception as exc:  # noqa: BLE001
+            log.debug("macOS target pid resolution failed: %s", exc)
+            return None
+
+    def _macos_target_window(self, step: Step):
+        """The :class:`WindowInfo` a targeted step refers to, or ``None``."""
+        try:
+            from .context import desktop
+        except Exception:  # noqa: BLE001
+            return None
+        window_id = step.args.get("window_id")
+        if window_id is not None:
+            try:
+                wid = int(window_id)
+            except (TypeError, ValueError):
+                return None
+            for w in desktop.list_windows() or []:
+                if int(getattr(w, "id", 0) or 0) == wid:
+                    return w
+            return None
+        app = step.args.get("app")
+        if app is None:
+            return None
+        found = desktop.find_windows(app_id=str(app)) or []
+        for w in found:  # prefer the focused window of that app
+            if getattr(w, "is_focused", False):
+                return w
+        return found[0] if found else None
 
     def _focus_window(self, window_id: int) -> None:
         """Focus a window (switching workspace first when the platform can)."""

@@ -8,7 +8,10 @@ Chord syntax: "ctrl+t", "super+Return", "ctrl+shift+Tab", "Return".
 No shell is used.
 
 On macOS (``utter.platform.is_macos()``) both entry points delegate to
-:mod:`utter.macos.inject` (Quartz ``CGEventPost``, AppleScript fallback).
+:mod:`utter.macos.inject` (Quartz ``CGEventPost``, AppleScript fallback). An
+optional ``pid`` selects native background posting (``CGEventPostToPid``, no
+focus change); it is only meaningful on macOS — on Linux it is ignored and the
+Wayland/X11 backends are used unchanged.
 """
 from __future__ import annotations
 
@@ -161,12 +164,16 @@ def _run(argv: list[str], env: dict | None = None) -> subprocess.CompletedProces
     return subprocess.run(argv, capture_output=True, text=True, timeout=_TIMEOUT, env=env)
 
 
-def send_key(chord: str) -> ActionResult:
-    """Send a key chord, e.g. "ctrl+t", "super+Return", "Return"."""
+def send_key(chord: str, *, pid: int | None = None) -> ActionResult:
+    """Send a key chord, e.g. "ctrl+t", "super+Return", "Return".
+
+    ``pid`` (macOS only) posts the chord straight to that process without
+    changing focus; ``None`` keeps the focused behaviour.
+    """
     if platform.is_macos():
         from utter.macos import inject
 
-        return inject.send_key(chord, backend=_macos_backend())
+        return inject.send_key(chord, backend=_macos_backend(), pid=pid)
     t0 = time.perf_counter()
     spec = (chord or "").strip()
     if not spec:
@@ -222,12 +229,12 @@ def send_key(chord: str) -> ActionResult:
                         (time.perf_counter() - t0) * 1000)
 
 
-def type_text(text: str) -> ActionResult:
-    """Type literal text."""
+def type_text(text: str, *, pid: int | None = None) -> ActionResult:
+    """Type literal text. ``pid`` (macOS only) targets that process."""
     if platform.is_macos():
         from utter.macos import inject
 
-        return inject.type_text(text, backend=_macos_backend())
+        return inject.type_text(text, backend=_macos_backend(), pid=pid)
     t0 = time.perf_counter()
     if text is None:
         text = ""
