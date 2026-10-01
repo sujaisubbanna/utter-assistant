@@ -112,40 +112,89 @@ Under the hood, a tiny **runner** supervises swappable **plugins** (speech, deci
 
 ## 🚀 Getting started
 
-> **Requirements:** Linux on Wayland (niri is the first-class target), PipeWire, and Python 3. An NVIDIA GPU is recommended for the larger models but not required.
+> **Requirements:** Linux on Wayland (niri is the first-class target), PipeWire, and Python 3.12+.
+> An NVIDIA GPU is recommended for the larger models but not required. Building the settings app
+> needs Node + pnpm and a Rust toolchain.
+
+The installer is an **interactive wizard**: it walks each component — the runner and `assistant`
+CLI, the settings app, the background services, speech models and the optional Noctalia widget —
+and asks whether you want it. In a terminal, Enter accepts the recommended default; `--yes` accepts
+them all non-interactively.
+
+### 1. Clone and install
+
+To keep the repository and install from your own checkout:
 
 ```bash
-# preview what the installer would do (changes nothing)
-install/install.sh --dry-run
+git clone https://github.com/sujaisubbanna/utter-assistant.git
+cd utter-assistant
 
-# install dependencies and enable the background service
+./install.sh --dry-run   # walk the wizard, print the plan, change nothing
+./install.sh             # install the components you choose
+```
+
+Want the smallest possible install — distro packages and the background service, nothing else?
+
+```bash
+install/install.sh --dry-run
 install/install.sh --yes
 ```
 
-Then open the **Utter settings app**, set your push-to-talk keys on the **Voice** page, and take a recommended model from **Models**.
+Undo either one with `./install.sh --uninstall`.
 
-<details>
-<summary><b>Run the settings app from source</b></summary>
+### 2. Remote install
+
+No clone needed:
 
 ```bash
+curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+```
+
+Piped input is not a terminal, so the wizard cannot prompt there: a bare pipe **prints the plan and
+changes nothing**. Pass `--yes` to accept the recommended defaults, or any other flag:
+
+```bash
+# recommended defaults, no prompts
+curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+
+# native package (.deb/.rpm) through your package manager instead of the AppImage (needs sudo)
+curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --package --yes
+
+# only these components
+curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --only core,gui --yes
+```
+
+Other flags: `--skip <csv>`, `--with-noctalia`, `--dry-run`, `--uninstall`. Every download is checked
+against `sha256sums.txt` from the release.
+
+### 3. Build from source
+
+The assistant core is stdlib-only Python; the settings app is Tauri v2 + React + Tailwind CSS v4.
+
+```bash
+# the assistant core, straight from the checkout
+python3 -m utter.daemon --text "open youtube" --dry-run
+scripts/verify.sh            # unit + e2e + conformance + spike
+
+# the settings app
 cd gui-tauri
 pnpm install
-WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm tauri dev
+pnpm tauri build             # release binary (and a .deb) in src-tauri/target/release
+pnpm tauri dev               # …or run it with hot reload
 ```
 
-It's Tauri v2 + React + Tailwind CSS v4. Translations live in `gui-tauri/src/i18n/`.
-</details>
-
-<details>
-<summary><b>Developer verification</b></summary>
+On Wayland with a dual-NVIDIA setup, launch the built app with the DMABUF renderer disabled —
+`./utter-gui` does this for you:
 
 ```bash
-scripts/verify.sh                                     # unit + e2e + conformance + spike
-.venv-agent/bin/python -m runner --config runner/config.example.toml
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./gui-tauri/src-tauri/target/release/utter
 ```
 
-Writing a plugin? Start from `plugins/fake_py/` (Python) or `plugins/fake_rs/` (Rust) and read [`docs/PLUGINS.md`](docs/PLUGINS.md).
-</details>
+Writing a plugin? Start from `plugins/fake_py/` (Python) or `plugins/fake_rs/` (Rust) and read
+[`docs/PLUGINS.md`](docs/PLUGINS.md).
+
+Once it's installed, open the **Utter settings app**, set your push-to-talk keys on the **Voice**
+page, and pick a recommended model on the **Models** page.
 
 ## 🗺️ Roadmap
 
