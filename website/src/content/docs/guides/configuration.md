@@ -109,6 +109,12 @@ Defaults are those shipped in `config.default.toml`.
 | `on_idle` | `true` | also fall asleep after `idle_minutes` without Utter activity (independent of `enabled`) |
 | `idle_minutes` | `15` | minutes without a push-to-talk key, a spoken command or a wake before Utter sleeps by itself; desktop input elsewhere does not count, and the timer waits while Utter is listening or running a command |
 
+:::note[Forthcoming: OSD loading state]
+A `loading` state is being added to the OSD state contract so the waveform can show models coming
+back after wake or a cold start. It is **not shipped yet** — the current states are `idle`,
+`listening` and `final`.
+:::
+
 ### `[osd]`
 
 | Key | Default | Meaning |

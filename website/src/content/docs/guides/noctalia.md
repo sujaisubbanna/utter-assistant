@@ -35,6 +35,12 @@ Noctalia exposes no partial transcripts of its own, so the live transcript uses 
 decoding and is best-effort. When it is not available, the level meter still works and the final
 text appears on release.
 
+:::note[Forthcoming: a loading state]
+A `loading` state is being added to the OSD so the waveform can show models coming back after a
+wake or cold start. It is **not shipped yet** — today the state is `idle`, `listening` or
+`final`.
+:::
+
 ### Configuration
 
 ```toml

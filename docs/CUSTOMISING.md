@@ -17,6 +17,7 @@ throughout; anything not shipped in this repo is called out explicitly.
 9. [Services (systemd user units)](#9-services-systemd-user-units)
 10. [Profiles & apps](#10-profiles--apps)
 11. [Safety](#11-safety)
+12. [Sleep, wake and the OSD](#12-sleep-wake-and-the-osd)
 
 ---
 
@@ -245,6 +246,46 @@ Model/port/GPU are overridable via `UTTER_PLANNER_MODEL_PATH`,
 
 The default checkpoint is `models/Qwen3-4B-Instruct-2507-AWQ-4bit` (W4A16 AWQ).
 
+### GPU memory & latency
+
+The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers**. Per-component
+footprint:
+
+| Component | Model | Precision | GPU memory setting | On disk |
+|---|---|---|---|---|
+| Speech recognition (in process) | `distil-small.en` | faster-whisper, float16 | ~0.5 GB | — |
+| Decision head / planner | `Qwen3-4B-Instruct-2507-AWQ-4bit` | W4A16 (4-bit AWQ) | `--gpu-memory-utilization 0.30` | 3.3 GB |
+| Screen vision | `UI-TARS-2B-SFT` | bf16 | `--gpu-memory-utilization 0.55` | 9.2 GB |
+
+`0.30 + 0.55 = 0.85`, so the default pair fits one ~24 GB GPU.
+
+| Tier | What runs | Status |
+|---|---|---|
+| **24 GB** | Full stack; planner ~7.2 GB (0.30), vision for ~13 GB (0.55) | **Measured** — the shipped defaults target this |
+| **16 GB** | Same models with lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (sum below ~0.9) | **Expected; untested** |
+| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Expected; untested** |
+| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | **Expected; untested** |
+
+Only the 24 GB row is what the shipped defaults target; the other rows have **not** been tested.
+Use `assistant recommend` to see what fits your machine.
+
+Latency was measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **2026-10-02**
+(30 warm calls and 1 cold call per path). It will differ per machine.
+
+| Path | Cold (first call) | Warm p50 | Warm p95 |
+|---|---|---|---|
+| Rules (layer 1, no model) | 9.2 ms | <1 ms | <1 ms |
+| Decision head (layer 2, local LLM) | 108.8 ms | 9.2 ms | 11.6 ms |
+| Vision (UI-TARS screenshot grounding) | 676.5 ms | 91.0 ms | 140.6 ms |
+| End-to-end `utter assistant --dry-run` | 114 ms | 113 ms | 114 ms |
+| Sleep → wake (planner reload to ready) | ~21 s | — | — |
+
+- **"Cold"** is the first call after the servers are up but idle (cold CUDA kernels/caches), not
+  model loading.
+- The end-to-end time is dominated by Python interpreter startup (~113 ms), not the decision head
+  (about 9 ms warm).
+- The vision numbers include a synthetic 1344×756 image.
+
 ---
 
 ## 6. Vision
@@ -416,3 +457,16 @@ Read [`docs/TRUST.md`](TRUST.md) in full. For customisation the relevant points:
   `utter_py` plugin defaults it **on**, so only `UTTER_DRY_RUN=0` touches the
   desktop (`_dry_run`, `plugins/utter_py/plugin.py`). Route-only testing without the
   plugin: `python -m utter.daemon --text "<cmd>" --dry-run`.
+
+---
+
+## 12. Sleep, wake and the OSD
+
+Sleep mode is configured under `[sleep]` in `config.default.toml`: the sleep phrase stops the
+services listed in `[sleep] services` and unloads the speech model, and idle sleep does the same
+after `[sleep] idle_minutes` (15 by default). Holding a push-to-talk key wakes everything; speech
+comes back first and the larger models reload in the background.
+
+> **Forthcoming:** a `loading` state is being added to the OSD state contract so the waveform can
+> show models coming back after wake or a cold start. This is **not shipped yet** — do not rely on
+> it until it appears in the OSD state values.

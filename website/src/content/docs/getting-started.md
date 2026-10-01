@@ -119,6 +119,11 @@ on_idle = true                                 # sleep by itself when unused…
 idle_minutes = 15                              # …after this long
 ```
 
+:::note[Forthcoming: a loading state]
+A `loading` state is being added to the on-screen display so the waveform can show the models
+coming back after a wake or a cold start. It is **not shipped yet**.
+:::
+
 ## Next steps
 
 - [Configuration](/guides/configuration/) for every config section, speech backends, the
