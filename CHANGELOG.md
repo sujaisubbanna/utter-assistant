@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-10-01
+
+### Changed
+- **Installer rebuilt around a proper terminal UI.** `install.sh` gained one UI layer
+  (aligned fields, section banners, a step indicator, spinners and download progress) with
+  a plain fallback: it is styled only on a real terminal and honours `NO_COLOR`,
+  `TERM=dumb` and `UTTER_UI=auto|gum|plain` (uses `gum` if already installed, never
+  downloads it). The script is reorganised into labelled sections.
+
+### Fixed
+- **`--uninstall` no longer deletes without confirmation.** It used to remove installed
+  components even when piped or run without `--yes`; it now lists what it would remove and
+  refuses unless `--yes` (or `--dry-run`).
+- **The installed systemd unit actually starts.** `install.sh` now substitutes `@REPO@`
+  instead of copying the unit verbatim, which left a literal `@REPO@` that systemd could
+  not resolve.
+- **The assistant plugin runs on a clean system.** The installer provisions an interpreter
+  venv with PyYAML and requests and repoints the plugin and `config.m3.toml` entrypoints at
+  it, so it no longer depends on a bare `python`.
+- **arm64 installs no longer fail on the GUI step.** With no arm64 GUI asset published, the
+  GUI is skipped with a clear note instead of aborting.
+- **Secondary installer scripts' `--help` no longer leaks `set -euo pipefail`.**
+
+### Removed
+- Machine-specific defaults and comments: a hardcoded GPU index and author GPU model, and
+  literal `/run/user/<uid>` paths, are now generic.
+
 ## [0.1.5] - 2026-10-01
 
 ### Fixed
@@ -151,6 +178,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
+[0.1.6]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.6
 [0.1.5]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.5
 [0.1.4]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.4
 [0.1.3]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.3
