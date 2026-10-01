@@ -135,9 +135,9 @@ Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and an experimental 
 - [ ] **Run well on less memory** — smaller default models, quantised builds and one shared GPU, so 8 GB cards and CPU-only machines work.
 
 **Memory and personalisation**
-- [ ] **Personal memory with [mem0](https://github.com/mem0ai/mem0)** — remember standing preferences instead of asking every time.
-  - Stores small facts, not transcripts; each entry keeps its source and a confidence. Consulted before the rules, and only as candidates that *select* among prepared actions (never author `args`).
-  - Written on an explicit *"remember that…"* or after accepting a suggestion twice; local and offline under `~/.local/share/utter/memory/`, with `memory list|search|forget|export`. It can raise a preference, never a permission, a confirmation or an app override.
+- [ ] **Personal memory with [mem0](https://github.com/mem0ai/mem0)** — remember standing preferences instead of asking every time. **Not implemented yet.**
+  - When it ships it will store small facts, not transcripts; each entry keeps its source and a confidence. Consulted before the rules, and only as candidates that *select* among prepared actions (never author `args`).
+  - It will be **local and offline** and **opt-in**, written on an explicit *"remember that…"* or after accepting a suggestion twice, under `~/.local/share/utter/memory/`, with `memory list|search|forget|export`. It will be **off by default and can be turned off** — off means Utter keeps no memory. It can raise a preference, never a permission, a confirmation or an app override.
 
 **Apps and voices**
 - [ ] **More apps** — more hand-tuned profiles and actions.
@@ -164,7 +164,8 @@ Full documentation: **[sujaisubbanna.github.io/utter-assistant](https://sujaisub
 
 - **Untrusted content selects, never authors.** Screen, accessibility, OCR, window titles and the clipboard may only choose among precomputed actions — they cannot supply arguments.
 - **Risky abilities are opt-in.** `terminal` and raw `input` stay off until explicitly enabled and confirmed; the runner enforces policy, not the plugin.
-- **The socket is default-deny** (allow-list plus `SO_PEERCRED`), and handles are capabilities, not paths. Details: [docs/TRUST.md](docs/TRUST.md).
+- **The socket is default-deny** (allow-list plus `SO_PEERCRED`), and handles are capabilities, not paths.
+- **What it stores.** Settings, the generated app catalogue, downloaded models and install state; no audio recordings, no transcript or history files, and no screenshots beyond the live session. Transcript text is logged at `INFO` level, so it can appear in the systemd journal until you lower `[daemon] log_level`. Details: [docs/TRUST.md](docs/TRUST.md#8-what-utter-stores).
 
 ## Contributing
 

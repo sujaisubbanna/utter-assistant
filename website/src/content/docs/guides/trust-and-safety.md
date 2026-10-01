@@ -99,6 +99,43 @@ plugin, so you can see exactly what is actually contained.
   warned about.
 - The optional on-screen display writes its state file `0700` under `$XDG_RUNTIME_DIR`. Its
   text is, by design, visible on your screen.
+- The transcript **text** is the one exception: the daemon logs it at `INFO` level, so it can
+  appear in the systemd journal (`journalctl --user`). Lower `[daemon] log_level` to `WARNING`
+  to stop it. This is the text, not the audio.
+
+## What Utter stores
+
+Utter keeps a small amount of state on disk. Persistent state (survives reboot):
+
+| Path | What it is |
+|---|---|
+| `~/.config/utter/config.toml` | your settings |
+| `~/.local/share/utter/generated.yaml` | the app catalogue generated from your installed apps |
+| `~/.local/share/utter/models/` | downloaded model weights |
+| `~/.local/state/utter/install.json` | install state, reversible |
+
+Runtime-only state (lives under `$XDG_RUNTIME_DIR`, cleared on logout):
+
+| Path | What it is |
+|---|---|
+| `$XDG_RUNTIME_DIR/utter/osd.json` | live on-screen-display state, including the current partial/final transcript while the panel is open; never persisted |
+| `$XDG_RUNTIME_DIR/utter/sleep.json` | asleep/awake state only, written atomically; never persisted |
+
+Utter does **not** keep:
+
+- **audio** — no recordings persist on disk;
+- **command history or transcripts as files** — nothing is appended to a history file;
+- **screen contents or screenshots beyond the live session** — vision captures overwrite a
+  single temporary file.
+
+The only **application-specific** data today is the per-app shortcut and profile data: the
+generated catalogue plus your own profile edits.
+
+:::note[Forthcoming: personal memory]
+A personal memory feature (the mem0 roadmap item) is **not implemented yet**. When it lands it
+will be **local and offline**, **opt-in**, and can be turned off; turning it off will mean Utter
+keeps no memory. Until then, Utter has no memory feature.
+:::
 
 ## Supply chain
 

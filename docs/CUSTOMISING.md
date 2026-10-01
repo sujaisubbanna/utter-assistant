@@ -18,6 +18,7 @@ throughout; anything not shipped in this repo is called out explicitly.
 10. [Profiles & apps](#10-profiles--apps)
 11. [Safety](#11-safety)
 12. [Sleep, wake and the OSD](#12-sleep-wake-and-the-osd)
+13. [Forthcoming: app-targeted actions & background input](#13-forthcoming-app-targeted-actions--background-input)
 
 ---
 
@@ -470,3 +471,22 @@ comes back first and the larger models reload in the background.
 > **Forthcoming:** a `loading` state is being added to the OSD state contract so the waveform can
 > show models coming back after wake or a cold start. This is **not shipped yet** — do not rely on
 > it until it appears in the OSD state values.
+
+---
+
+## 13. Forthcoming: app-targeted actions & background input
+
+**Not shipped yet.** Two feature lanes are in progress: sending an action to a specific app rather
+than the focused window, using background keyboard/mouse input. The verified platform limits are:
+
+- **Linux/Wayland.** Wayland has no background key injection, so the mechanism is a **focus
+  round-trip** (focus the target, send the key, restore focus). Measured cost is about **38 ms**
+  same-workspace and **41 ms** cross-workspace with compositor animations off, but **~250 ms** of
+  visible viewport scroll when niri animations are on.
+- **macOS.** The intended path is the native `CGEventPostToPid` for **keyboard** (no focus
+  change). The mouse **cannot** target background windows.
+- **Hyprland.** `sendshortcut` exists but is unreliable for Electron/Chromium apps and can
+  silently do nothing.
+
+The config keys are still being finalised; a `[wayland]` setting will control this. Do not rely on
+exact key names yet.
