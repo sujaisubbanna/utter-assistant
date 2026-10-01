@@ -101,7 +101,7 @@ installs reversible and that `doctor` compares against the running system.
 | `XDG_RUNTIME_DIR` | where the runner socket, plugin sockets and OSD state live |
 # Utter command line
 
-The `utter` executable drives desktop actions and manages settings and per-app custom voice commands. The separate `python -m assistant` command manages models, runner health, recommendations, and install state. See the [agent CLI reference](../../../../docs/CLI.md) for command details, formal JSON Schema, and exit codes.
+The `utter` executable drives desktop actions and manages settings and per-app custom voice commands. The separate `python -m assistant` command manages models, runner health, recommendations, and install state. See the [utter CLI reference](/reference/cli-agent/) for command details, formal JSON Schema, and exit codes.
 
 ```sh
 utter schema --json

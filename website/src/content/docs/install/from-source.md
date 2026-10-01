@@ -98,7 +98,7 @@ python -m assistant install-state record|show
 `doctor --json` includes a `deps` section (which CLI tools and libraries are present) alongside,
 per plugin, the negotiated protocol version, unknown capabilities, missing requirements and the
 list of permissions with whether each is enforced or advisory. The full command reference is on
-[The assistant CLI](/reference/cli/).
+[The assistant CLI](/reference/cli-assistant/).
 
 ## The model store
 

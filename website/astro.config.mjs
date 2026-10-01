@@ -82,7 +82,8 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'Architecture', slug: 'reference/architecture' },
-            { label: 'The assistant CLI', slug: 'reference/cli' },
+            { label: 'The utter CLI (agents)', slug: 'reference/cli-agent' },
+            { label: 'The assistant CLI', slug: 'reference/cli-assistant' },
             { label: 'Releasing', slug: 'reference/releasing' },
           ],
         },
