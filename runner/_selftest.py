@@ -456,14 +456,25 @@ async def test_fd_pass_over_socket() -> None:
 async def test_enforce_reporting() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         host = Host(RunnerConfig(security_enforce=True), handle_root=tmp)
-        check("security: enforce=true selects a wrapper", host._security_wrapper.enforced)
+        wrapper = host._security_wrapper
+        # `enforce = true` requests hardening; whether a wrapper is actually
+        # available is environment-dependent (needs a usable systemd --user or
+        # bwrap). What must hold everywhere: if a wrapper was selected it is
+        # enforced, and if none is available the wrapper is explicitly advisory.
+        check("security: enforce=true selects either a working wrapper or none",
+              wrapper.enforced or wrapper.kind is None,
+              f"kind={wrapper.kind!r} reason={wrapper.reason!r}")
         inst = PluginInstance(PluginConfig(id="p", permissions=["filesystem.read", "weird"]))
         inst.status = "ok"
         host.plugins.append(inst)
         report = host.validate_plugin({"plugin": "p"})
         perms = {p["name"]: p["enforced"] for p in report["permissions"]}
-        check("security: validate_plugin reports enforced",
-              perms.get("filesystem.read") is True and perms.get("weird") is False, str(perms))
+        # Enforceable permissions are reported enforced only when a wrapper is
+        # actually active; unsupported permissions are never reported enforced.
+        expect_read = bool(wrapper.enforced)
+        check("security: validate_plugin reports enforcement truthfully",
+              perms.get("filesystem.read") is expect_read and perms.get("weird") is False,
+              f"{perms} (wrapper enforced={wrapper.enforced})")
 
 
 async def test_enforce_spawn() -> None:
