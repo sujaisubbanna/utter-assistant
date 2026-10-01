@@ -10,22 +10,28 @@ In a terminal it is an **interactive, step-by-step wizard**: it walks every comp
 it is, its size, whether sudo is needed and what was detected on this machine, and asks whether
 you want it. With `--yes` it accepts the recommended defaults non-interactively.
 
-## One-liner
+## Download and run
+
+Download the script, make it executable, and run it. This is the recommended form: it runs in a
+real terminal, so the **interactive wizard** can ask you about each component.
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
 ```
 
-:::caution[Piped with no `--yes`]
-stdin is not a terminal, so the wizard does not start. The installer prints the plan and how to
-customise it, then exits `0` **without changing anything**. Pass `--yes` to apply:
+Preview without changing anything:
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+./install.sh --dry-run
 ```
-:::
 
-Flags are passed through `bash -s --`:
+## Piping into bash
+
+Piping straight into `bash` also works, but a pipe is **not** a terminal, so the wizard cannot
+prompt: the installer prints the plan and how to customise it, then exits `0` **without changing
+anything**. Use this form only when you pass flags explicitly.
 
 ```bash
 # accept all recommended defaults, no prompts

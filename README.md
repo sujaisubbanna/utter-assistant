@@ -169,14 +169,20 @@ Undo either one with `./install.sh --uninstall`.
 
 ### 2. Remote install
 
-No clone needed:
+No clone needed. **Download the script, then run it** — that way it is a real terminal and the
+interactive wizard can ask you about each component:
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
 ```
 
-Piped input is not a terminal, so the wizard cannot prompt there: a bare pipe **prints the plan and
-changes nothing**. Pass `--yes` to accept the recommended defaults, or any other flag:
+`./install.sh --dry-run` walks the wizard and prints the plan without changing anything.
+
+Piping straight into `bash` also works, but a pipe is **not** a terminal, so the wizard cannot
+prompt: it prints the plan and changes nothing. Use that form only when you want to pass flags
+explicitly:
 
 ```bash
 # recommended defaults, no prompts
