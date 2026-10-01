@@ -4,7 +4,8 @@ description: "Installing from a checkout: the developer installer, systemd user 
 ---
 
 This page is for people who keep a checkout of the repository: contributors, plugin authors, and
-anyone who wants to read the code before running it. Everything here is Linux only.
+anyone who wants to read the code before running it. The instructions below are for Linux; the
+macOS side is covered in [macOS](/guides/macos/).
 
 ```bash
 git clone https://github.com/sujaisubbanna/utter-assistant.git

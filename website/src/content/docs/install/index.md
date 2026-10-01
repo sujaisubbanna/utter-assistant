@@ -3,8 +3,10 @@ title: "Install"
 description: "The three ways to install Utter on Linux: clone and install, the one-line remote installer, or build from source."
 ---
 
-Utter runs on **Linux on Wayland** (niri is the first-class target) with **PipeWire** and
-**Python 3.12+**. An NVIDIA GPU is recommended for the larger models but not required.
+Utter runs on **Linux on Wayland** — **niri** and **KDE Plasma (KWin)** are first-class, other
+compositors get partial support (dictation, typing, launching; no window actions) — with
+**PipeWire** and **Python 3.12+**. **macOS is experimental** (see [macOS](/guides/macos/)).
+An NVIDIA GPU is recommended for the larger models but not required.
 Building the settings app needs Node + pnpm and a Rust toolchain. Only x86_64 release assets are
 published today.
 
