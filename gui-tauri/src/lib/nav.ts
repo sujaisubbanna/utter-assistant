@@ -40,9 +40,20 @@ export const NAV: NavGroup[] = [
   },
 ];
 
-export const NAV_IDS = NAV.flatMap((group) => group.items.map((item) => item.id));
+/** macOS gets a "Set up" entry first: permissions + launchd agents. */
+const SETUP_ITEM: NavItem = { id: "setup", labelKey: "nav.setup", icon: "shield" };
+
+export function navFor(isMac: boolean): NavGroup[] {
+  if (!isMac) return NAV;
+  return NAV.map((group, index) =>
+    index === 0 ? { ...group, items: [SETUP_ITEM, ...group.items] } : group,
+  );
+}
+
+export const NAV_IDS = [...NAV.flatMap((group) => group.items.map((item) => item.id)), SETUP_ITEM.id];
 
 export function navItem(id: string): NavItem | undefined {
+  if (id === SETUP_ITEM.id) return SETUP_ITEM;
   for (const group of NAV) {
     const found = group.items.find((item) => item.id === id);
     if (found) return found;

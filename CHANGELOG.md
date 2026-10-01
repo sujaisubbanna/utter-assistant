@@ -16,6 +16,30 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `idle_minutes`, with a switch and a minutes field on the General page (en + es).
 
 ## [0.1.1] - 2026-10-01
+- **Experimental macOS support.** A small platform module (`utter/platform.py`) selects
+  native backends on Darwin while leaving every Linux code path untouched: Apple
+  `Speech.framework` speech-to-text with a local whisper.cpp fallback (and an optional
+  VocaMac file-transcription backend), `say`/`AVSpeechSynthesizer` spoken replies, Quartz
+  event-tap push-to-talk keys, Quartz/AppleScript key and text injection, `NSWorkspace` +
+  Accessibility focused-window context, `screencapture` screenshots, `pbpaste` clipboard,
+  `afplay` sounds and notification banners. New `[macos]` config section, `macos/setup.sh`
+  with a launchd agent, `docs/MACOS.md` and a docs-site page with the platform matrix.
+- Release workflow: a `build-macos` job on `macos-14` that builds the macOS core tarball and
+  an **unsigned** `.app`/`.dmg` of the settings app and attaches them to the release
+  (`sha256sums-macos.txt`). The Linux job is unchanged.
+- Settings app on macOS: a **Set up** onboarding page (Raycast-style) that lists the
+  Microphone, Speech Recognition, Input Monitoring, Accessibility and Screen Recording
+  permissions with live status, a Grant button that triggers the system prompt from the
+  daemon's own Python, and deep links into System Settings; launchd-backed service rows and
+  log tail; macOS variants of the Voice and Spoken replies pages that edit `[macos]`.
+  New `assistant macos-permissions` CLI. Linux builds are unchanged (`platform_info`).
+- `tests/platform/test_macos_detection.py` (run by `scripts/verify.sh` on Linux) covers the
+  detection, config defaults, STT chain selection, key tables, chord parsing, dispatch and
+  the permissions table/CLI.
+
+## [0.2.0] - 2026-10-01
+
+## [0.1.1] - 2026-10-01
 
 ### Added
 - **Documentation site** built with Astro Starlight and published to GitHub Pages —

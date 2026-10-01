@@ -10,6 +10,8 @@ import type {
   DoctorReport,
   ModelEntry,
   Palette,
+  PermissionReport,
+  PlatformInfo,
   ProfileList,
   ProfileOverride,
   Recommendation,
@@ -64,6 +66,14 @@ export const api = {
   startLogTail: (unit: string, tailId: string) =>
     invoke<void>("start_log_tail", { unit, tailId }),
   stopLogTail: (tailId: string) => invoke<void>("stop_log_tail", { tailId }),
+
+  platformInfo: () => invoke<PlatformInfo>("platform_info"),
+  // macOS onboarding: permission probes run in the daemon's python; the pane
+  // deep-link is allow-listed in the backend.
+  macosPermissions: () => invoke<PermissionReport>("macos_permissions"),
+  macosRequestPermission: (name: string) =>
+    invoke<PermissionReport>("macos_request_permission", { name }),
+  openSettingsPane: (pane: string) => invoke<void>("open_settings_pane", { pane }),
 
   getThemePalette: () => invoke<Palette>("get_theme_palette"),
   exportBundle: (dest?: string) =>

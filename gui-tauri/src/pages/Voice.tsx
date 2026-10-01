@@ -16,7 +16,9 @@ import { useConfig } from "../lib/config";
 import { useTauriEvent } from "../lib/events";
 import { displayName, domCodeToEvdev, isModifier } from "../lib/keys";
 import { linkFor } from "../lib/links";
+import { usePlatform } from "../lib/platform";
 import { optionLabel, STT_BACKENDS, STT_DEVICES } from "../lib/services";
+import { VoiceMacPage } from "./VoiceMac";
 
 function KeyCaptureModal({
   open,
@@ -150,6 +152,12 @@ function LevelMeter({ active }: { active: boolean }) {
 }
 
 export function VoicePage() {
+  const { isMac } = usePlatform();
+  if (isMac) return <VoiceMacPage />;
+  return <VoiceLinuxPage />;
+}
+
+function VoiceLinuxPage() {
   const t = useT();
   const { get, set, loading } = useConfig();
   const toast = useToast();

@@ -7,9 +7,11 @@ import { I18nProvider, useT } from "./i18n";
 import { api } from "./lib/api";
 import { ConfigProvider, useConfig } from "./lib/config";
 import { navLabelKey } from "./lib/nav";
+import { PlatformProvider, usePlatform } from "./lib/platform";
 import { RunnerStatusProvider } from "./lib/status";
 import { ThemeProvider } from "./lib/theme";
 import { isPageId, PAGES } from "./pages";
+import { setupSeen } from "./pages/Setup";
 
 function routeFromHash(): string {
   const id = window.location.hash.replace(/^#\/?/, "");
@@ -39,6 +41,7 @@ function useSplash(ready: boolean) {
 function Shell() {
   const t = useT();
   const { loading: configLoading } = useConfig();
+  const { isMac, ready: platformReady } = usePlatform();
   useSplash(!configLoading);
   const [route, setRoute] = useState<string>(routeFromHash);
   const [version, setVersion] = useState("0.1.0");
@@ -65,6 +68,12 @@ function Shell() {
       })
       .catch(() => {});
   }, [navigate]);
+
+  // First launch on a Mac: start on the Set up page until it has been seen once.
+  useEffect(() => {
+    if (!platformReady || !isMac || setupSeen()) return;
+    if (!window.location.hash || routeFromHash() === "general") navigate("setup");
+  }, [platformReady, isMac, navigate]);
 
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
@@ -107,11 +116,13 @@ export default function App() {
     <ThemeProvider>
       <I18nProvider>
         <ToastProvider>
-          <ConfigProvider>
-            <RunnerStatusProvider>
-              <Shell />
-            </RunnerStatusProvider>
-          </ConfigProvider>
+          <PlatformProvider>
+            <ConfigProvider>
+              <RunnerStatusProvider>
+                <Shell />
+              </RunnerStatusProvider>
+            </ConfigProvider>
+          </PlatformProvider>
         </ToastProvider>
       </I18nProvider>
     </ThemeProvider>

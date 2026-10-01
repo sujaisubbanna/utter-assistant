@@ -16,6 +16,7 @@ export const LINKS = {
   vosk: "https://alphacephei.com/vosk/",
   parakeet: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2",
   vocalinux: "https://github.com/jatinkrmalik/vocalinux",
+  vocamac: "https://github.com/VocaHQ/vocamac",
   // AI servers
   vllm: "https://docs.vllm.ai/en/latest/getting_started/installation/",
   ollama: "https://ollama.com/download",

@@ -99,6 +99,37 @@ class OsdConfig:
 
 
 @dataclass
+class MacosConfig:
+    """macOS-only settings (``[macos]``). Ignored on Linux.
+
+    Nothing here changes Linux behaviour: the section only selects which native
+    backend is used when ``sys.platform == "darwin"``.
+    """
+    # Speech-to-text: "apple_speech" (Speech.framework via PyObjC) first, then
+    # the local whisper.cpp fallback. "vocamac" uses an installed VocaMac.app's
+    # file-transcription CLI. Any of the Linux [stt] backends is also accepted.
+    stt_backend: str = "apple_speech"
+    stt_fallback: str = "whisper_cpp"
+    speech_locale: str = "en-US"
+    # Keep recognition on the device (no Apple servers). Requires a locale with
+    # an on-device model; otherwise the request fails and whisper.cpp is used.
+    on_device_only: bool = True
+    # Text-to-speech: "say" (the system CLI), "avspeech" (AVSpeechSynthesizer
+    # via PyObjC) or "none".
+    tts_backend: str = "say"
+    tts_voice: str = ""
+    tts_rate: int = 0          # words per minute; 0 = system default
+    # Push-to-talk keys: "quartz" (CGEventTap via PyObjC) or "pynput".
+    hotkey_backend: str = "quartz"
+    dictation_key: str = "right_option"
+    assistant_key: str = "right_command"
+    # Keyboard/mouse injection: "quartz" (CGEventPost) with an AppleScript
+    # fallback, or "applescript" only.
+    injection: str = "quartz"
+    notifications: bool = True
+
+
+@dataclass
 class GeneralConfig:
     trigger: str = "bridge"
 
@@ -115,6 +146,7 @@ class Config:
     actions: ActionsConfig = field(default_factory=ActionsConfig)
     sleep: SleepConfig = field(default_factory=SleepConfig)
     osd: OsdConfig = field(default_factory=OsdConfig)
+    macos: MacosConfig = field(default_factory=MacosConfig)
     log_level: str = "INFO"
 
 
@@ -144,6 +176,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.actions, raw.get("actions", {}))
         _merge(cfg.sleep, raw.get("sleep", {}))
         _merge(cfg.osd, raw.get("osd", {}))
+        _merge(cfg.macos, raw.get("macos", {}))
         if "log_level" in raw.get("daemon", {}):
             cfg.log_level = raw["daemon"]["log_level"]
     return cfg

@@ -6,6 +6,11 @@ description: "Every knob in ~/.config/utter/config.toml, hotkeys and push-to-tal
 Utter is configured by a single TOML file. The settings app edits the same file (it preserves
 your comments), so you can use whichever you prefer.
 
+:::note[macOS]
+On a Mac the voice, hotkey and spoken-reply settings live in a separate `[macos]` section and
+the settings app edits that instead. See [macOS (experimental)](/guides/macos/).
+:::
+
 ## Config files and precedence
 
 1. `~/.config/utter/config.toml` (honours `XDG_CONFIG_HOME`) is your override.

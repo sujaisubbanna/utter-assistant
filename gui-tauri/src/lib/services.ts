@@ -61,6 +61,25 @@ export const STT_BACKENDS: OptionDef[] = [
 
 export const STT_DEVICES = ["cuda", "cpu", "auto", "int8"];
 
+/** macOS (`[macos]` section). Apple Speech needs no model; whisper.cpp is the offline fallback. */
+export const MAC_STT_BACKENDS: OptionDef[] = [
+  { value: "apple_speech", labelKey: "voice.mac.appleSpeech" },
+  { value: "whisper_cpp", label: "whisper.cpp", link: "whisper_cpp" },
+  { value: "faster_whisper", label: "faster-whisper", link: "faster_whisper" },
+  { value: "vocamac", label: "VocaMac", link: "vocamac" },
+];
+
+export const MAC_HOTKEY_BACKENDS: OptionDef[] = [
+  { value: "quartz", labelKey: "voice.mac.quartz" },
+  { value: "pynput", label: "pynput" },
+];
+
+export const MAC_TTS_BACKENDS: OptionDef[] = [
+  { value: "say", labelKey: "tts.mac.say" },
+  { value: "avspeech", label: "AVSpeechSynthesizer" },
+  { value: "none", labelKey: "common.none" },
+];
+
 export const LLM_PROVIDERS: (OptionDef & { url: string })[] = [
   { value: "vllm", label: "vLLM", url: "http://127.0.0.1:8001/v1", link: "vllm" },
   { value: "ollama", label: "Ollama", url: "http://127.0.0.1:11434/v1", link: "ollama" },

@@ -116,7 +116,7 @@ def _ensure() -> None:
     if _EXECUTOR is not None:
         return
     from utter.config import load_config
-    from utter.context import niri
+    from utter.context import desktop as niri
     from utter.executor import Executor
     from utter.router import profiles as profiles_mod
 
@@ -130,7 +130,7 @@ def _ensure() -> None:
 
 
 def _context():
-    from utter.context import niri
+    from utter.context import desktop as niri
 
     return niri.build_context(with_a11y=False)
 

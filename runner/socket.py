@@ -10,6 +10,7 @@ import logging
 import os
 import socket as _socket
 import struct
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -221,6 +222,8 @@ class SocketServer:
     def _peer_creds(sock: Any) -> tuple[int, int, int] | None:
         if sock is None:
             return None
+        if sys.platform == "darwin":
+            return _peer_creds_darwin(sock)
         try:
             raw = sock.getsockopt(
                 _socket.SOL_SOCKET, _socket.SO_PEERCRED, struct.calcsize("3i")
@@ -231,7 +234,48 @@ class SocketServer:
 
     @staticmethod
     def _exe(pid: int) -> str | None:
+        if sys.platform == "darwin":
+            return _exe_darwin(pid)
         try:
             return os.readlink(f"/proc/{pid}/exe")
         except OSError:
             return None
+
+
+# -- macOS peer credentials (no SO_PEERCRED / procfs there) ------------------
+# ``LOCAL_PEERCRED`` (level 0 = SOL_LOCAL) returns ``struct xucred``:
+#   u_int cr_version; uid_t cr_uid; short cr_ngroups; gid_t cr_groups[16];
+# and ``LOCAL_PEERPID`` returns the peer pid. Both are untested here (Linux CI).
+_SOL_LOCAL = 0
+_LOCAL_PEERCRED = 0x001
+_LOCAL_PEERPID = 0x002
+_XUCRED_FMT = "IIh16I"
+
+
+def _peer_creds_darwin(sock: Any) -> tuple[int, int, int] | None:
+    try:
+        raw = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERCRED, struct.calcsize(_XUCRED_FMT) + 2)
+        fields = struct.unpack_from(_XUCRED_FMT, raw)
+        uid = int(fields[1])
+        gid = int(fields[3]) if fields[2] > 0 else -1
+        pid_raw = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERPID, struct.calcsize("i"))
+        pid = struct.unpack("i", pid_raw)[0]
+        return pid, uid, gid
+    except (AttributeError, OSError, struct.error):
+        return None
+
+
+def _exe_darwin(pid: int) -> str | None:
+    """``proc_pidpath`` via libproc (ctypes); None if unavailable."""
+    try:
+        import ctypes
+        import ctypes.util
+
+        libproc = ctypes.CDLL(ctypes.util.find_library("proc") or "libproc.dylib")
+        buf = ctypes.create_string_buffer(4096)
+        n = libproc.proc_pidpath(int(pid), buf, ctypes.sizeof(buf))
+        if n <= 0:
+            return None
+        return buf.value.decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001
+        return None

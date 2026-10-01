@@ -133,3 +133,72 @@ export function displayName(evdevName: string): string {
   if (/^F\d+$/.test(pretty)) return pretty;
   return pretty.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
+
+
+// --------------------------------------------------------------------------- //
+// macOS: the `[macos]` section stores Quartz key names (see utter/macos/hotkey.py)
+// --------------------------------------------------------------------------- //
+const MAC_MAP: Record<string, string> = {
+  AltRight: "right_option",
+  AltLeft: "left_option",
+  MetaRight: "right_command",
+  MetaLeft: "left_command",
+  ControlRight: "right_control",
+  ControlLeft: "left_control",
+  ShiftRight: "right_shift",
+  ShiftLeft: "left_shift",
+  CapsLock: "caps_lock",
+  Fn: "fn",
+  Space: "space",
+  Escape: "escape",
+  Tab: "tab",
+  Backquote: "grave",
+  Home: "home",
+  End: "end",
+  PageUp: "page_up",
+  PageDown: "page_down",
+  Insert: "insert",
+  Help: "help",
+};
+for (let n = 1; n <= 20; n += 1) {
+  MAC_MAP[`F${n}`] = `f${n}`;
+}
+
+const MAC_MODIFIERS = new Set([
+  "right_option", "left_option", "right_command", "left_command", "right_control",
+  "left_control", "right_shift", "left_shift", "caps_lock", "fn",
+]);
+
+const MAC_PRETTY: Record<string, string> = {
+  right_option: "Right ⌥ Option",
+  left_option: "Left ⌥ Option",
+  right_command: "Right ⌘ Command",
+  left_command: "Left ⌘ Command",
+  right_control: "Right ⌃ Control",
+  left_control: "Left ⌃ Control",
+  right_shift: "Right ⇧ Shift",
+  left_shift: "Left ⇧ Shift",
+  caps_lock: "⇪ Caps Lock",
+  fn: "fn",
+  space: "Space",
+  escape: "Escape",
+  tab: "Tab",
+  grave: "`",
+  page_up: "Page Up",
+  page_down: "Page Down",
+};
+
+export function domCodeToMacKey(code: string): string | null {
+  return MAC_MAP[code] ?? null;
+}
+
+export function isMacModifier(name: string): boolean {
+  return MAC_MODIFIERS.has(name);
+}
+
+export function displayMacKey(name: string): string {
+  if (!name) return "not set";
+  if (MAC_PRETTY[name]) return MAC_PRETTY[name];
+  if (/^f\d+$/.test(name)) return name.toUpperCase();
+  return name.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}

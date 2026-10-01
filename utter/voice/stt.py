@@ -4,6 +4,12 @@ Backends (selected by ``config.STTConfig.backend``):
     "whisper_cpp"    pywhispercpp (no GPU required; model stays resident)
     "faster_whisper" optional, only if the package is importable
     "none"           transcription disabled (e.g. vocalinux bridge supplies text)
+    "apple_speech"   macOS only: Speech.framework via PyObjC (utter.macos.speech)
+    "vocamac"        macOS only: an installed VocaMac.app's file-transcription CLI
+
+On macOS the ``[macos]`` section picks an ordered chain (primary + fallback),
+see :func:`select_backends`; a backend that fails to load hands over to the
+next one. On Linux the chain is exactly ``[stt.backend]`` as before.
 
 Public API:
     transcribe(pcm: numpy.ndarray) -> str
@@ -109,25 +115,100 @@ def _candidate_model_paths(model: str) -> list:
     return unique
 
 
+KNOWN_BACKENDS = ("whisper_cpp", "faster_whisper", "apple_speech", "vocamac", "none")
+MACOS_ONLY_BACKENDS = ("apple_speech", "vocamac")
+
+# Where VocaMac installs its binary (Homebrew cask / drag-install).
+VOCAMAC_BINARIES = (
+    "/Applications/VocaMac.app/Contents/MacOS/VocaMac",
+    "~/Applications/VocaMac.app/Contents/MacOS/VocaMac",
+)
+
+
+def _backend_available(name: str, *, has_module, which) -> bool:
+    if name == "whisper_cpp":
+        return has_module("pywhispercpp")
+    if name == "faster_whisper":
+        return has_module("faster_whisper")
+    if name == "apple_speech":
+        return has_module("Speech") and has_module("Foundation")
+    if name == "vocamac":
+        return any(Path(b).expanduser().is_file() for b in VOCAMAC_BINARIES) or bool(which("VocaMac"))
+    return name == "none"
+
+
+def select_backends(platform_name: str, stt_cfg=None, macos_cfg=None, *,
+                    has_module=None, which=None) -> list:
+    """Ordered STT backend chain for this platform (pure; unit-tested).
+
+    * Linux (and anything that is not Darwin): ``[stt.backend]`` exactly, so
+      behaviour is unchanged.
+    * macOS: ``[macos.stt_backend, macos.stt_fallback]`` with duplicates and
+      ``none`` removed. Backends whose runtime is missing are moved behind the
+      ones that are present; if nothing is importable the configured order is
+      returned unchanged so the error message names the configured backend.
+    """
+    primary = getattr(stt_cfg, "backend", "whisper_cpp") or "whisper_cpp"
+    if platform_name != "darwin" or macos_cfg is None:
+        return [primary]
+    if has_module is None or which is None:
+        from utter import platform as _plat
+        has_module = has_module or _plat.has_module
+        which = which or _plat.which
+    chain: list = []
+    for name in (getattr(macos_cfg, "stt_backend", "") or primary,
+                 getattr(macos_cfg, "stt_fallback", "") or ""):
+        name = (name or "").strip()
+        if name and name != "none" and name not in chain:
+            chain.append(name)
+    if not chain:
+        return [primary]
+    present = [n for n in chain if _backend_available(n, has_module=has_module, which=which)]
+    missing = [n for n in chain if n not in present]
+    return (present + missing) if present else chain
+
+
 class Transcriber:
-    """Lazily-loaded, resident whisper transcriber.
+    """Lazily-loaded, resident transcriber with an optional fallback chain.
 
     Attributes:
-        backend: resolved backend name (``whisper_cpp`` / ``faster_whisper``).
+        backend: the backend that is active (after load) or configured.
+        fallbacks: backends tried in order when ``backend`` fails to load.
         model_path: resolved model path/name for the active backend.
         load_time_s: wall-clock seconds the most recent model load took.
     """
 
-    def __init__(self, cfg=None, *, model_path: Optional[str] = None):
+    def __init__(self, cfg=None, *, model_path: Optional[str] = None,
+                 backend: Optional[str] = None, fallbacks: Optional[list] = None,
+                 macos_cfg=None):
         if cfg is None:
             cfg = load_config().stt if load_config is not None else None
         self.cfg = cfg
-        self.backend = getattr(cfg, "backend", "whisper_cpp") if cfg else "whisper_cpp"
+        self.macos_cfg = macos_cfg
+        self.backend = backend or (getattr(cfg, "backend", "whisper_cpp") if cfg else "whisper_cpp")
+        self.fallbacks: list = list(fallbacks or [])
         self._explicit_model_path = model_path
         self.model_path: Optional[str] = model_path
         self.load_time_s: Optional[float] = None
         self._model = None
         self._lock = threading.Lock()
+
+    @classmethod
+    def for_platform(cls, cfg=None, *, model_path: Optional[str] = None,
+                     platform_name: Optional[str] = None):
+        """Build a transcriber whose backend chain matches the host platform.
+
+        ``cfg`` may be a full :class:`utter.config.Config` or just its ``stt``
+        section. On Linux this is identical to ``Transcriber(cfg.stt)``.
+        """
+        from utter import platform as _plat
+
+        full = cfg if cfg is not None else (load_config() if load_config is not None else None)
+        stt_cfg = getattr(full, "stt", full)
+        macos_cfg = getattr(full, "macos", None)
+        chain = select_backends(platform_name or _plat.name(), stt_cfg, macos_cfg)
+        return cls(stt_cfg, model_path=model_path, backend=chain[0], fallbacks=chain[1:],
+                   macos_cfg=macos_cfg)
 
     # -- loading -----------------------------------------------------------
     def _resolve_whispercpp_model(self) -> str:
@@ -192,21 +273,68 @@ class Transcriber:
             logger.warning("faster-whisper %s/%s failed (%s); retrying on CPU", device, compute_type, exc)
             return WhisperModel(model_ref, device="cpu", compute_type="int8")
 
+    def _load_apple_speech(self):
+        from utter.macos.speech import AppleSpeechRecognizer
+
+        mc = self.macos_cfg
+        rec = AppleSpeechRecognizer(
+            locale=getattr(mc, "speech_locale", "en-US") or "en-US",
+            on_device=bool(getattr(mc, "on_device_only", True)),
+        )
+        rec.load()
+        self.model_path = f"Speech.framework/{rec.locale}" + ("/on-device" if rec.on_device else "")
+        return rec
+
+    def _load_vocamac(self):
+        import shutil
+
+        for cand in VOCAMAC_BINARIES:
+            path = Path(cand).expanduser()
+            if path.is_file():
+                self.model_path = str(path)
+                return str(path)
+        found = shutil.which("VocaMac")
+        if found:
+            self.model_path = found
+            return found
+        raise RuntimeError("STT backend 'vocamac' needs VocaMac.app (brew install --cask vocamac)")
+
+    def _load_one(self, backend: str):
+        if backend in (None, "", "none"):
+            raise RuntimeError("STT backend is 'none'; no transcriber configured")
+        if backend == "whisper_cpp":
+            return self._load_whisper_cpp()
+        if backend == "faster_whisper":
+            return self._load_faster_whisper()
+        if backend == "apple_speech":
+            return self._load_apple_speech()
+        if backend == "vocamac":
+            return self._load_vocamac()
+        raise ValueError(f"unknown STT backend: {backend!r}")
+
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
         with self._lock:
             if self._model is not None:
                 return
-            if self.backend in (None, "", "none"):
-                raise RuntimeError("STT backend is 'none'; no transcriber configured")
             start = time.perf_counter()
-            if self.backend == "whisper_cpp":
-                self._model = self._load_whisper_cpp()
-            elif self.backend == "faster_whisper":
-                self._model = self._load_faster_whisper()
-            else:
-                raise ValueError(f"unknown STT backend: {self.backend!r}")
+            errors: list = []
+            for backend in [self.backend, *self.fallbacks]:
+                try:
+                    self._model = self._load_one(backend)
+                except Exception as exc:  # noqa: BLE001 - try the next backend
+                    if not self.fallbacks:
+                        raise
+                    errors.append(f"{backend}: {exc}")
+                    logger.warning("STT backend %s unavailable (%s); trying next", backend, exc)
+                    continue
+                if backend != self.backend:
+                    logger.info("STT fell back from %s to %s", self.backend, backend)
+                self.backend = backend
+                break
+            if self._model is None:
+                raise RuntimeError("no STT backend could be loaded: " + "; ".join(errors))
             self.load_time_s = time.perf_counter() - start
             logger.info("STT model loaded in %.2fs (backend=%s)", self.load_time_s, self.backend)
 
@@ -234,7 +362,41 @@ class Transcriber:
             return self._transcribe_whisper_cpp(audio)
         if self.backend == "faster_whisper":
             return self._transcribe_faster_whisper(audio)
+        if self.backend == "apple_speech":
+            return _clean_text(self._model.transcribe(audio, SAMPLE_RATE))
+        if self.backend == "vocamac":
+            return self._transcribe_vocamac(audio)
         raise ValueError(f"unknown STT backend: {self.backend!r}")
+
+    def _transcribe_vocamac(self, audio: np.ndarray) -> str:
+        """Shell out to VocaMac's headless ``--transcribe-file`` mode (no IPC exists)."""
+        import json
+        import subprocess
+        import tempfile
+
+        from utter.macos.speech import write_wav
+
+        fd, tmp = tempfile.mkstemp(prefix="utter-vocamac-", suffix=".wav")
+        os.close(fd)
+        try:
+            write_wav(audio, tmp, SAMPLE_RATE)
+            proc = subprocess.run([self._model, "--transcribe-file", tmp, "--json"],
+                                  capture_output=True, text=True, timeout=120)
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        if proc.returncode != 0:
+            raise RuntimeError(f"VocaMac failed: {(proc.stderr or proc.stdout).strip()}")
+        out = proc.stdout.strip()
+        try:
+            doc = json.loads(out)
+            if isinstance(doc, dict):
+                out = str(doc.get("text") or doc.get("transcript") or doc.get("transcription") or "")
+        except json.JSONDecodeError:
+            pass
+        return _clean_text(out)
 
     def _transcribe_whisper_cpp(self, audio: np.ndarray) -> str:
         kwargs = {
@@ -267,7 +429,7 @@ def get_default_transcriber() -> Transcriber:
     if _default is None:
         with _default_lock:
             if _default is None:
-                _default = Transcriber()
+                _default = Transcriber.for_platform()
     return _default
 
 
