@@ -144,8 +144,8 @@ config_schema="schema.json"
 ## 7. UI — two separate things
 
 ### 7a. Standalone settings window — `utter-gui` (NOT the Noctalia widget)
-GTK4 + libadwaita (gtk-rs), a **separate binary** from the runner; a **client** of the
-runner socket; owns no state (writes go through `config.set`, applied live). Pages:
+Tauri v2 + React/Tailwind (`gui-tauri/`), a **separate binary** from the runner; a **client** of
+the runner socket; owns no state (writes go through `config.set`, applied live). Pages:
 - **General / Services:** **autostart** toggle (systemd user unit + XDG autostart), start /
   stop / restart runner, vision, planner, audio-defaults units; status + logs.
 - **Voice:** PTT key **capture** (dictation + assistant), STT plugin switch (whisper.cpp /
@@ -175,7 +175,7 @@ subprocess polling.
 
 ```
 core/            # Rust runner (tokio)
-gui/             # utter-gui (gtk4 + libadwaita)
+gui-tauri/       # utter-gui (Tauri v2 + React + Tailwind)
 protocol/        # spec, JSON Schema, capability registry, generated bindings
 plugins/         # stt/ router/ llm/ perceive/ action/ input/ tts/ context/ ui/
 install/         # utter-install + doctor
@@ -193,8 +193,8 @@ nothing regresses.
   `keyd`); **print** commands without sudo; never silently change groups (show `uinput`
   udev + re-login).
 - **Binaries:** prebuilt **static-musl** via cargo-dist (checksums/attestations) for
-  core/CLI; **the GTK4 GUI is not musl-static** (ships per-distro or as a normal dynamic
-  binary). Not AppImage/Flatpak for the daemon (Flatpak blocks AT-SPI/uinput/hotkeys).
+  core/CLI; **the Tauri settings app is not musl-static** (ships per-distro or as a normal
+  dynamic binary). Not AppImage/Flatpak for the daemon (Flatpak blocks AT-SPI/uinput/hotkeys).
 - **systemd user service** bound to the **graphical session** (not linger) + Wayland
   readiness wrapper (`$XDG_RUNTIME_DIR` discovery, retries); hardening; avoid `PrivateTmp`
   (tmp-file data plane).
@@ -262,16 +262,14 @@ No M0/M1 regression (79/79 · 86/86 · 60/60).
 M5 24/24, installer `--dry-run` + `systemd-analyze` rc 0, `doctor --json` against a
 wrapper-started runner.
 **M6** standalone **`utter-gui`** + optional Noctalia widget + **assistant-mode OSD** — ✅ **DONE**
-**UI decision (revised):** the settings UI is now the **Tauri v2 app** (`gui-tauri/`) — a clean,
+**UI decision (revised):** the settings UI is the **Tauri v2 app** (`gui-tauri/`) — a clean,
 modern web UI with a **Light/Dark/System** toggle (persisted, follows the system live) and matugen
-palette hot-swap. Superseded: the GTK4 + libadwaita alternative (least memory, PSS ≈ 79 MB) is kept
-in `gui/` for reference only.
+palette hot-swap. The earlier GTK4 + libadwaita app (`gui/`) was removed once the Tauri app landed.
 - **Tauri GUI** (`gui-tauri/`): 10 pages, 24 Rust commands; Tailwind v4 token bridge over the
   matugen palette (`src-tauri/src/theme.rs` + debounced `notify` watcher); `pnpm tauri build` → deb
   (CI adds AppImage/rpm).
-- **GTK4 GUI** (`gui/`, legacy): 9 pages; matugen theming via `gui/utter_gui/theme.py`
-  (CssProvider + `Gio.FileMonitor` live reload) + `scripts/install-matugen-utter.sh`
-  (installed: adds `[templates.utter]`, palette at `~/.local/share/utter/colors.css`).
+- **Matugen wiring**: `scripts/install-matugen-utter.sh` installs the palette template
+  (adds `[templates.utter]`, palette at `~/.local/share/utter/colors.css`) that the Tauri app reads.
 - **Noctalia plugin** (`plugins/ui/noctalia/`): bar widget + persistent attention panel + OSD
   panel (verified with screenshots; attention panel closes when the runner is up).
 - **OSD**: driven by `$XDG_RUNTIME_DIR/utter/osd.json` (`idle|listening|final` + `level` +
@@ -304,8 +302,8 @@ real target.
 
 - **UI ✅** (reconciled): Tauri v2 app (`gui-tauri/`) — clean/modern, **Light/Dark/System**
   theme toggle (persisted, follows the system live), matugen palette + debounced hot-swap.
-  10 pages, 24 Rust commands; `pnpm tauri build` → deb, CI adds AppImage/rpm. GTK4 (`gui/`)
-  is superseded (kept for reference).
+  10 pages, 24 Rust commands; `pnpm tauri build` → deb, CI adds AppImage/rpm. The earlier GTK4
+  app (`gui/`) was removed.
 - **Packaging / CI ✅** (reconciled): `.github/workflows/release.yml` builds **AppImage + deb
   + rpm** from `gui-tauri/` on `ubuntu-24.04` plus `utter-core-<ver>.tar.gz`
   (+ `sha256sums.txt`) and attaches them to the Release; `.github/workflows/pages.yml`

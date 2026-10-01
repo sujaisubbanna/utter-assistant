@@ -80,7 +80,7 @@ config-schema migration, install lockfile, stable `doctor` output.
 - The modular runner is a user service too; clients (GUI, Noctalia widget) connect to
   `$XDG_RUNTIME_DIR/utter/runner.sock`.
 - Installer (planned): `/etc/os-release` detection → pacman/apt/dnf/zypper; prebuilt static-musl
-  core (GTK4 GUI is dynamic, not musl); **not** AppImage/Flatpak for the daemon.
+  core (the Tauri settings app is dynamic, not musl); **not** AppImage/Flatpak for the daemon.
 
 ## 10. Milestones
 M0 ✅ protocol/runner/conformance/spike · M1 ✅ streams/flow-control/handles/fd/socket/security ·

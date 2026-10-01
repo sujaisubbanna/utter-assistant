@@ -91,4 +91,4 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
 - **M3 ✅** — the real assistant is wrapped as `plugins/utter_py`; `runner.command
   "open youtube"` drives the real rules + Jev head + actions end-to-end (dry-run default;
   `tests/m3/verify_m3.py` 20/20).
-- **Next** — installer, GTK4 settings GUI + Noctalia widget, model store.
+- **Next** — installer, Tauri settings app (`gui-tauri/`) + Noctalia widget, model store.

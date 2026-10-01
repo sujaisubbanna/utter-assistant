@@ -73,9 +73,3 @@ emitted and follow the system.
 
 The optional Noctalia widget and on-screen display use Noctalia's own theming, so they match the
 shell they live in. See [Noctalia widget and OSD](/guides/noctalia/).
-
-## The legacy GTK4 app
-
-The earlier GTK4 + libadwaita settings app (`gui/` in the repo) is **superseded** by the Tauri
-app. It read the same `colors.css` through a `Gtk.CssProvider` with a file monitor for live
-reload, on top of the named colours matugen already writes to `~/.config/gtk-4.0/gtk.css`.
