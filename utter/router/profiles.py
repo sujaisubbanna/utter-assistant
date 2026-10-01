@@ -13,6 +13,7 @@ Public contract (see DESIGN.md)::
 """
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,6 +54,10 @@ class AppProfile:
     app_ids: list[str] = field(default_factory=list)
     mime_types: list[str] = field(default_factory=list)
     kind: str = "other"
+    # True for a bulk catalogue entry (``generated.yaml``); False for a
+    # hand-written / user profile. Keyword-derived aliases on generated entries
+    # must never shadow an explicit CLI-agent name (see ``resolve``).
+    generated: bool = True
 
 
 # Fields accepted when constructing an AppProfile from a YAML mapping.
@@ -193,11 +198,36 @@ def load(
         kind = str(entry.get("kind") or "other")
         entry = _apply_defaults(entry, kind, defaults)
         result[pid] = _to_profile(entry)
+        result[pid].generated = pid not in override_ids
     return result
 
 
+def cli_agent_names() -> set[str]:
+    """Names spoken for CLI agents (``data/cli_agents.json`` keys, minus terminal).
+
+    These are explicit targets: a generated catalogue entry whose *keyword*
+    alias happens to collide with one (e.g. ChatGPT's "codex") must not shadow
+    it. An explicit id/name match (or a hand-curated profile) still wins.
+    """
+    path = Path(__file__).resolve().parent.parent / "data" / "cli_agents.json"
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return {str(k).strip().lower() for k in data if k != "terminal" and str(k).strip()}
+
+
 def resolve(name: str, profiles: dict[str, AppProfile]) -> Optional[AppProfile]:
-    """Case-insensitive lookup by id, name, alias, then token subset."""
+    """Case-insensitive lookup by id, name, alias, then token subset.
+
+    Exact id and name matches always win, so an explicit/curated profile can
+    still claim a CLI-agent name. Alias matches on a *generated* catalogue entry
+    are skipped when the query is a CLI-agent name, so a desktop-entry keyword
+    ("codex" on ChatGPT) cannot shadow the CLI agent.
+    """
     query = (name or "").strip().lower()
     if not query:
         return None
@@ -208,9 +238,14 @@ def resolve(name: str, profiles: dict[str, AppProfile]) -> Optional[AppProfile]:
     for profile in profiles.values():
         if profile.name.lower() == query:
             return profile
+
+    reserved = query in cli_agent_names()
     for profile in profiles.values():
-        if any(alias.lower() == query for alias in profile.aliases):
-            return profile
+        if not any(alias.lower() == query for alias in profile.aliases):
+            continue
+        if reserved and getattr(profile, "generated", False):
+            continue
+        return profile
 
     # Loose fallback: every word of the query appears in the profile name.
     query_tokens = set(query.split())
@@ -218,5 +253,7 @@ def resolve(name: str, profiles: dict[str, AppProfile]) -> Optional[AppProfile]:
         for profile in profiles.values():
             name_tokens = set(profile.name.lower().split())
             if query_tokens <= name_tokens:
+                if reserved and getattr(profile, "generated", False):
+                    continue
                 return profile
     return None

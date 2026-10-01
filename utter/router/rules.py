@@ -351,13 +351,22 @@ def _claim_app_target(name: str, profiles: dict):
 
     Generic/ambiguous aliases ("media", "editor", "music", ...) are never
     claimed, so ``type ok`` / ``press enter`` keep their focused behaviour.
+    Uses the canonical :func:`profiles.resolve`, so a generated keyword alias
+    cannot shadow an explicit CLI-agent name ("codex"); a CLI agent with no GUI
+    profile is still an explicit target.
     """
     if not name or not profiles:
         return None
     n = normalize(name)
     if not n or n in _generic_app_names(profiles):
         return None
-    return _resolve(profiles, n)
+    from .profiles import AppProfile, resolve as _profiles_resolve
+    prof = _profiles_resolve(n, profiles)
+    if prof is not None:
+        return prof
+    if n in CLI_AGENTS:
+        return AppProfile(id=n, name=n, generated=False)
+    return None
 
 
 def _app_target(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:

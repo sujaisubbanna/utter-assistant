@@ -293,6 +293,32 @@ class Executor:
         from .config import TargetConfig
         return TargetConfig(mode, cross, restore, timeout)
 
+    def _wayland_cfg(self):
+        cfg = getattr(self.cfg, "wayland", None)
+        from .config import WaylandConfig
+        if cfg is None:
+            return WaylandConfig()
+        cross = getattr(cfg, "cross_workspace", "auto")
+        if cross not in ("auto", "ask", "allow", "refuse"):
+            cross = "auto"
+        assume = bool(getattr(cfg, "assume_animations_off", False))
+        return WaylandConfig(cross, assume)
+
+    def _cross_workspace_decision(self) -> str:
+        """Resolve the cross-workspace policy to ``ask`` / ``allow`` / ``refuse``.
+
+        ``[wayland].cross_workspace`` supersedes ``[target].cross_workspace``:
+        an explicit ``ask``/``allow``/``refuse`` wins; ``auto`` allows only when
+        ``[wayland].assume_animations_off`` is set, else it falls back to
+        ``[target].cross_workspace``.
+        """
+        wl = self._wayland_cfg()
+        if wl.cross_workspace in ("ask", "allow", "refuse"):
+            return wl.cross_workspace
+        if wl.assume_animations_off:
+            return "allow"
+        return self._target_cfg().cross_workspace
+
     def _ask_target(self, app_name: str, target, reasons: list) -> bool:
         if self.confirm is None:
             return False
@@ -372,12 +398,15 @@ class Executor:
         cross = (prev is not None
                  and getattr(target, "workspace_id", 0) != getattr(prev, "workspace_id", 0))
         fullscreen = bool(prev is not None and getattr(prev, "is_fullscreen", False))
-        if cross and tcfg.cross_workspace == "refuse":
-            return ActionResult(False, step.action, step.tier,
-                                f"refusing cross-workspace target {app_name}")
         reasons = []
-        if cross and tcfg.cross_workspace == "ask":
-            reasons.append("cross_workspace")
+        if cross:
+            decision = self._cross_workspace_decision()
+            if decision == "refuse":
+                return ActionResult(False, step.action, step.tier,
+                                    f"refusing cross-workspace target {app_name}")
+            if decision == "ask":
+                reasons.append("cross_workspace")
+            # allow -> same-workspace-level, no confirmation
         if fullscreen:
             reasons.append("fullscreen")
         if reasons and not self._ask_target(app_name, target, reasons):

@@ -24,7 +24,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from utter import executor as executor_mod  # noqa: E402
-from utter.config import Config, TargetConfig  # noqa: E402
+from utter.config import Config, TargetConfig, WaylandConfig, load_config  # noqa: E402
 from utter.context import desktop  # noqa: E402
 from utter.executor import Executor, _select_mpris  # noqa: E402
 from utter.router.profiles import AppProfile  # noqa: E402
@@ -267,6 +267,99 @@ class AppTargetExecutorTest(unittest.TestCase):
         res = ex.execute_step(Step(Action.KEY, {"chord": "Return"}, tier=Tier.KEYBOARD))
         self.assertTrue(res.ok, res.detail)
         self.assertEqual(INJECTED, [("key", "Return")])
+
+    # -- [wayland] workspace / animation policy matrix ----------------------
+    def _run_cross(self, *, wayland, target_ws=1, prev_ws=2, confirm=None, fullscreen=False):
+        self.cfg.wayland = wayland
+        fake = FakeDesktop(
+            [WindowInfo(id=10, app_id="codex", workspace_id=target_ws)],
+            focused=FocusedWindow(app_id="kitty", window_id=20,
+                                  workspace_id=prev_ws, is_fullscreen=fullscreen))
+        return self._run_type(fake, confirm=confirm)
+
+    def test_wayland_same_workspace_never_asks(self):
+        # auto + animations on would ask cross-workspace, but same-ws is invisible.
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="auto", assume_animations_off=False),
+                              target_ws=3, prev_ws=3, confirm=None)
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(self.confirm_requests, [])
+        self.assertEqual(INJECTED, [("type", "hello")])
+
+    def test_wayland_auto_animations_off_cross_ws_allows(self):
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="auto", assume_animations_off=True),
+                              target_ws=3, prev_ws=1, confirm=None)
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(self.confirm_requests, [])
+        self.assertEqual(INJECTED, [("type", "hello")])
+
+    def test_wayland_auto_animations_on_cross_ws_asks(self):
+        self.cfg.target = TargetConfig(cross_workspace="ask")
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="auto", assume_animations_off=False),
+                              target_ws=3, prev_ws=1, confirm=self.confirm)
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(len(self.confirm_requests), 1)
+        self.assertIn("cross_workspace", self.confirm_requests[0]["reasons"])
+
+    def test_wayland_auto_animations_on_cross_ws_refuses_without_channel(self):
+        self.cfg.target = TargetConfig(cross_workspace="ask")
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="auto", assume_animations_off=False),
+                              target_ws=3, prev_ws=1, confirm=None)
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(INJECTED, [])
+
+    def test_wayland_allow_cross_ws_no_ask(self):
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="allow"),
+                              target_ws=3, prev_ws=1, confirm=None)
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(self.confirm_requests, [])
+
+    def test_wayland_refuse_cross_ws(self):
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="refuse"),
+                              target_ws=3, prev_ws=1, confirm=self.confirm)
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(INJECTED, [])
+
+    def test_wayland_ask_overrides_target_allow(self):
+        self.cfg.target = TargetConfig(cross_workspace="allow")
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="ask"),
+                              target_ws=3, prev_ws=1, confirm=None)
+        self.assertFalse(res.ok, res.detail)  # ask + no channel -> refuse
+
+    def test_wayland_allow_overrides_target_refuse(self):
+        self.cfg.target = TargetConfig(cross_workspace="refuse")
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="allow"),
+                              target_ws=3, prev_ws=1, confirm=None)
+        self.assertTrue(res.ok, res.detail)
+
+    def test_wayland_auto_falls_back_to_target_refuse(self):
+        self.cfg.target = TargetConfig(cross_workspace="refuse")
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="auto", assume_animations_off=False),
+                              target_ws=3, prev_ws=1, confirm=self.confirm)
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(INJECTED, [])
+
+    def test_fullscreen_same_workspace_still_asks(self):
+        # Fullscreen-prev remains an independent ask reason (prior design).
+        res = self._run_cross(wayland=WaylandConfig(cross_workspace="auto", assume_animations_off=True),
+                              target_ws=3, prev_ws=3, fullscreen=True, confirm=None)
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(INJECTED, [])
+
+
+class WaylandConfigParsingTest(unittest.TestCase):
+    def test_defaults(self):
+        cfg = Config()
+        self.assertEqual(cfg.wayland.cross_workspace, "auto")
+        self.assertFalse(cfg.wayland.assume_animations_off)
+
+    def test_toml_section(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "config.toml"
+            p.write_text('[wayland]\ncross_workspace = "refuse"\nassume_animations_off = true\n')
+            cfg = load_config(p)
+        self.assertEqual(cfg.wayland.cross_workspace, "refuse")
+        self.assertTrue(cfg.wayland.assume_animations_off)
 
 
 class ResolutionTest(unittest.TestCase):

@@ -209,9 +209,35 @@ class TargetConfig:
 
 
 @dataclass
+class WaylandConfig:
+    """Wayland focus round-trip policy (``[wayland]``).
+
+    Wayland cannot inject into an unfocused window, so a targeted action is a
+    focus round-trip. Measured on real niri: a **same-workspace** round-trip is
+    ~38 ms and invisible; a **cross-workspace** one is ~41 ms when the
+    compositor has animations off, but ~250 ms of visible viewport scroll when
+    animations are on (``horizontal-view-movement``).
+
+    ``[wayland].cross_workspace`` supersedes ``[target].cross_workspace`` for
+    the workspace decision:
+
+    - ``auto``: allow without asking only when ``assume_animations_off`` is
+      true; otherwise fall back to ``[target].cross_workspace`` (ask/allow/
+      refuse).
+    - ``ask`` / ``allow`` / ``refuse``: explicit, override ``[target]``.
+
+    ``assume_animations_off`` is the operator's assertion that the compositor
+    will not visibly scroll the viewport on a workspace switch.
+    """
+    cross_workspace: str = "auto"
+    assume_animations_off: bool = False
+
+
+@dataclass
 class Config:
     general: GeneralConfig = field(default_factory=GeneralConfig)
     target: TargetConfig = field(default_factory=TargetConfig)
+    wayland: WaylandConfig = field(default_factory=WaylandConfig)
     hotkey: HotkeyConfig = field(default_factory=HotkeyConfig)
     ptt: PTTConfig = field(default_factory=PTTConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
@@ -248,6 +274,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
             raw = tomllib.load(fh)
         _merge(cfg.general, raw.get("general", {}))
         _merge(cfg.target, raw.get("target", {}))
+        _merge(cfg.wayland, raw.get("wayland", {}))
         _merge(cfg.hotkey, raw.get("hotkey", {}))
         _merge(cfg.ptt, raw.get("ptt", {}))
         _merge(cfg.audio, raw.get("audio", {}))
