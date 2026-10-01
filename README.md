@@ -13,7 +13,7 @@
 **Hands-free, private and completely offline.** Hold a key, say what you want, and Utter does it — or drive the same actions from the command line.
 
 ![Platform: Linux](https://img.shields.io/badge/platform-Linux%20(Wayland%3A%20niri%20%7C%20KDE%20Plasma)-f7c948)
-![macOS: experimental](https://img.shields.io/badge/macOS-experimental-8a8f98)
+![macOS: beta](https://img.shields.io/badge/macOS-beta-8a8f98)
 ![Runs offline](https://img.shields.io/badge/runs-100%25%20offline-20a05a)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f1f1f)
 ![Languages: English · Español](https://img.shields.io/badge/UI-English%20·%20Español-6b6b70)
@@ -112,7 +112,7 @@ Linux on Wayland — niri and KDE Plasma first-class — plus PipeWire and Pytho
 
 - **Clone:** `git clone https://github.com/sujaisubbanna/utter-assistant.git && cd utter-assistant && ./install.sh` (`--dry-run` previews). Minimal package install: `install/install.sh --yes`; undo with `install/uninstall.sh --yes`.
 - **Remote:** `curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
-- **Source:** the runner core is stdlib-only Python; the settings app is Tauri v2 + React + Tailwind CSS v4. Build it with `pnpm install && pnpm tauri build` in `gui-tauri/`, and run `scripts/verify.sh` for the test suites.
+- **Source:** the runner core is stdlib-only Python; the assistant adds a few optional runtime deps (numpy, PyYAML, requests). The settings app is Tauri v2 + React + Tailwind CSS v4 — build it with `pnpm install && pnpm tauri build` in `gui-tauri/`. Run `scripts/verify.sh` for the test suites.
 
 ## Configure
 
