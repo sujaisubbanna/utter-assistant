@@ -17,16 +17,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
-import subprocess
 import sys
-import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 CONF = REPO / "tests" / "conformance"
 sys.path.insert(0, str(CONF))
+sys.path.insert(0, str(REPO / "tests"))
 
 from framing_client import (  # noqa: E402
     ERR_PERMISSION,
@@ -36,6 +36,8 @@ from framing_client import (  # noqa: E402
     RpcError,
     TransportClosed,
 )
+from _harness.report import Report  # noqa: E402
+from _harness.runner_proc import Runner  # noqa: E402
 
 CONFIG = REPO / "config.m3.toml"
 RUNNER_MAIN = REPO / "runner" / "__main__.py"
@@ -43,107 +45,26 @@ GENERATED = HERE / "generated"
 
 
 # --------------------------------------------------------------------------- #
-# tiny assertion harness
-# --------------------------------------------------------------------------- #
-class Report:
-    def __init__(self) -> None:
-        self.checks: list[dict] = []
-        self.skips: list[dict] = []
-
-    def check(self, name: str, ok: bool, detail: str = "") -> bool:
-        self.checks.append({"name": name, "ok": bool(ok), "detail": detail})
-        print(f"  [{'PASS' if ok else 'FAIL'}] {name}" + (f" — {detail}" if detail else ""))
-        return bool(ok)
-
-    def skip(self, name: str, reason: str) -> None:
-        self.skips.append({"name": name, "reason": reason})
-        print(f"  [SKIP] {name} — {reason}")
-
-    @property
-    def failed(self) -> list[dict]:
-        return [c for c in self.checks if not c["ok"]]
-
-    def summary(self) -> dict:
-        return {
-            "total": len(self.checks),
-            "passed": len(self.checks) - len(self.failed),
-            "failed": len(self.failed),
-            "skipped": len(self.skips),
-            "checks": self.checks,
-            "skips": self.skips,
-        }
-
-
-# --------------------------------------------------------------------------- #
 # runner lifecycle
 # --------------------------------------------------------------------------- #
-class Runner:
-    def __init__(self, sock_path: str, *, dry_run: bool, timeout: float = 60.0,
-                 log_name: str = "runner.log"):
-        self.sock_path = sock_path
-        self.dry_run = dry_run
-        self.timeout = timeout
-        self.proc: subprocess.Popen | None = None
-        self.log_path = GENERATED / log_name
-        self._log = None
-
-    def start(self) -> None:
-        GENERATED.mkdir(parents=True, exist_ok=True)
-        self._log = open(self.log_path, "wb")
-        env = dict(os.environ)
-        env["UTTER_DRY_RUN"] = "1" if self.dry_run else "0"
-        env["UTTER_RUNNER_SOCK"] = self.sock_path
-        env["PYTHONPATH"] = str(REPO) + os.pathsep + env.get("PYTHONPATH", "")
+def _make_runner(sock_path: str, *, dry_run: bool, timeout: float,
+                 log_name: str) -> Runner:
+    """Shared runner helper plus M3's dry-run/PYTHONPATH/PATH environment."""
+    env = {
+        "UTTER_DRY_RUN": "1" if dry_run else "0",
+        "UTTER_RUNNER_SOCK": sock_path,
+        "PYTHONPATH": str(REPO) + os.pathsep + os.environ.get("PYTHONPATH", ""),
         # make `python3` in the plugin entrypoint resolve to this venv
-        env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
-        self.proc = subprocess.Popen(
-            [sys.executable, "-m", "runner", "--config", str(CONFIG), "--socket", self.sock_path],
-            cwd=str(REPO),
-            stdin=subprocess.DEVNULL,
-            stdout=self._log,
-            stderr=subprocess.STDOUT,
-            env=env,
-        )
-
-    def wait_ready(self) -> bool:
-        deadline = time.monotonic() + self.timeout
-        while time.monotonic() < deadline:
-            if self.proc is not None and self.proc.poll() is not None:
-                return False
-            if os.path.exists(self.sock_path):
-                try:
-                    FramingClient.connect_unix(self.sock_path, timeout=2.0).close()
-                    return True
-                except OSError:
-                    pass
-            time.sleep(0.1)
-        return False
-
-    def connect(self) -> FramingClient:
-        return FramingClient.connect_unix(self.sock_path, timeout=self.timeout)
-
-    def stop(self) -> None:
-        if self.proc is not None and self.proc.poll() is None:
-            self.proc.send_signal(signal.SIGTERM)
-            try:
-                self.proc.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-                self.proc.wait(timeout=5)
-        if self._log is not None:
-            self._log.close()
-
-    def tail_log(self, n: int = 40) -> str:
-        try:
-            return "\n".join(self.log_path.read_text(errors="replace").splitlines()[-n:])
-        except OSError:
-            return "(no runner log)"
+        "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+    }
+    return Runner(config=CONFIG, sock_path=sock_path, log_dir=GENERATED,
+                  timeout=timeout, log_name=log_name, env=env, stop_timeout=8.0)
 
 
 # --------------------------------------------------------------------------- #
 # checks
 # --------------------------------------------------------------------------- #
-def check_status(client: FramingClient, rep: Report) -> None:
+def check_status(client: FramingClient, rep: Report) -> dict | None:
     print("\n[plugin handshake / negotiation]")
     status = client.request("runner.status", {})
     plugins = {p.get("id"): p for p in status.get("plugins", []) or []}
@@ -151,7 +72,7 @@ def check_status(client: FramingClient, rep: Report) -> None:
     rep.check("runner.status shows the utter plugin", plugin is not None,
               f"ids={sorted(plugins)}")
     if not plugin:
-        return
+        return None
     rep.check("plugin kind is bundle", plugin.get("kind") == "bundle",
               f"kind={plugin.get('kind')}")
     rep.check("plugin status ok", plugin.get("status") in ("ok", "degraded"),
@@ -168,6 +89,41 @@ def check_status(client: FramingClient, rep: Report) -> None:
               isinstance(validated.get("permissions"), list)
               and all("enforced" in p for p in validated["permissions"]),
               json.dumps(validated.get("permissions")))
+    return plugin
+
+
+def _plugin_healthy(plugin: dict | None) -> bool:
+    if not plugin:
+        return False
+    provides = set(plugin.get("provides", []) or [])
+    return plugin.get("status") in ("ok", "degraded") and "router.plan@1" in provides
+
+
+def _decision_head_url() -> str:
+    """The configured decision-head base URL (vLLM default when unreadable)."""
+    try:
+        from utter.config import load_config
+        return load_config(CONFIG).router.llm_base_url
+    except Exception:  # noqa: BLE001 - the probe must never crash the suite
+        return "http://127.0.0.1:8001/v1"
+
+
+def _decision_head_offline(url: str, timeout: float = 1.5) -> bool:
+    """True only when the head is *explicitly* unreachable.
+
+    A reachable head that answers with any HTTP status (even 4xx/5xx) is online,
+    so an empty plan cannot be blamed on it.
+    """
+    probe = url.rstrip("/") + "/models"
+    try:
+        with urllib.request.urlopen(probe, timeout=timeout):
+            return False
+    except urllib.error.HTTPError:
+        return False  # answered with an HTTP status -> reachable
+    except (urllib.error.URLError, OSError):
+        return True
+    except ValueError:
+        return False  # unparseable URL: do not silently skip
 
 
 def _first_result(res: dict) -> dict:
@@ -186,13 +142,24 @@ def check_rules_path(client: FramingClient, rep: Report) -> None:
               and detail.startswith("dry-run"), json.dumps(first))
 
 
-def check_decision_head(client: FramingClient, rep: Report) -> None:
+def check_decision_head(client: FramingClient, rep: Report, *, plugin_healthy: bool) -> None:
     print("\n[decision-head path — 'pull up youtube']")
     res = client.request("runner.command", {"utterance": "pull up youtube", "provenance": "user"})
     first = _first_result(res)
     if not first:
-        rep.skip("pull up youtube -> ensure_url|open_url",
-                 "decision head unavailable (vLLM :8001 down or abstained)")
+        # Only an unhealthy plugin or an explicitly offline head excuses an
+        # empty plan; anything else is a real routing failure.
+        if not plugin_healthy:
+            rep.check("decision head resolved a plan", False,
+                      "utter plugin is unhealthy; empty plan can not be attributed "
+                      "to an offline head")
+            return
+        if _decision_head_offline(_decision_head_url()):
+            rep.skip("pull up youtube -> ensure_url|open_url",
+                     "decision head explicitly offline (vLLM :8001 down)")
+            return
+        rep.check("decision head resolved a plan", False,
+                  "plugin healthy and decision head reachable, but no plan was produced")
         return
     detail = str(first.get("detail", ""))
     # The decision head may pick either web op for this phrasing; both open the
@@ -255,11 +222,14 @@ def check_real_action(rep: Report, timeout: float, enabled: bool) -> None:
         return
     print("\n[real action — 'open youtube' with UTTER_DRY_RUN=0]")
     sock = str(GENERATED / "runner-real.sock")
-    runner = Runner(sock, dry_run=False, timeout=timeout, log_name="runner-real.log")
+    runner = _make_runner(sock, dry_run=False, timeout=timeout, log_name="runner-real.log")
     try:
         runner.start()
         if not runner.wait_ready():
-            rep.skip("real open youtube", "real-action runner did not start")
+            # Real action was explicitly requested: not starting is a failure,
+            # not something to skip (the operator asked for the live path).
+            rep.check("real-action runner started", False,
+                      "real-action runner did not start")
             print(runner.tail_log())
             return
         client = runner.connect()
@@ -304,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
 
     GENERATED.mkdir(parents=True, exist_ok=True)
     sock = str(GENERATED / "runner.sock")
-    runner = Runner(sock, dry_run=True, timeout=args.timeout, log_name="runner.log")
+    runner = _make_runner(sock, dry_run=True, timeout=args.timeout, log_name="runner.log")
     rep = Report()
     client = None
     try:
@@ -315,9 +285,9 @@ def main(argv: list[str] | None = None) -> int:
             print(runner.tail_log())
             return 2
         client = runner.connect()
-        check_status(client, rep)
+        plugin = check_status(client, rep)
         check_rules_path(client, rep)
-        check_decision_head(client, rep)
+        check_decision_head(client, rep, plugin_healthy=_plugin_healthy(plugin))
         check_niri_path(client, rep)
         check_policy(client, rep)
     except (FramingTimeout, TransportClosed, OSError) as exc:

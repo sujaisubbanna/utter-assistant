@@ -22,35 +22,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(REPO / "tests"))
 
 from range_server import RangeServer  # noqa: E402
+from _harness.report import Report  # noqa: E402
 
 ASSISTANT = [sys.executable, "-m", "assistant"]
 CONFIG_M3 = REPO / "config.m3.toml"
-
-
-class Report:
-    def __init__(self) -> None:
-        self.checks: list[dict] = []
-        self.skips: list[dict] = []
-
-    def check(self, name: str, ok: bool, detail: str = "") -> bool:
-        self.checks.append({"name": name, "ok": bool(ok), "detail": detail})
-        print(f"  [{'PASS' if ok else 'FAIL'}] {name}" + (f" — {detail}" if detail else ""))
-        return bool(ok)
-
-    def skip(self, name: str, reason: str) -> None:
-        self.skips.append({"name": name, "reason": reason})
-        print(f"  [SKIP] {name} — {reason}")
-
-    @property
-    def failed(self) -> list[dict]:
-        return [c for c in self.checks if not c["ok"]]
-
-    def summary(self) -> dict:
-        return {"total": len(self.checks), "passed": len(self.checks) - len(self.failed),
-                "failed": len(self.failed), "skipped": len(self.skips),
-                "checks": self.checks, "skips": self.skips}
 
 
 def run(args: list[str], env: dict, timeout: float = 180.0) -> subprocess.CompletedProcess:
