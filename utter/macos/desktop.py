@@ -224,6 +224,58 @@ def ax_raise_window(pid: int, window_id: int, title: Optional[str] = None) -> bo
         return False
 
 
+def close_window(window_id: int):
+    """Close a specific window via Accessibility ``kAXCloseAction`` (experimental).
+
+    Never focuses and never raises. Returns an
+    :class:`~utter.context.compositor.Outcome` so callers can tell a real close
+    from a platform/PyObjC that cannot (``unsupported=True``) and fall back.
+    """
+    from utter.context.compositor import Outcome
+
+    def _unsupported(reason: str) -> "Outcome":
+        return Outcome.unsupported_for("macos", "close", reason)
+
+    try:
+        import ApplicationServices as AS  # type: ignore[import-not-found]
+    except ImportError:
+        return _unsupported("PyObjC ApplicationServices not installed")
+    try:
+        wid = int(window_id)
+    except (TypeError, ValueError):
+        return Outcome(False, f"bad window id {window_id!r}", backend="macos", capability="close")
+    if not hasattr(AS, "AXUIElementPerformAction"):
+        return _unsupported("AXUIElementPerformAction unavailable")
+    close_action = getattr(AS, "kAXCloseAction", "AXClose")
+    try:
+        target = next((w for w in _raw_windows() if w["id"] == wid), None)
+        if target is None:
+            return Outcome(False, f"window {wid} not found", backend="macos", capability="close")
+        pid = int(target["pid"])
+        app = AS.AXUIElementCreateApplication(pid)
+        if app is None:
+            return Outcome(False, f"no AX app for pid {pid}", backend="macos", capability="close")
+        err, windows = AS.AXUIElementCopyAttributeValue(app, AS.kAXWindowsAttribute, None)
+        if err != 0 or not windows:
+            return Outcome(False, f"no AX windows for pid {pid}", backend="macos", capability="close")
+        for win in windows:
+            try:
+                werr, num = AS._AXUIElementGetWindow(win, None)  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                continue
+            if werr == 0 and num and int(num) == wid:
+                action_err = AS.AXUIElementPerformAction(win, close_action)
+                if action_err == 0:
+                    return Outcome(True, f"closed window {wid}", backend="macos", capability="close")
+                return Outcome(False, f"AXClose failed ({action_err})",
+                               backend="macos", capability="close")
+        return Outcome(False, f"window {wid} not found in AX list",
+                       backend="macos", capability="close")
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("close_window pid=%s failed: %s", window_id, exc)
+        return _unsupported(f"close failed: {exc}")
+
+
 def focus_window(window_id: int) -> bool:
     """Activate the app owning ``window_id`` and raise the specific window via AX."""
     try:
@@ -284,4 +336,4 @@ def build_context(with_a11y: bool = False) -> Context:
 
 __all__ = ["focused_window", "list_windows", "find_windows", "list_monitors", "focus_window",
            "focus_window_on_workspace", "activate_pid", "activate_app", "build_context",
-           "app_identifier", "ax_focused_window_title", "ax_raise_window"]
+           "app_identifier", "ax_focused_window_title", "ax_raise_window", "close_window"]
