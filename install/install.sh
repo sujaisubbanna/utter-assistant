@@ -104,8 +104,8 @@ pkg_for() {
         pacman:grim)         echo "grim" ;;
         pacman:wl-clipboard) echo "wl-clipboard" ;;
         pacman:pipewire)     echo "pipewire" ;;
-        pacman:gtk4)         echo "gtk4" ;;
-        pacman:libadwaita)   echo "libadwaita" ;;
+        pacman:webkit2gtk)   echo "webkit2gtk-4.1" ;;
+        pacman:libsoup)      echo "libsoup3" ;;
         pacman:keyd)         echo "keyd" ;;
 
         apt:wtype)           echo "wtype" ;;
@@ -113,8 +113,8 @@ pkg_for() {
         apt:grim)            echo "grim" ;;
         apt:wl-clipboard)    echo "wl-clipboard" ;;
         apt:pipewire)        echo "pipewire" ;;
-        apt:gtk4)            echo "libgtk-4-1" ;;
-        apt:libadwaita)      echo "libadwaita-1-0" ;;
+        apt:webkit2gtk)      echo "libwebkit2gtk-4.1-0" ;;
+        apt:libsoup)         echo "libsoup-3.0-0" ;;
         apt:keyd)            echo "" ;;
 
         dnf:wtype)           echo "wtype" ;;
@@ -122,8 +122,8 @@ pkg_for() {
         dnf:grim)            echo "grim" ;;
         dnf:wl-clipboard)    echo "wl-clipboard" ;;
         dnf:pipewire)        echo "pipewire" ;;
-        dnf:gtk4)            echo "gtk4" ;;
-        dnf:libadwaita)      echo "libadwaita" ;;
+        dnf:webkit2gtk)      echo "webkit2gtk4.1" ;;
+        dnf:libsoup)         echo "libsoup3" ;;
         dnf:keyd)            echo "" ;;
 
         zypper:wtype)        echo "wtype" ;;
@@ -131,14 +131,14 @@ pkg_for() {
         zypper:grim)         echo "grim" ;;
         zypper:wl-clipboard) echo "wl-clipboard" ;;
         zypper:pipewire)     echo "pipewire" ;;
-        zypper:gtk4)         echo "gtk4-devel" ;;
-        zypper:libadwaita)   echo "libadwaita-1-0" ;;
+        zypper:webkit2gtk)   echo "libwebkit2gtk-4_1-0" ;;
+        zypper:libsoup)      echo "libsoup-3_0-0" ;;
         zypper:keyd)         echo "" ;;
         *)                   echo "" ;;
     esac
 }
 
-REQUIRED=(wtype ydotool grim wl-clipboard pipewire gtk4 libadwaita)
+REQUIRED=(wtype ydotool grim wl-clipboard pipewire webkit2gtk libsoup)
 OPTIONAL=(keyd)
 PKGS=()
 for logical in "${REQUIRED[@]}"; do

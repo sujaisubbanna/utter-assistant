@@ -420,32 +420,32 @@ pkg_for() {
         pacman:grim)         echo "grim" ;;
         pacman:wl-clipboard) echo "wl-clipboard" ;;
         pacman:pipewire)     echo "pipewire" ;;
-        pacman:gtk4)         echo "gtk4" ;;
-        pacman:libadwaita)   echo "libadwaita" ;;
+        pacman:webkit2gtk)   echo "webkit2gtk-4.1" ;;
+        pacman:libsoup)      echo "libsoup3" ;;
         pacman:keyd)         echo "keyd" ;;
         apt:wtype)           echo "wtype" ;;
         apt:ydotool)         echo "ydotool" ;;
         apt:grim)            echo "grim" ;;
         apt:wl-clipboard)    echo "wl-clipboard" ;;
         apt:pipewire)        echo "pipewire" ;;
-        apt:gtk4)            echo "libgtk-4-1" ;;
-        apt:libadwaita)      echo "libadwaita-1-0" ;;
+        apt:webkit2gtk)      echo "libwebkit2gtk-4.1-0" ;;
+        apt:libsoup)         echo "libsoup-3.0-0" ;;
         apt:keyd)            echo "" ;;
         dnf:wtype)           echo "wtype" ;;
         dnf:ydotool)         echo "ydotool" ;;
         dnf:grim)            echo "grim" ;;
         dnf:wl-clipboard)    echo "wl-clipboard" ;;
         dnf:pipewire)        echo "pipewire" ;;
-        dnf:gtk4)            echo "gtk4" ;;
-        dnf:libadwaita)      echo "libadwaita" ;;
+        dnf:webkit2gtk)      echo "webkit2gtk4.1" ;;
+        dnf:libsoup)         echo "libsoup3" ;;
         dnf:keyd)            echo "" ;;
         zypper:wtype)        echo "wtype" ;;
         zypper:ydotool)      echo "ydotool" ;;
         zypper:grim)         echo "grim" ;;
         zypper:wl-clipboard) echo "wl-clipboard" ;;
         zypper:pipewire)     echo "pipewire" ;;
-        zypper:gtk4)         echo "gtk4-devel" ;;
-        zypper:libadwaita)   echo "libadwaita-1-0" ;;
+        zypper:webkit2gtk)   echo "libwebkit2gtk-4_1-0" ;;
+        zypper:libsoup)      echo "libsoup-3_0-0" ;;
         zypper:keyd)         echo "" ;;
         *)                   echo "" ;;
     esac
@@ -465,8 +465,8 @@ dep_present() {
         grim)         command -v grim >/dev/null 2>&1 ;;
         wl-clipboard) command -v wl-copy >/dev/null 2>&1 ;;
         pipewire)     command -v pw-play >/dev/null 2>&1 || command -v pipewire >/dev/null 2>&1 ;;
-        gtk4)         lib_present "gtk4" "libgtk-4" ;;
-        libadwaita)   lib_present "libadwaita-1" "libadwaita-1" ;;
+        webkit2gtk)   lib_present "webkit2gtk-4.1" "libwebkit2gtk-4.1" ;;
+        libsoup)      lib_present "libsoup-3.0" "libsoup-3.0" ;;
         systemd-user) _systemd_user_ok ;;
         keyd)         command -v keyd >/dev/null 2>&1 ;;
         *)            false ;;
@@ -477,7 +477,7 @@ _systemd_user_ok() {
     command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1
 }
 
-DEP_REQUIRED=(wtype ydotool grim wl-clipboard pipewire gtk4 libadwaita)
+DEP_REQUIRED=(wtype ydotool grim wl-clipboard pipewire webkit2gtk libsoup)
 DEP_OPTIONAL=(keyd)
 
 missing_pkgs() {
@@ -623,7 +623,7 @@ COMP_LABELS=(
     "Config"
 )
 COMP_WHAT=(
-    "Wayland/input/audio tools and libs (wtype, ydotool, grim, wl-clipboard, pipewire, gtk4, libadwaita)"
+    "Wayland/input/audio tools and libs (wtype, ydotool, grim, wl-clipboard, pipewire, webkit2gtk-4.1, libsoup-3.0)"
     "protocol + reference runner + assistant CLI + bundled plugins"
     "utter-runner.service user unit (+ optional enable & start)"
     "recommended STT / decision-head / vision models (always the user's choice)"

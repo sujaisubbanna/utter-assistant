@@ -16,7 +16,11 @@ What it does:
 1. Detects the distro from `/etc/os-release` (`ID`/`ID_LIKE`) → **pacman / apt / dnf / zypper**
    (falls back to `command -v`).
 2. Installs the system dependencies (name-mapped per distro): `wtype`, `ydotool` (+`ydotoold`),
-   `grim`, `wl-clipboard`, `pipewire`, `gtk4`, `libadwaita` (Tauri GUI), optional `keyd`.
+   `grim`, `wl-clipboard`, `pipewire`, `webkit2gtk-4.1` and `libsoup-3.0` (the Tauri v2 WebKit
+   runtime; the old GTK4/libadwaita window is gone), optional `keyd`.
+   Accessibility (reading the focused element via AT-SPI) additionally needs PyGObject
+   (`python-gobject`) and `at-spi2-core`; these are **optional** — a11y degrades gracefully
+   when absent, so the installer does not require them.
 3. Checks the `input` group and `/dev/uinput`; **prints** the `usermod -aG input` + udev + re-login
    steps (it never silently changes groups).
 4. Installs and (with `--yes`) enables the **user** service `utter-runner.service`, bound to

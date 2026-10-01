@@ -38,8 +38,9 @@ What it does:
 1. Detects the distro from `/etc/os-release` (`ID` and `ID_LIKE`) and picks **pacman, apt, dnf
    or zypper** (falling back to `command -v`).
 2. Installs the system dependencies, name-mapped per distro: `wtype`, `ydotool` (and
-   `ydotoold`), `grim`, `wl-clipboard`, `pipewire`, `gtk4`, `libadwaita` for the settings app,
-   and optionally `keyd`.
+   `ydotoold`), `grim`, `wl-clipboard`, `pipewire`, `webkit2gtk-4.1` and `libsoup-3.0` for the
+   Tauri settings app, and optionally `keyd`. AT-SPI accessibility (`python-gobject` +
+   `at-spi2-core`) is optional and degrades gracefully.
 3. Checks the `input` group and `/dev/uinput`, and **prints** the `usermod -aG input`, udev and
    re-login steps. It never silently changes groups.
 4. Installs and, with `--yes`, enables the **user** service `utter-runner.service`, bound to the
