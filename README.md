@@ -229,12 +229,16 @@ page, and pick a recommended model on the **Models** page.
 
 ## 🗺️ Roadmap
 
+Shipped recently: **KDE Plasma (KWin)** support, **sleep when idle**, an **agent-facing CLI**
+(`utter assistant|dictation|listen|speak|transcribe`, with `capabilities`/`schema` discovery), and
+an **experimental macOS port**. See [CHANGELOG.md](CHANGELOG.md).
+
 - [ ] **Actions, not just commands** ⭐ *most important*. Let Utter handle whole requests rather than single commands: ask a question and it finds the answer and tells you; ask for an outcome and it works out the steps. For example:
   - *"Launch Control Resonant"*: find the game and start it through Steam.
   - *"Play some jazz"*: open Spotify and start playing jazz.
 - [ ] **Optimise for GPUs with less memory**: smaller default models, quantised builds and sharing one GPU between the models, so Utter runs well on 8 GB cards (and on CPU-only machines)
+- [ ] **macOS: finish and verify** — the experimental port landed ([docs/MACOS.md](docs/MACOS.md)) with a Metal-native runtime (Ollama / whisper.cpp / VocaMac, no NVIDIA assumptions); it still needs testing on real Apple hardware, a signed and notarized app, and launchd controls in the settings app
 - [ ] **Windows version**
-- [ ] **macOS version** — experimental port landed ([docs/MACOS.md](docs/MACOS.md)); needs testing on real hardware, a signed app and launchd controls in the settings app
 - [ ] **Support for more apps**: more hand-tuned app profiles and actions
 - [ ] **Key sequences for app actions**: let one action press several keys in order (e.g. `/`, then type, then Enter) so common steps don't need vision
 - [ ] **More text-to-speech voices**: support for other TTS engines beyond eSpeak, Speech Dispatcher and Piper
