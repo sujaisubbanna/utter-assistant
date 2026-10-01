@@ -253,6 +253,8 @@ class Utter:
         from .macos import hotkey as mac_hotkey
         from .voice.stt import Transcriber
 
+        from . import sleep as _sleep
+
         mc = self.cfg.macos
         try:
             from .macos import permissions
@@ -269,6 +271,8 @@ class Utter:
                  [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)
         rec_lock = threading.Lock()
         session: dict = {"stream": None, "chunks": [], "mode": None}
+        sleeper = _sleep.get(self.cfg)
+        idle = _sleep.idle(self.cfg)
 
         def start(mode: str) -> None:
             with rec_lock:
@@ -285,6 +289,10 @@ class Utter:
                                         device=(self.cfg.audio.device or None), callback=cb)
                 stream.start()
                 session["stream"] = stream
+            idle.begin("listen")
+            if sleeper.asleep:
+                sleeper.wake()
+                _play("wake")
             _play("dictate" if mode == "dictation" else "start")
             log.info("PTT down (%s) - listening", mode)
 
@@ -296,34 +304,38 @@ class Utter:
                 session["stream"] = None
                 stream.stop(); stream.close()
                 data = np.concatenate(session["chunks"]) if session["chunks"] else np.zeros((0, 1), dtype="float32")
-            audio = data.reshape(-1).astype("float32")
-            if audio.size < self.cfg.audio.sample_rate * 0.2:
-                log.info("too short, ignoring")
-                return
             try:
-                text = stt.transcribe(audio)
-            except Exception as e:  # noqa: BLE001
-                log.error("transcription failed: %s", e)
-                _notify(f"Transcription failed: {e}", mc)
-                return
-            log.info("transcript (%s): %r", mode, text)
-            if not text:
-                return
-            if mode == "dictation":
-                from .actions import keyboard
-                res = keyboard.type_text(text)
-                if res.ok:
-                    _play("typed")
-                else:
-                    log.warning("dictation typing failed: %s", res.detail)
-                    _notify(f"Could not type text: {res.detail}", mc)
-                return
-            self.handle_utterance(text)
+                audio = data.reshape(-1).astype("float32")
+                if audio.size < self.cfg.audio.sample_rate * 0.2:
+                    log.info("too short, ignoring")
+                    return
+                try:
+                    text = stt.transcribe(audio)
+                except Exception as e:  # noqa: BLE001
+                    log.error("transcription failed: %s", e)
+                    _notify(f"Transcription failed: {e}", mc)
+                    return
+                log.info("transcript (%s): %r", mode, text)
+                if not text:
+                    return
+                if mode == "dictation":
+                    from .actions import keyboard
+                    res = keyboard.type_text(text)
+                    if res.ok:
+                        _play("typed")
+                    else:
+                        log.warning("dictation typing failed: %s", res.detail)
+                        _notify(f"Could not type text: {res.detail}", mc)
+                    return
+                self.handle_utterance(text)
+            finally:
+                idle.end("listen")
 
         keys = {
             mc.dictation_key: (lambda: start("dictation"), lambda: stop("dictation")),
             mc.assistant_key: (lambda: start("assistant"), lambda: stop("assistant")),
         }
+        idle.start()
         mac_hotkey.listen_many(keys, backend=mc.hotkey_backend)
 
     def run_bridge(self) -> None:
