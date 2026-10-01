@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-10-01
+
+### Fixed
+- **The M3 verification no longer drives the live desktop.** `scripts/verify.sh` used to open
+  YouTube in the real browser on every run (via `tests/m3/verify_m3.py`). The real action is
+  now opt-in (`--real-action` or `UTTER_M3_REAL_ACTION=1`); the default run is fully dry-run.
+- **`utter version` reports the real version.** It returned a hardcoded `0.1.0`; it now
+  resolves from `pyproject.toml` (or the installed metadata).
+- **macOS drives the real assistant and honours sleep/idle.** The launchd agent and the
+  settings app point at `config.m3.toml` instead of the fake echo config, and the
+  push-to-talk path now starts idle-sleep and wakes the assistant, like Linux.
+
+### Documentation
+- README restructured with a new **"Use it without voice"** section that presents the full
+  headless CLI (`utter`, `python -m assistant`), and `docs/CLI.md` now states it needs no
+  microphone.
+
 ## [0.1.4] - 2026-10-01
 
 ### Fixed
@@ -14,7 +31,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Linux runner entrypoint uses `python3`.** `config.m3.toml` no longer depends on a bare
   `python`, which a clean Ubuntu 24.04 does not provide.
 
-[0.1.3]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.3
+## [0.1.3] - 2026-10-01
 
 ### Added
 - **macOS Metal-native local runtime.** A platform-aware resolution layer (`utter/runtime.py`)
@@ -24,7 +41,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hardware and suggested profiles, and the settings Diagnostics page shows the detected
   runtime. Docs: `docs/MACOS.md`. Tests: `tests/platform/test_macos_runtime.py`.
 
-[0.1.2]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.2
+## [0.1.2] - 2026-10-01
 
 ### Added
 - **KDE Plasma (KWin) support.** A compositor abstraction (`utter/context/compositor.py`,
@@ -134,4 +151,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
+[0.1.5]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.5
+[0.1.4]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.4
+[0.1.3]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.3
+[0.1.2]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.1
