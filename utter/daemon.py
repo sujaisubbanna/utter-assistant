@@ -238,7 +238,23 @@ def main(argv: Optional[list[str]] = None) -> int:
     app.setup()
 
     if args.text:
-        ok = app.handle_utterance(args.text)
+        if args.dry_run:
+            # One-shot previews are route-only. Keep this out of
+            # handle_utterance: daemon sleep/idle wrappers may acquire service
+            # or busy-state locks that are irrelevant to a preview.
+            from .context import niri
+            ctx = niri.build_context(with_a11y=False)
+            plan = app.route(args.text, ctx)
+            app.last_plan = plan
+            ok = plan is not None
+            if plan is not None:
+                for step in plan.steps:
+                    log.info("DRY-RUN %s tier=%s args=%s", step.action.value,
+                             step.tier.value, step.args)
+            else:
+                log.warning("no plan for %r", args.text)
+        else:
+            ok = app.handle_utterance(args.text)
         if args.json_plan:
             plan = app.last_plan
             payload = {"accepted": ok, "plan": None if plan is None else {

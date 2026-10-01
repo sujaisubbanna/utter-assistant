@@ -65,26 +65,6 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(obj["error"]["code"], "E_BLOCKED")
         self.assertEqual(cli.ERROR_CODES[obj["error"]["code"]], code)
 
-    def test_assistant_dry_run_flags_before_and_after_subcommand(self):
-        class FakeUtter:
-            def __init__(self, *_args, **_kwargs): pass
-            def setup(self): pass
-            def handle_utterance(self, _text): return True
-
-        outputs = []
-        for argv in (
-            ["--dry-run", "assistant", "open youtube", "--json"],
-            ["assistant", "open youtube", "--dry-run", "--json"],
-        ):
-            with patch("utter.daemon.Utter", FakeUtter), patch("utter.config.load_config", return_value=object()):
-                code, raw, err = self.run_cli(argv)
-            self.assertEqual((code, err), (0, ""))
-            outputs.append(json.loads(raw))
-        self.assertEqual(outputs[0], outputs[1])
-        self.assertTrue(outputs[0]["data"]["accepted"])
-        self.assertTrue(outputs[0]["data"]["dry_run"])
-        self.assertTrue(outputs[0]["data"]["plan"]["steps"])
-
     def _run_real_preview(self, args):
         repo = pathlib.Path(__file__).resolve().parents[1]
         return subprocess.run([sys.executable, "-X", "faulthandler", "-m", "utter.cli", *args],
@@ -107,6 +87,24 @@ class CliContractTests(unittest.TestCase):
         self.assertTrue(obj["data"]["accepted"])
         self.assertTrue(obj["data"]["dry_run"])
         self.assertTrue(obj["data"]["plan"]["steps"])
+
+    def test_real_daemon_text_dry_run_bypasses_handle_utterance(self):
+        repo = pathlib.Path(__file__).resolve().parents[1]
+        proc = subprocess.run([sys.executable, "-X", "faulthandler", "-m", "utter.daemon",
+                               "--text", "open youtube", "--dry-run", "--json-plan"],
+                              cwd=repo, capture_output=True, text=True, timeout=6)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        preview = json.loads(proc.stdout)
+        self.assertTrue(preview["accepted"])
+        self.assertTrue(preview["plan"]["steps"])
+
+    def test_real_daemon_text_dry_run_without_json_plan_exits(self):
+        repo = pathlib.Path(__file__).resolve().parents[1]
+        proc = subprocess.run([sys.executable, "-X", "faulthandler", "-m", "utter.daemon",
+                               "--text", "open youtube", "--dry-run"],
+                              cwd=repo, capture_output=True, text=True, timeout=6)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("DRY-RUN ensure_url", proc.stderr)
 
     def test_missing_confirmation_is_fast_without_tty_or_stdin_read(self):
         class NonTty:
