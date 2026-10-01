@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Sleep when idle.** Utter now falls asleep by itself after `[sleep] idle_minutes`
+  (default 15) without Utter activity: a push-to-talk key, a spoken command or a wake.
+  Desktop input elsewhere does not count, and the timer waits while Utter is listening
+  or running a command. Automatic sleep uses the same path as the spoken trigger, so
+  holding a push-to-talk key wakes it the same way. New `[sleep]` keys `on_idle` and
+  `idle_minutes`, with a switch and a minutes field on the General page (en + es).
+
 ## [0.2.0] - 2026-10-01
 
 ### Added

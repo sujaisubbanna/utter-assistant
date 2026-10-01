@@ -169,6 +169,11 @@ export const en = {
       triggerHint: "Say one exactly, e.g. “go to sleep”. Separate phrases with commas.",
       speech: "Unload speech too",
       speechHint: "Frees the most memory. Speech reloads in a fraction of a second on wake.",
+      idle: "Sleep when idle",
+      idleHint: "Go to sleep by itself when you haven't used Utter for a while. Typing or clicking elsewhere doesn't count.",
+      idleMinutes: "Idle time",
+      idleMinutesHint: "Minutes without a push-to-talk key or a spoken command before Utter sleeps.",
+      minutesUnit: "min",
     },
     appearance: {
       title: "Appearance",

@@ -102,7 +102,11 @@ services stop, the speech model is unloaded, and only a tiny listener stays aliv
 **Hold either push-to-talk key to wake it**: speech is back in a fraction of a second, and the
 bigger models reload in the background.
 
-The phrase is yours to choose, on the **General** page or in the config file:
+Utter also falls asleep **by itself** after 15 minutes without being used. Only Utter activity
+counts (a push-to-talk key, a spoken command, waking up), never typing or clicking in other
+apps, so the graphics card is freed while you work. Waking is the same key press.
+
+The phrase and the timer are yours to choose, on the **General** page or in the config file:
 
 ```toml
 [sleep]
@@ -110,6 +114,8 @@ enabled = true
 trigger = ["go to sleep", "take a break"]
 services = ["utter-vision", "utter-planner"]   # what gets unloaded
 unload_speech = true
+on_idle = true                                 # sleep by itself when unused…
+idle_minutes = 15                              # …after this long
 ```
 
 ## Next steps

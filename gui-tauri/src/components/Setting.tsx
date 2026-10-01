@@ -335,6 +335,7 @@ export function ConfigNumber({
   max,
   step,
   suffix,
+  disabled,
 }: {
   section: string;
   k: string;
@@ -345,6 +346,7 @@ export function ConfigNumber({
   max?: number;
   step?: number;
   suffix?: string;
+  disabled?: boolean;
 }) {
   const { get, set } = useConfig();
   return (
@@ -357,6 +359,7 @@ export function ConfigNumber({
       max={max}
       step={step}
       suffix={suffix}
+      disabled={disabled}
     />
   );
 }
