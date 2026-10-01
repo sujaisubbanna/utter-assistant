@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] - 2026-10-01
+
+### Internal
+- Split `utter/router/rules.py` `plan()` into an ordered matcher chain (with a new
+  golden-order test) and `utter/router/decide.py` into `decide_llm.py` and
+  `decide_candidates.py`. Routing output is unchanged.
+
 ## [0.1.10] - 2026-10-01
 
 ### Internal
@@ -213,6 +220,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
+[0.1.11]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.11
 [0.1.10]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.10
 [0.1.9]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.9
 [0.1.8]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.8
