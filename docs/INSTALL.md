@@ -81,6 +81,47 @@ $XDG_DATA_HOME/utter/models/      # override with UTTER_MODELS
 Models are **the user's choice** — the installer never downloads one. `assistant recommend`
 suggests a profile for the machine's GPU/RAM; you pull what you want.
 
+### GPU planning (VRAM & latency)
+
+The shipped serving scripts (`scripts/serve_planner.sh`, `scripts/serve_vision.sh`) assume **one
+NVIDIA GPU shared by both vLLM servers**. Per-component footprint:
+
+| Component | Model | Precision | Server | GPU memory setting | On disk |
+|---|---|---|---|---|---|
+| Speech recognition | `distil-small.en` | faster-whisper, float16 | in process (no vLLM) | ~0.5 GB | — |
+| Decision head / planner | `Qwen3-4B-Instruct-2507-AWQ-4bit` | W4A16 (4-bit AWQ) | vLLM `:8001` | `--gpu-memory-utilization 0.30` | 3.3 GB |
+| Screen vision | `UI-TARS-2B-SFT` | bf16 | vLLM `:8000` | `--gpu-memory-utilization 0.55` | 9.2 GB |
+
+`0.30 + 0.55 = 0.85`, so the default pair fits one ~24 GB GPU.
+
+| Tier | What runs | GPU budget | Status |
+|---|---|---|---|
+| **24 GB** | Full stack: STT + 4B AWQ planner + 2B bf16 vision | Planner ~7.2 GB (0.30), vision for ~13 GB (0.55) | **Measured** — this is what the shipped defaults target |
+| **16 GB** | Same models, lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (keep the sum below ~0.9) | — | **Expected; untested** |
+| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | — | **Expected; untested** |
+| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | — | **Expected; untested** |
+
+Only the 24 GB row is what the shipped defaults target. The 16 GB, 8 GB and CPU-only rows have
+**not** been tested — they are expected to work, not confirmed. Use `assistant recommend` to see
+what fits your machine.
+
+Latency is measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **2026-10-02**
+(30 warm calls and 1 cold call per path). Numbers are from one machine; your hardware will differ.
+
+| Path | Cold (first call) | Warm p50 | Warm p95 |
+|---|---|---|---|
+| Rules (layer 1, no model) | 9.2 ms | <1 ms | <1 ms |
+| Decision head (layer 2, local LLM) | 108.8 ms | 9.2 ms | 11.6 ms |
+| Vision (UI-TARS screenshot grounding) | 676.5 ms | 91.0 ms | 140.6 ms |
+| End-to-end `utter assistant --dry-run` | 114 ms | 113 ms | 114 ms |
+| Sleep → wake (planner reload to ready) | ~21 s | — | — |
+
+- **"Cold"** is the first call after the servers are up but idle (cold CUDA kernels/caches), not
+  model loading.
+- The end-to-end time is dominated by Python interpreter startup (~113 ms), not the decision head
+  (about 9 ms warm).
+- The vision numbers include a synthetic 1344×756 image.
+
 ## 5. Optional UI: Noctalia widget
 
 If you run the **Noctalia** shell, there is an optional widget package at `widgets/noctalia/`

@@ -97,6 +97,48 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 ./gui-tauri/src-tauri/target/release/utter
 See [Clone and build from source](/install/from-source/) for services, the `assistant` CLI and
 the model store.
 
+## GPU requirements and latency
+
+The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers**. Per-component
+footprint:
+
+| Component | Model | Precision | GPU memory setting | On disk |
+|---|---|---|---|---|
+| Speech recognition (in process) | `distil-small.en` | faster-whisper, float16 | ~0.5 GB | — |
+| Decision head / planner | `Qwen3-4B-Instruct-2507-AWQ-4bit` | W4A16 (4-bit AWQ) | `--gpu-memory-utilization 0.30` | 3.3 GB |
+| Screen vision | `UI-TARS-2B-SFT` | bf16 | `--gpu-memory-utilization 0.55` | 9.2 GB |
+
+`0.30 + 0.55 = 0.85`, so the default pair fits one ~24 GB GPU.
+
+| Tier | What runs | Status |
+|---|---|---|
+| **24 GB** | Full stack; planner ~7.2 GB (0.30), vision for ~13 GB (0.55) | **Measured** — the shipped defaults target this |
+| **16 GB** | Same models with lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (sum below ~0.9) | **Expected; untested** |
+| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Expected; untested** |
+| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | **Expected; untested** |
+
+Only the 24 GB row is what the shipped defaults target; the other rows have **not** been tested.
+Use `assistant recommend` to see what fits your machine.
+
+Latency was measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **2026-10-02**
+(30 warm calls and 1 cold call per path). It will differ per machine.
+
+| Path | Cold (first call) | Warm p50 | Warm p95 |
+|---|---|---|---|
+| Rules (layer 1, no model) | 9.2 ms | <1 ms | <1 ms |
+| Decision head (layer 2, local LLM) | 108.8 ms | 9.2 ms | 11.6 ms |
+| Vision (UI-TARS screenshot grounding) | 676.5 ms | 91.0 ms | 140.6 ms |
+| End-to-end `utter assistant --dry-run` | 114 ms | 113 ms | 114 ms |
+| Sleep → wake (planner reload to ready) | ~21 s | — | — |
+
+- **"Cold"** is the first call after the servers are up but idle (cold CUDA kernels/caches), not
+  model loading.
+- The end-to-end time is dominated by Python interpreter startup (~113 ms), not the decision head
+  (about 9 ms warm).
+- The vision numbers include a synthetic 1344×756 image.
+
+See [Models](/guides/models/) for the recommendation rules and the model store.
+
 ## After installing
 
 Open the **Utter settings app**, set your push-to-talk keys on the **Voice** page, and pick a
