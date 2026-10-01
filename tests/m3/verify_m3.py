@@ -2,12 +2,15 @@
 """M3 verification: drive the real ``utter/`` assistant through the runner.
 
 Starts the runner with ``config.m3.toml`` (dry-run ON) and asserts the vertical
-slice routes through the real rules + Jev decision head, then runs a single real
-(non-dry-run) safe action and reports the observed result.
+slice routes through the real rules + Jev decision head.
+
+The real-action check — which opens YouTube in the live desktop browser — is OFF
+by default, because the test suite must not touch the user's desktop. Enable it
+explicitly with ``--real-action`` or ``UTTER_M3_REAL_ACTION=1``.
 
 Usage::
 
-    .venv-agent/bin/python tests/m3/verify_m3.py [--keep] [--timeout 60]
+    .venv-agent/bin/python tests/m3/verify_m3.py [--keep] [--timeout 60] [--real-action]
 """
 from __future__ import annotations
 
@@ -238,7 +241,18 @@ def check_policy(client: FramingClient, rep: Report) -> None:
         rep.check("user terminal denied -32003", False, str(exc))
 
 
-def check_real_action(rep: Report, timeout: float) -> None:
+def _truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def check_real_action(rep: Report, timeout: float, enabled: bool) -> None:
+    if not enabled:
+        rep.skip(
+            "real open youtube",
+            "real desktop action disabled by default "
+            "(pass --real-action or set UTTER_M3_REAL_ACTION=1 to enable)",
+        )
+        return
     print("\n[real action — 'open youtube' with UTTER_DRY_RUN=0]")
     sock = str(GENERATED / "runner-real.sock")
     runner = Runner(sock, dry_run=False, timeout=timeout, log_name="runner-real.log")
@@ -272,6 +286,12 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="utter M3 verification")
     ap.add_argument("--timeout", type=float, default=60.0)
     ap.add_argument("--keep", action="store_true", help="leave the dry-run runner running")
+    ap.add_argument(
+        "--real-action",
+        action="store_true",
+        help="run the real (non-dry-run) 'open youtube' action against the live "
+        "desktop (also enabled by UTTER_M3_REAL_ACTION=1)",
+    )
     args = ap.parse_args(argv)
 
     print("utter M3 verification (real assistant as a plugin)")
@@ -311,7 +331,8 @@ def main(argv: list[str] | None = None) -> int:
         if not args.keep:
             runner.stop()
 
-    check_real_action(rep, args.timeout)
+    real_action = args.real_action or _truthy(os.environ.get("UTTER_M3_REAL_ACTION"))
+    check_real_action(rep, args.timeout, real_action)
 
     summary = rep.summary()
     print(f"\n=== {summary['passed']}/{summary['total']} checks passed, "

@@ -58,8 +58,10 @@ echo "== conformance suite =="
 "$PY" tests/conformance/run.py || rc=1
 
 echo
-echo "== M3 (real assistant as a plugin) =="
+echo "== M3 (real assistant as a plugin; dry-run only) =="
 if [ -f tests/m3/verify_m3.py ]; then
+    # The optional real desktop action is opt-in: pass --real-action or set
+    # UTTER_M3_REAL_ACTION=1. By default this never touches the desktop.
     "$PY" tests/m3/verify_m3.py || rc=1
 fi
 
