@@ -56,6 +56,12 @@ fi
 echo "installing utter[macos] (PyObjC, sounddevice, numpy, pywhispercpp)"
 "$VENV/bin/python" -m pip install -e "$REPO[macos]"
 
+# Let the packaged settings app (utter.app) find this checkout and its venv.
+APP_SUPPORT="$HOME/Library/Application Support/utter"
+mkdir -p "$APP_SUPPORT"
+ln -sfn "$REPO" "$APP_SUPPORT/core"
+echo "linked $APP_SUPPORT/core -> $REPO (the settings app looks there)"
+
 mkdir -p "$CONFIG_DIR"
 if [[ ! -f "$CONFIG_DIR/config.toml" ]]; then
     cp "$REPO/config.default.toml" "$CONFIG_DIR/config.toml"

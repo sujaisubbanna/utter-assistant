@@ -213,7 +213,9 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
   `IOHIDCheckAccess`, `AXIsProcessTrustedWithOptions`,
   `CGPreflightScreenCaptureAccess`), System Settings deep links, `launchctl`
   status/start/stop mapping in the settings app
-- the unsigned `.app` / `.dmg` produced by the `build-macos` CI job
+- the unsigned `.app` / `.dmg` produced by the `build-macos` CI job (a tester build
+  without a release: `gh workflow run macos-dev-build.yml --ref <branch>`, then
+  download the run artifact)
 
 **Linux-only (no macOS equivalent yet)**
 

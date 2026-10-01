@@ -30,6 +30,18 @@ fn locate_repo() -> PathBuf {
             return repo.to_path_buf();
         }
     }
+    // Packaged builds: where the installers put the core. A .app launched from
+    // Finder inherits no shell environment, so these are checked by path.
+    let home = home_dir();
+    for candidate in [
+        data_home().join("utter"),                              // Linux: $PREFIX/share/utter
+        home.join("Library/Application Support/utter/core"),    // macOS: macos/setup.sh symlink
+        home.join("utter-assistant"),
+    ] {
+        if candidate.join("assistant").is_dir() {
+            return candidate;
+        }
+    }
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
@@ -42,6 +54,7 @@ fn locate_python(repo: &Path) -> String {
     }
     for candidate in [
         repo.join(".venv-agent/bin/python"),
+        repo.join(".venv-macos/bin/python"),
         repo.join(".venv/bin/python"),
     ] {
         if candidate.exists() {

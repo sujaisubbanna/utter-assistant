@@ -1,0 +1,98 @@
+name: macos-dev-build
+
+# Build the macOS settings app (.dmg) and the core tarball from any branch and
+# attach them to the workflow run as artifacts — no tag, no GitHub Release.
+# Use it to hand a tester a build:
+#
+#   gh workflow run macos-dev-build.yml --ref <branch>
+#   gh run download <run-id>
+#
+# The app is NOT code-signed or notarised. On first launch right-click → Open,
+# or: xattr -dr com.apple.quarantine /Applications/utter.app
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  dmg:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GNU tar
+        run: brew install gnu-tar
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "gui-tauri/src-tauri -> target"
+
+      - name: Platform self-test
+        run: |
+          python3 -m pip install numpy
+          python3 tests/platform/test_macos_detection.py
+
+      - name: Build core tarball
+        run: |
+          chmod +x scripts/build-core-tarball.sh
+          VERSION="0.0.0-dev.${GITHUB_RUN_NUMBER}+$(git rev-parse --short HEAD)"
+          UTTER_PY="$(command -v python3)" scripts/build-core-tarball.sh --version "$VERSION" --out dist
+          echo "version=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Install GUI dependencies
+        working-directory: gui-tauri
+        run: pnpm install --frozen-lockfile
+
+      - name: Build GUI (app, dmg) — unsigned
+        working-directory: gui-tauri
+        run: pnpm dlx @tauri-apps/cli build --bundles app,dmg --target aarch64-apple-darwin
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp dist/utter-core-*.tar.gz out/
+          BUNDLE="gui-tauri/src-tauri/target/aarch64-apple-darwin/release/bundle"
+          DMG="$(find "$BUNDLE/dmg" -name '*.dmg' | head -1)"
+          cp "$DMG" "out/utter-gui_${version}_aarch64.dmg"
+          APP="$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app' | head -1)"
+          COPYFILE_DISABLE=1 tar -czf "out/utter-gui_${version}_aarch64.app.tar.gz" \
+            -C "$(dirname "$APP")" "$(basename "$APP")"
+          (cd out && shasum -a 256 ./* > sha256sums-macos.txt && ls -lh && cat sha256sums-macos.txt)
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: utter-macos-${{ github.run_number }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
