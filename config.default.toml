@@ -56,6 +56,19 @@ click_duration_ms = 40
 # Empty = the browser you're looking at, else any open one, else the desktop default.
 preferred_browser = ""
 
+[target]
+# App-targeted input: "<app> type ..." / "<app> press ..." / "<app> pause".
+# Wayland cannot inject into an unfocused window, so this is a focus round-trip:
+# focus the target, inject, then restore. Cross-workspace / fullscreen moves are
+# disruptive, so they are gated and confirmed (never by reading window titles).
+#   mode = round_trip | leave | off
+#   cross_workspace = ask | allow | refuse
+#   restore = if_unchanged | always | never
+mode = "round_trip"
+cross_workspace = "ask"
+restore = "if_unchanged"
+focus_timeout_ms = 500
+
 [sleep]
 # Say a trigger phrase in assistant mode to free the GPU: the model services
 # below are stopped and the speech model is unloaded; only the listener stays

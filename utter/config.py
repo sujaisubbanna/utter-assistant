@@ -186,8 +186,32 @@ class GeneralConfig:
 
 
 @dataclass
+class TargetConfig:
+    """App-targeted input injection (``[target]``).
+
+    True background key injection is impossible on Wayland, so a targeted
+    ``key``/``type_text`` is a *focus round-trip*: focus the target window,
+    inject, then restore. Cross-workspace / fullscreen focus moves are
+    disruptive, so they are gated (``cross_workspace``) and confirmed.
+
+    - ``mode``: ``round_trip`` (focus, act, restore), ``leave`` (focus, act,
+      stay) or ``off`` (only focus/close/media; refuse targeted input).
+    - ``cross_workspace``: ``ask`` (confirm), ``allow`` or ``refuse``.
+    - ``restore``: ``if_unchanged`` (only if the user did not move away),
+      ``always`` or ``never``.
+    - ``focus_timeout_ms``: how long to poll for the focus to land before
+      aborting (no injection if it never does).
+    """
+    mode: str = "round_trip"
+    cross_workspace: str = "ask"
+    restore: str = "if_unchanged"
+    focus_timeout_ms: int = 500
+
+
+@dataclass
 class Config:
     general: GeneralConfig = field(default_factory=GeneralConfig)
+    target: TargetConfig = field(default_factory=TargetConfig)
     hotkey: HotkeyConfig = field(default_factory=HotkeyConfig)
     ptt: PTTConfig = field(default_factory=PTTConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
@@ -223,6 +247,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         with open(p, "rb") as fh:
             raw = tomllib.load(fh)
         _merge(cfg.general, raw.get("general", {}))
+        _merge(cfg.target, raw.get("target", {}))
         _merge(cfg.hotkey, raw.get("hotkey", {}))
         _merge(cfg.ptt, raw.get("ptt", {}))
         _merge(cfg.audio, raw.get("audio", {}))

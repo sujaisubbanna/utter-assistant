@@ -8,8 +8,8 @@ same file passes before and after the ordered-chain refactor.
 Ordering is what matters here. ``plan()`` walks a fixed chain; the cases below
 were chosen so that a reordering changes the result, e.g.::
 
-    custom > niri > media > cli_agent > terminal > comfy > open > site > close
-    > search > shortcut > key > editing > type > scroll > click
+    custom > niri > media > cli_agent > app_target > terminal > comfy > open
+    > site > close > search > shortcut > key > editing > type > scroll > click
 
 Run directly::
 

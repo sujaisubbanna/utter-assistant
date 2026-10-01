@@ -46,6 +46,7 @@ OPS = [
     {"op": "ensure_app", "side_effect": "launch", "needs_confirm": False},
     {"op": "launch_app", "side_effect": "launch", "needs_confirm": False},
     {"op": "focus_app", "side_effect": "compositor", "needs_confirm": False},
+    {"op": "close_app", "side_effect": "compositor", "needs_confirm": True},
     {"op": "search", "side_effect": "open_url", "needs_confirm": False},
     {"op": "niri", "side_effect": "compositor", "needs_confirm": False},
     {"op": "media", "side_effect": "media", "needs_confirm": False},
@@ -126,7 +127,7 @@ def _ensure() -> None:
     def ctx_builder(with_a11y: bool = False):
         return niri.build_context(with_a11y=with_a11y)
 
-    _EXECUTOR = Executor(ctx_builder, _CFG)
+    _EXECUTOR = Executor(ctx_builder, _CFG, profiles=_PROFILES)
 
 
 def _context():

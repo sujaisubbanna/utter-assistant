@@ -16,9 +16,15 @@ log = logging.getLogger("utter.executor")
 
 
 class Executor:
-    def __init__(self, ctx_builder: Callable[..., Context], cfg):
+    def __init__(self, ctx_builder: Callable[..., Context], cfg,
+                 profiles: Optional[dict] = None, confirm: Optional[Callable[[dict], bool]] = None):
         self.ctx_builder = ctx_builder
         self.cfg = cfg
+        self._profiles = profiles
+        # ``confirm(request) -> bool`` is the host's confirmation channel
+        # (runner ``host.confirm``). ``None`` means no channel: disruptive
+        # cross-workspace/fullscreen focus moves are refused, never guessed.
+        self.confirm = confirm
 
     # -- public ------------------------------------------------------------
     def execute_plan(self, plan: Plan) -> list[ActionResult]:
@@ -69,14 +75,25 @@ class Executor:
 
     def _do_key(self, step: Step) -> ActionResult:
         from .actions import keyboard
-        # macOS: a targeted window is injected natively to its pid (no focus
-        # change). On Linux this is always None, so the focused/round-trip path
-        # is untouched.
-        return keyboard.send_key(step.args["chord"], pid=self._macos_target_pid(step))
+        # macOS first: a targeted window is injected natively to its pid, with
+        # no focus change. On Linux this is always None, so the Wayland focus
+        # round-trip below is untouched. macOS must outrank `_targeted`, or the
+        # pid path is never reached.
+        pid = self._macos_target_pid(step)
+        if pid is not None:
+            return keyboard.send_key(step.args["chord"], pid=pid)
+        if step.args.get("app") is not None or step.args.get("window_id") is not None:
+            return self._targeted(step, lambda: keyboard.send_key(step.args["chord"]))
+        return keyboard.send_key(step.args["chord"])
 
     def _do_type_text(self, step: Step) -> ActionResult:
         from .actions import keyboard
-        return keyboard.type_text(step.args["text"], pid=self._macos_target_pid(step))
+        pid = self._macos_target_pid(step)
+        if pid is not None:
+            return keyboard.type_text(step.args["text"], pid=pid)
+        if step.args.get("app") is not None or step.args.get("window_id") is not None:
+            return self._targeted(step, lambda: keyboard.type_text(step.args["text"]))
+        return keyboard.type_text(step.args["text"])
 
     def _do_scroll(self, step: Step) -> ActionResult:
         from .actions import mouse
@@ -148,6 +165,239 @@ class Executor:
             fn(window_id)
         except Exception as e:  # noqa: BLE001
             log.debug("focus_window(%s) failed: %s", window_id, e)
+
+    # -- app-targeted input (focus round-trip) -----------------------------
+    def _get_profiles(self) -> dict:
+        if self._profiles is None:
+            try:
+                from .router import profiles as profiles_mod
+                self._profiles = profiles_mod.load()
+            except Exception:  # noqa: BLE001 - resolution degrades to raw ids
+                self._profiles = {}
+        return self._profiles
+
+    def _app_profile(self, app):
+        """Resolve a spoken name / id to an ``AppProfile`` (or None)."""
+        if app is None:
+            return None
+        profiles = self._get_profiles()
+        prof = profiles.get(str(app)) if profiles else None
+        if prof is None and profiles:
+            from .router import profiles as profiles_mod
+            prof = profiles_mod.resolve(str(app), profiles)
+        return prof
+
+    def _candidate_ids(self, app) -> list:
+        """Window ``app_id`` candidates for a profile: ``[id, *app_ids]``, deduped.
+
+        ``app_ids`` are precomputed (curated profile data); the compositor list
+        only ever *selects* one of these — it never authors a target.
+        """
+        prof = self._app_profile(app)
+        ids = [str(app)] if prof is None else [getattr(prof, "id", str(app)),
+                                               *(getattr(prof, "app_ids", []) or [])]
+        out: list = []
+        seen: set = set()
+        for cid in ids:
+            if cid and cid not in seen:
+                seen.add(cid)
+                out.append(cid)
+        return out
+
+    def _app_display(self, app, target=None) -> str:
+        """A trusted display name for confirmations: curated name, else id.
+
+        Never a window title (titles are untrusted).
+        """
+        prof = self._app_profile(app)
+        if prof is not None:
+            return getattr(prof, "name", "") or getattr(prof, "id", str(app))
+        if app is not None:
+            return str(app)
+        return getattr(target, "app_id", "") if target is not None else ""
+
+    def _windows_for_app(self, app) -> list:
+        from .context import desktop
+        seen: dict = {}
+        for cid in self._candidate_ids(app):
+            try:
+                found = desktop.find_windows(app_id=cid)
+            except Exception:  # noqa: BLE001
+                found = []
+            for w in found or []:
+                seen.setdefault(w.id, w)
+        return list(seen.values())
+
+    def _window_by_id(self, window_id: int):
+        from .context import desktop
+        try:
+            windows = desktop.list_windows() or []
+        except Exception:  # noqa: BLE001
+            windows = []
+        for w in windows:
+            if getattr(w, "id", None) == window_id:
+                return w
+        return None
+
+    def _resolve_target(self, step: Step, *, destructive: bool):
+        """Resolve ``args.app`` / ``args.window_id`` to exactly one window.
+
+        Returns ``(WindowInfo | None, error)``. 0 windows and multi-window
+        destructive targets refuse rather than guess.
+        """
+        window_id = step.args.get("window_id")
+        if window_id is not None:
+            try:
+                wid = int(window_id)
+            except (TypeError, ValueError):
+                return None, f"bad window_id {window_id!r}"
+            target = self._window_by_id(wid)
+            if target is None:
+                return None, f"window {wid} not found"
+            return target, ""
+        app = step.args.get("app")
+        if app is None:
+            return None, "no app target"
+        windows = self._windows_for_app(app)
+        if not windows:
+            return None, f"{app} not running"
+        if destructive:
+            if len(windows) > 1:
+                return None, f"{app} has {len(windows)} windows; refusing to guess which to close"
+            return windows[0], ""
+        # Deterministic preference: focused, then lowest workspace, then lowest id.
+        windows.sort(key=lambda w: (not getattr(w, "is_focused", False),
+                                    getattr(w, "workspace_id", 0),
+                                    getattr(w, "id", 0)))
+        return windows[0], ""
+
+    def _target_cfg(self):
+        cfg = getattr(self.cfg, "target", None)
+        if cfg is None:
+            from .config import TargetConfig
+            return TargetConfig()
+        mode = getattr(cfg, "mode", "round_trip")
+        cross = getattr(cfg, "cross_workspace", "ask")
+        restore = getattr(cfg, "restore", "if_unchanged")
+        timeout = getattr(cfg, "focus_timeout_ms", 500)
+        if mode not in ("round_trip", "leave", "off"):
+            mode = "round_trip"
+        if cross not in ("ask", "allow", "refuse"):
+            cross = "ask"
+        if restore not in ("if_unchanged", "always", "never"):
+            restore = "if_unchanged"
+        try:
+            timeout = max(0, int(timeout))
+        except (TypeError, ValueError):
+            timeout = 500
+        from .config import TargetConfig
+        return TargetConfig(mode, cross, restore, timeout)
+
+    def _ask_target(self, app_name: str, target, reasons: list) -> bool:
+        if self.confirm is None:
+            return False
+        request = {
+            "kind": "app_target_focus",
+            "app": app_name,
+            "window_id": getattr(target, "id", 0),
+            "workspace_id": getattr(target, "workspace_id", 0),
+            "reasons": list(reasons),
+        }
+        try:
+            return bool(self.confirm(request))
+        except Exception as e:  # noqa: BLE001
+            log.debug("target confirmation failed: %s", e)
+            return False
+
+    def _focus_and_wait(self, window_id: int, timeout_ms: int) -> bool:
+        from .context import desktop
+        fn = getattr(desktop, "focus_window_on_workspace", None) or getattr(desktop, "focus_window", None)
+        if fn is None:
+            return False
+        try:
+            fn(window_id)
+        except Exception as e:  # noqa: BLE001
+            log.debug("focus_window_on_workspace(%s) failed: %s", window_id, e)
+            fallback = getattr(desktop, "focus_window", None)
+            if fallback is None:
+                return False
+            try:
+                fallback(window_id)
+            except Exception:  # noqa: BLE001
+                return False
+        deadline = time.monotonic() + max(0, timeout_ms) / 1000.0
+        while True:
+            try:
+                cur = desktop.focused_window()
+            except Exception:  # noqa: BLE001
+                cur = None
+            if cur is not None and getattr(cur, "window_id", None) == window_id:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.01)
+
+    def _restore_focus(self, prev, target_id: int, policy: str) -> None:
+        if prev is None or policy == "never":
+            return
+        if policy == "if_unchanged":
+            from .context import desktop
+            try:
+                cur = desktop.focused_window()
+            except Exception:  # noqa: BLE001
+                return
+            if cur is None or getattr(cur, "window_id", None) != target_id:
+                return  # the user moved away: never yank focus back
+        self._focus_window(prev.window_id)
+
+    def _with_focus(self, target, app_name: str, payload: Callable[[], ActionResult],
+                    step: Step) -> ActionResult:
+        """Run ``payload`` with ``target`` focused, then restore per policy.
+
+        Refuses when focus cannot be achieved (never injects into the wrong
+        window) and asks on disruptive moves (cross-workspace / prior
+        fullscreen) through the confirmation channel.
+        """
+        tcfg = self._target_cfg()
+        if tcfg.mode == "off":
+            return ActionResult(False, step.action, step.tier,
+                                f"target mode off: refusing to focus {app_name}")
+        from .context import desktop
+        try:
+            prev = desktop.focused_window()
+        except Exception as e:  # noqa: BLE001
+            return ActionResult(False, step.action, step.tier, f"focus read failed: {e}")
+        if prev is not None and getattr(prev, "window_id", None) == getattr(target, "id", None):
+            return payload()  # already focused: no focus call, no confirmation
+        cross = (prev is not None
+                 and getattr(target, "workspace_id", 0) != getattr(prev, "workspace_id", 0))
+        fullscreen = bool(prev is not None and getattr(prev, "is_fullscreen", False))
+        if cross and tcfg.cross_workspace == "refuse":
+            return ActionResult(False, step.action, step.tier,
+                                f"refusing cross-workspace target {app_name}")
+        reasons = []
+        if cross and tcfg.cross_workspace == "ask":
+            reasons.append("cross_workspace")
+        if fullscreen:
+            reasons.append("fullscreen")
+        if reasons and not self._ask_target(app_name, target, reasons):
+            return ActionResult(False, step.action, step.tier,
+                                f"target confirmation refused for {app_name}")
+        if not self._focus_and_wait(getattr(target, "id", 0), tcfg.focus_timeout_ms):
+            return ActionResult(False, step.action, step.tier,
+                                f"could not focus {app_name} (win {getattr(target, 'id', 0)}); not injecting")
+        try:
+            return payload()
+        finally:
+            if tcfg.mode == "round_trip":
+                self._restore_focus(prev, getattr(target, "id", 0), tcfg.restore)
+
+    def _targeted(self, step: Step, payload: Callable[[], ActionResult]) -> ActionResult:
+        target, err = self._resolve_target(step, destructive=False)
+        if target is None:
+            return ActionResult(False, step.action, step.tier, err)
+        app_name = self._app_display(step.args.get("app"), target)
+        return self._with_focus(target, app_name, payload, step)
 
     def _do_ensure_url(self, step: Step) -> ActionResult:
         """Context-aware 'open <site>': reuse an already-open tab/window if we can.
@@ -269,7 +519,34 @@ class Executor:
         return res
 
     def _do_media(self, step: Step) -> ActionResult:
-        return _mpris(step.args.get("command", "play-pause"))
+        app = step.args.get("app")
+        candidate_ids = self._candidate_ids(app) if app else None
+        return _mpris(step.args.get("command", "play-pause"), candidate_ids=candidate_ids)
+
+    def _do_close_app(self, step: Step) -> ActionResult:
+        """Close a window belonging to ``step.args['app']`` (or ``window_id``).
+
+        Never focuses: a close is issued straight at the target window id. A
+        multi-window app is never guessed at — the caller must be specific.
+        """
+        target, err = self._resolve_target(step, destructive=True)
+        if target is None:
+            return ActionResult(False, Action.CLOSE_APP, step.tier, err)
+        try:
+            from .context import desktop
+            backend = desktop.backend()
+            fn = getattr(backend, "close_window", None)
+            if fn is None:
+                return ActionResult(False, Action.CLOSE_APP, step.tier,
+                                    "close not supported on this platform")
+            out = fn(target.id)
+        except Exception as e:  # noqa: BLE001
+            return ActionResult(False, Action.CLOSE_APP, step.tier, f"close error: {e}")
+        ok = bool(getattr(out, "ok", out))
+        detail = getattr(out, "detail", "") or f"closed window {target.id}"
+        res = ActionResult(ok, Action.CLOSE_APP, step.tier, detail)
+        res.unsupported = bool(getattr(out, "unsupported", False))
+        return res
 
     def _do_click_point(self, step: Step) -> ActionResult:
         from .actions import mouse
@@ -365,7 +642,28 @@ class Executor:
         return res
 
 
-def _mpris(command: str) -> ActionResult:
+def _select_mpris(names: list, candidate_ids=None):
+    """Pick the MPRIS bus name to drive.
+
+    ``candidate_ids`` (profile id + curated ``app_ids``) filter the bus names so
+    ``spotify pause`` controls Spotify even when another player is also
+    registered. Returns None when the named app has no MPRIS player (never
+    silently drives a different one).
+    """
+    if candidate_ids:
+        wanted = [str(c).lower() for c in candidate_ids if c]
+        matched = [n for n in names if any(w in str(n).lower() for w in wanted)]
+        if not matched:
+            return None
+        names = matched
+    if not names:
+        return None
+    # prefer a real player over the noctalia stub
+    names = sorted(names, key=lambda n: n == "dev.noctalia.Mpris")
+    return names[0]
+
+
+def _mpris(command: str, candidate_ids=None) -> ActionResult:
     """Control the active MPRIS media player (Cine/Plezy/mpv/browser) over DBus."""
     method = {
         "play-pause": "PlayPause", "toggle": "PlayPause", "resume": "Play",
@@ -379,11 +677,11 @@ def _mpris(command: str) -> ActionResult:
             "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
             "ListNames", None, None, Gio.DBusCallFlags.NONE, 3000, None)
         names = [n for n in listed.unpack()[0] if n.startswith("org.mpris.MediaPlayer2.")]
-        # prefer a real player over the noctalia stub
-        names.sort(key=lambda n: n == "dev.noctalia.Mpris")
-        if not names:
-            return ActionResult(False, Action.MEDIA, Tier.APP, "no MPRIS player")
-        target = names[0]
+        target = _select_mpris(names, candidate_ids)
+        if target is None:
+            detail = "no MPRIS player" + (
+                f" for {candidate_ids[0]}" if candidate_ids else "")
+            return ActionResult(False, Action.MEDIA, Tier.APP, detail)
         bus.call_sync(target, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player",
                       method, None, None, Gio.DBusCallFlags.NONE, 3000, None)
         return ActionResult(True, Action.MEDIA, Tier.APP, f"media {method} -> {target}")

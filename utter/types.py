@@ -120,6 +120,7 @@ class Action(str, Enum):
     LAUNCH_APP = "launch_app"
     ENSURE_APP = "ensure_app"
     FOCUS_APP = "focus_app"
+    CLOSE_APP = "close_app"
     NEW_TAB = "new_tab"
     SEARCH = "search"
     KEY = "key"
