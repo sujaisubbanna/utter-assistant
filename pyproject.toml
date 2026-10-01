@@ -30,7 +30,7 @@ macos = [
 ]
 
 [project.scripts]
-utter = "utter.daemon:main"
+utter = "utter.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -121,6 +121,18 @@ Under the hood, a tiny **runner** supervises swappable **plugins** (speech, deci
 
 ## 🚀 Getting started
 
+### Agent CLI
+
+`utter` is the desktop-action CLI; `python -m assistant` is the management CLI. Agents can discover the full command and error contract with `utter schema --json`.
+
+```bash
+utter capabilities --json
+utter assistant "open youtube" --dry-run --json
+utter dictation "hello" --dry-run --json
+```
+
+See [docs/CLI.md](docs/CLI.md) for JSON schemas, exit codes, safety behavior, and backend support.
+
 > **Requirements:** Linux on Wayland (niri is the first-class target), PipeWire, and Python 3.12+.
 > **macOS** is experimental and untested on real hardware: see [docs/MACOS.md](docs/MACOS.md)
 > (native Speech.framework + whisper.cpp voice, Quartz hotkeys, unsigned `.dmg`).
