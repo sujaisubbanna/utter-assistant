@@ -33,16 +33,16 @@ add methods instead.
 - **Transports** (`protocol/PROTOCOL.md` §1, §12):
   - `stdio` — the runner spawns the plugin; stdin/stdout carry frames. **No fd passing.**
   - `connect` / `listen` — a unix socket at
-    `$XDG_RUNTIME_DIR/utter/plugins/<id>.sock` (`runner/plugin.py:111-124`).
+    `$XDG_RUNTIME_DIR/utter/plugins/<id>.sock` (`plugin_socket_path`, `runner/plugin.py`).
     `connect` = the runner listens, the plugin dials in; `listen` = the plugin
     listens, the runner connects.
 - **`$/cancel {id}`** is best-effort and cascades; `stream.stop` / cancel are
   idempotent. Requests may carry `params.timeout_ms`; the runner enforces a hard
-  max of 60000 ms (`runner/host.py:50`).
+  max of 60000 ms (`HARD_MAX_TIMEOUT_MS`, `runner/host.py`).
 
 ### Handshake sequence (frozen)
 
-From `runner/plugin.py:335-370` and each fake's handler:
+From `_handshake` in `runner/plugin.py` and each fake's handler:
 
 ```text
 runner → plugin   protocol.hello {protocol, abi, runner, epoch}
@@ -54,11 +54,11 @@ runner → plugin   plugin.health {}    → {status:"ok"|"degraded", detail}
 
 The runner then computes `provides ∩ requires`, validates capabilities, and records
 an **epoch**. A plugin instance is `(plugin_id, epoch)`; responses from a stale
-epoch are dropped (`runner/rpc.py:223-233`), and a restart increments the epoch.
+epoch are dropped (epoch check in `runner/rpc.py`), and a restart increments the epoch.
 
 `protocol.hello` returns the **negotiated** version. The current values are
-`protocol = "1.0"`, `abi = 1` (`runner/plugin.py:42-44`). A mismatch fails with
-`-32004` (`runner/plugin.py:344-355`).
+`protocol = "1.0"`, `abi = 1` (`PROTOCOL_VERSION` / `ABI`, `runner/plugin.py`). A mismatch fails with
+`-32004` (`_handshake`, `runner/plugin.py`).
 
 ---
 
@@ -94,13 +94,12 @@ Required fields (`plugin.schema.json` `required`): `name`, `version`, `kind`,
 - `kind` — one of `stt`, `router`, `knowledge`, `llm`, `perceive`, `action`,
   `input`, `tts`, `context`, `ui`, `bundle`.
 - `runtime` — schema allows `subprocess | wasm | native`, but the reference runner
-  **only supports `subprocess`** today (`runner/plugin.py:163-164`).
+  **only supports `subprocess`** today (`runner/plugin.py`).
 - `transport` — `stdio | connect | listen` (all three implemented).
 - `entrypoint` — argv (array) for a subprocess, or a `.wasm` path.
 - `permissions` — see [§10](#10-permissions--trust).
-- `config_schema` / `settings` / `models` — declared in the schema; model
-  installation and the model store are **planned, not implemented** (see `PLAN.md`
-  M7).
+- `config_schema` / `settings` / `models` — declared in the schema; installing
+  models and the model store are **not implemented yet**.
 
 > Note: `utter-plugin.toml` is the documented canonical form, but the runner
 > itself is configured from a *runner* TOML (`[[plugin]]` entries) — see
@@ -115,17 +114,17 @@ Required fields (`plugin.schema.json` `required`): `name`, `version`, `kind`,
 of truth** for capability strings. Entries are versioned `name@N`, e.g.
 `router.plan@1`, `audio.pcm_f32le@1`, or `experimental/<Name>@N`.
 
-Rules (`runner/plugin.py:77-108`):
+Rules (`validate_capabilities`, `runner/plugin.py`):
 
 - **Unknown capability → warning** (LSP rule: ignore what you don't understand).
 - **Missing `requires` → error, fail closed** (`-32005`,
-  `runner/plugin.py:102-107`). Note `missing` is computed against the runner's own
-  satisfiable set (`RUNNER_CAPS`, `runner/plugin.py:49`) plus the union of already-
+  `validate_capabilities` in `runner/plugin.py`). Note `missing` is computed against the runner's own
+  satisfiable set (`RUNNER_CAPS`, `runner/plugin.py`) plus the union of already-
   handshaken plugins' `provides` plus the plugin's own `provides`.
 - `experimental/` is a collision-free extension namespace (no compatibility promise).
 
 The runner's built-in capabilities are
-`{"host.audio.ringbuffer@1", "host.fd.pass@1", "fs.tmp@1"}` (`runner/plugin.py:49`).
+`{"host.audio.ringbuffer@1", "host.fd.pass@1", "fs.tmp@1"}` (`RUNNER_CAPS`, `runner/plugin.py`).
 
 ---
 
@@ -164,19 +163,19 @@ Minimal methods per kind:
 
 **Actions are strings + JSON Schema**, never a closed enum
 (`protocol/PROTOCOL.md` §4). The registry only special-cases the ops it enforces
-(`runner/policy.py:71-79`: `ensure_url`, `open_url`, `terminal`, `input`, `niri`,
+(`runner/policy.py`: `ensure_url`, `open_url`, `terminal`, `input`, `niri`,
 `launch_app`). A plugin advertises its real ops via `action.capabilities`.
 
 `utter_py` is a realistic `bundle`: it serves `router.plan`, `action.*`,
 `context.snapshot`, and declares perception capabilities
-(`plugins/utter_py/plugin.py:29-58,174-181`).
+(`PROVIDES` / `OPS`, `plugins/utter_py/plugin.py`).
 
 ### Host callbacks
 
 `host.context`, `host.perceive`, `host.action`, `host.confirm`, `host.emit` are the
 *specified* plugin→runner callback surface (`protocol/PROTOCOL.md` §4). Current
 status: **only `host.confirm` is wired** — and as a **runner→client** request when a
-client connection is present (`runner/host.py:568-584`). The other callbacks are not
+client connection is present (`_ask_confirm`, `runner/host.py`). The other callbacks are not
 implemented yet; don't rely on them.
 
 ---
@@ -191,17 +190,17 @@ Notifications are `<method> { stream_id, seq, data }`.
 
 - **lossy** (default; audio frames, `llm.delta`, `tts.audio`): a bounded queue,
   **drop-oldest**; `seq` lets the client detect gaps. Default queue 256
-  (`runner/streams.py:29`, overridable via runner `[runner] lossy_queue`).
+  (`DEFAULT_LOSSY_QUEUE`, `runner/streams.py`, overridable via runner `[runner] lossy_queue`).
 - **reliable** (`*.final`, control): credit window; the server **pauses** when
   credits run out and resumes on `stream.ack`. Default window 64
-  (`runner/streams.py:30`; runner `[runner] credit_window`).
+  (`DEFAULT_CREDIT_WINDOW`, `runner/streams.py`; runner `[runner] credit_window`).
 
-`stream.stop` is **idempotent** and frees buffers (`runner/streams.py:106-130`).
+`stream.stop` is **idempotent** and frees buffers (`stop`, `runner/streams.py`).
 The runner's `deliver()` never blocks the plugin read loop — it only enqueues / drops
-/ holds synchronously (`runner/streams.py:164-199`).
+/ holds synchronously (`deliver`, `runner/streams.py`).
 
 A plugin implements `stream.subscribe` / `stream.stop` (and `stream.ack` for
-reliable mode). See the emitter in `plugins/fake_py/plugin.py:446-513` for a working
+reliable mode). See the emitter in `plugins/fake_py/plugin.py` for a working
 example.
 
 ---
@@ -209,18 +208,18 @@ example.
 ## 6. Data plane: handles & `fd.pass`
 
 Bulk data is a **capability, not a path**: `handle://<sha256>`
-(`runner/handles.py:29`). The runner's store is content-addressed, plugin-scoped,
+(`HANDLE_RE`, `runner/handles.py`). The runner's store is content-addressed, plugin-scoped,
 TTL/refcount-GC'd, and **can never resolve to an arbitrary filesystem path**
-(`runner/handles.py:1-7`).
+(`runner/handles.py`).
 
-Client/runner methods (`runner/host.py:295-302`):
+Client/runner methods (`HandlesApiMixin`, `runner/handles_api.py`):
 
 - `handle.create { data_b64 | data | size, scope? }` → `{ handle, sha256, size }`
 - `handle.fetch { handle, scope? }` → `{ size, sha256, data_b64 }` when
-  `size ≤ 64 KiB`, else error **`-32007`** (`runner/handles.py:127-146`)
+  `size ≤ 64 KiB` (`INLINE_MAX_BYTES`, `runner/handles.py`), else error **`-32007`**
 - `handle.stat { handle, scope? }` → metadata
 - `fd.pass { kind, meta }` → an `SCM_RIGHTS` fd, **socket transport only**
-  (`runner/host.py:497-540`). `kind="handle"` sends a read fd for the stored blob;
+  (`fd_pass`, `runner/handles_api.py`). `kind="handle"` sends a read fd for the stored blob;
   `kind="memfd"` / `"memfd.ring"` sends a memfd.
 
 > Known gap: `memfd.ring` is currently a **plain memfd**, not a true wrap-around ring
@@ -311,7 +310,7 @@ if __name__ == "__main__":
 
 You do **not** need to parse `provenance` yourself for policy: the runner stamps and
 enforces it. A `screen`-provenance request that authors a concrete arg is rejected
-before your plugin is called (`runner/host.py:337-348`, `runner/policy.py:117-139`).
+before your plugin is called (`_enforce_policy`, `runner/host.py`, and `runner/policy.py`).
 
 Wire it into a runner config:
 
@@ -328,7 +327,7 @@ requires = ["fs.tmp@1"]
 
 If `entrypoint` is a relative path it is resolved relative to the runner's CWD; the
 runner always prepends the repo root to `PYTHONPATH` so plugins can `import utter`
-(`runner/plugin.py:194-199`). Use `cwd` for a plugin that needs its own directory as
+(`runner/plugin.py`). Use `cwd` for a plugin that needs its own directory as
 the working directory (`config.m3.toml` does this for `utter_py`).
 
 Validate a config without starting the runner:
@@ -376,16 +375,14 @@ Its handshake and action replies (`src/main.rs:86-135`):
 ```
 
 Terminate on stdin EOF (the runner closes stdin to drain a stdio plugin —
-`runner/plugin.py:304-312`).
+`runner/plugin.py`).
 
 ---
 
 ## 9. Testing with the conformance suite
 
-[`tests/conformance/run.py`](../tests/conformance/run.py) is an **independent**
-suite: its client framing lives in `tests/conformance/framing_client.py` and never
-imports the runner's framing code. Prerequisites: the repo venv
-(`.venv-agent/bin/python`) and a built Rust fake.
+The repository includes a conformance suite that exercises the protocol against the
+runner. Prerequisites: the repo venv (`.venv-agent/bin/python`) and a built Rust fake.
 
 ```bash
 # build the Rust fake once
@@ -397,16 +394,16 @@ cargo build --release --manifest-path plugins/fake_rs/Cargo.toml
 
 It generates `tests/conformance/generated/conformance.toml`, starts
 `python -m runner --config <that file>` from the repo root, waits for
-`$XDG_RUNTIME_DIR/utter/runner.sock`, and asserts (summary in
+`$XDG_RUNTIME_DIR/utter/runner.sock`, and checks (summary in
 `tests/conformance/README.md`):
 
-- **M0** — handshake/negotiation, `provides ∩ requires`, unknown-capability
-  tolerated, missing-require rejected fail-closed, cross-language Rust fake, the
+- handshake and negotiation, `provides ∩ requires`, unknown-capability
+  tolerated, missing-require rejected fail-closed, the cross-language Rust fake, the
   `runner.command "open youtube"` vertical slice, and policy (`terminal` with
   `screen` provenance → `-32006`; with `user` provenance → `-32003`).
-- **M1** — end-to-end lossy backpressure (drop-oldest + `seq` gaps, responsive
+- end-to-end lossy backpressure (drop-oldest + `seq` gaps, responsive
   sibling RPCs, idempotent `stream.stop`), reliable flow (pause at the credit
-  window, resume on `stream.ack`), `runner.invoke` (including `-32006`), 
+  window, resume on `stream.ack`), `runner.invoke` (including `-32006`),
   `runner.validate_plugin`, handles + `fd.pass` (`-32007`, fd round trip),
   socket default-deny, and memfd.
 - Features the runner has not implemented are reported `NOT-YET-SUPPORTED` and are
@@ -415,20 +412,11 @@ It generates `tests/conformance/generated/conformance.toml`, starts
 Exit codes: `0` = all assertions passed (or only skips), `1` = a check failed,
 `2` = blocked (runner absent / not ready). Flags: `--keep`, `--timeout 30`.
 
-**Adding checks**: extend the `Report` harness (`run.py:68-96`) with
-`rep.check(name, ok, detail)` / `rep.skip(name, reason)`, add a `check_*` function,
-and call it from `main()` (`run.py:1006-1017`). Keep the client independent of
-`runner.framing`.
-
-Run everything (runner unit + socket e2e + conformance + measurement spike):
+Run the repository's full verification with:
 
 ```bash
 scripts/verify.sh
 ```
-
-The M3 real-plugin verification is separate:
-`.venv-agent/bin/python tests/m3/verify_m3.py` (dry-run by default; needs the runner
-and, for the decision-head path, the planner vLLM at `:8001`).
 
 ---
 
@@ -439,19 +427,19 @@ Read [`docs/TRUST.md`](TRUST.md) before shipping side effects. The essentials:
 - **Untrusted content selects, never authors.** Screen/a11y/OCR/titles/clipboard
   are `screen` provenance; they may only choose among precomputed candidates. Any
   concrete arg derived from them is rejected with **`-32006`**
-  (`runner/policy.py:124-133`).
+  (`runner/policy.py`).
 - **The runner enforces policy**, and confirmation is **argument-bearing** (shows the
   concrete URL/command, then re-validates — TOCTOU). A plugin's `needs_confirm` is
   only an untrusted hint; `runner.command` honors a step's `confirm` flag and the
-  op registry (`runner/host.py:543-584`, `runner/policy.py:141-143`).
+  op registry (`_run_step` / `_enforce_policy`, `runner/host.py`; `runner/policy.py`).
 - **`action.terminal` and `action.input` are off by default.** Enabling is explicit
-  and still confirmation-required (`runner/policy.py:74-76`; runner config
+  and still confirmation-required (`runner/policy.py`; runner config
   `[policy] enabled_ops`).
 - **`open_url`/`ensure_url` have a scheme allow-list** `http, https, mailto`
-  (`runner/policy.py:72-73`).
+  (`runner/policy.py`).
 - **Socket is default-deny**: allow-list by binary (`SO_PEERCRED` → `/proc/<pid>/exe`)
   or a token via `runner.auth`; `allow_same_uid = true` is a dev escape hatch
-  (`runner/socket.py:196-218`).
+  (`_authorize_creds`, `runner/socket.py`).
 - **Sandboxing**: with runner `[security] enforce = true`, plugins spawn under
   `systemd-run --user --scope` (preferred) or `bwrap`, and
   `runner.validate_plugin` reports each permission as `enforced` or `advisory`

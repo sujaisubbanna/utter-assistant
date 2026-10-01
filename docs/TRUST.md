@@ -1,4 +1,4 @@
-# Trust model (M0)
+# Trust model
 
 The runner is the **trust boundary**. It enforces policy; plugins and their output are
 **untrusted**.

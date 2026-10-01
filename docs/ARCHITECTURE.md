@@ -5,12 +5,12 @@ A local, context-aware voice → desktop-action assistant. The design goal is a 
 (supervisor + trust boundary) with **everything else as swappable plugins** in any language.
 
 ## 2. Why this shape (footprint reality)
-On the reference machine the **models dominate**: vLLM owns ~8.9 GB RSS / ~42 GB VRAM; the
-combined Python dictation process is ~272 MB; noctalia 208 MB. A Rust runner (~3 MB) saves
-~30–50 MB — **~0.05% of RAM**. So the port is justified by **determinism, robustness and
-packaging (single binary vs venv), not memory**. Local plugin RPC is **~0.04 ms**; inference
-is hundreds of ms — so protocol latency is irrelevant next to model latency. **Defer the Rust
-port until profiling shows a bottleneck.**
+The models dominate the footprint by a wide margin: a vLLM server owns gigabytes of RAM and
+tens of gigabytes of VRAM, while the Python assistant process sits in the low hundreds of
+megabytes. A Rust runner would save tens of megabytes, a rounding error. Local plugin RPC
+costs tens of microseconds; inference costs hundreds of milliseconds, so protocol latency is
+irrelevant next to model latency. The runner is therefore judged on **determinism, robustness
+and packaging**, not memory, and a Rust port is deferred until profiling shows a bottleneck.
 
 ## 3. Topology
 ```
@@ -79,10 +79,6 @@ config-schema migration, install lockfile, stable `doctor` output.
   bound to the session, with a Wayland-readiness wrapper.
 - The modular runner is a user service too; clients (GUI, Noctalia widget) connect to
   `$XDG_RUNTIME_DIR/utter/runner.sock`.
-- Installer (planned): `/etc/os-release` detection → pacman/apt/dnf/zypper; prebuilt static-musl
-  core (the Tauri settings app is dynamic, not musl); **not** AppImage/Flatpak for the daemon.
-
-## 10. Milestones
-M0 ✅ protocol/runner/conformance/spike · M1 ✅ streams/flow-control/handles/fd/socket/security ·
-M3 ✅ real assistant as a plugin · then installer, GUI + Noctalia widget, model store.
-See `PLAN.md`.
+- The installer detects the distro from `/etc/os-release` and uses pacman/apt/dnf/zypper for
+  system dependencies. The settings app ships as an AppImage, `.deb` and `.rpm`; the Python
+  core ships as a tarball. The daemon is deliberately **not** an AppImage or Flatpak.

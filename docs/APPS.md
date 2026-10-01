@@ -26,16 +26,16 @@ utterance ─▶ router ─▶ Plan(steps) ─▶ executor ─▶ Action handler
 
 ### Router — rules first, then a constrained decision head
 
-`Utter.route()` (`utter/daemon.py:91-126`) resolves an utterance as:
+`Utter.route()` (in `utter/daemon.py`) resolves an utterance as:
 
-1. **Deterministic rules** — `utter/router/rules.py::plan()` (`rules.py:285-484`).
+1. **Deterministic rules** — `plan()` in `utter/router/rules.py`.
    Multi-step plans (e.g. "close youtube" → focus then close-window) are returned
    directly.
-2. **Constrained decision head (Jev)** — `utter/router/decide.py::decide()`
-   (`decide.py:664-686`). It enumerates a small set of *fully-resolved* candidate
-   actions (`build_candidates`, `decide.py:454-506`) and asks the local tiny LLM to
-   **choose one** by letter. Candidates are capped at 12 plus a mandatory
-   `"none"` (`MAX_CANDIDATES = 13`, `decide.py:41-46`). A choice below
+2. **Constrained decision head (Jev)** — `decide()` in `utter/router/decide.py`.
+   It enumerates a small set of *fully-resolved* candidate
+   actions (`build_candidates` in `utter/router/decide_candidates.py`) and asks the
+   local tiny LLM to **choose one** by letter. Candidates are capped at 12 plus a
+   mandatory `"none"` (`MAX_CANDIDATES = 13`, `decide_candidates.py`). A choice below
    `cfg.decide_threshold` is treated as an abstention.
 3. **Free-form planner** — `utter/router/planner.py::plan()` is the last-resort
    JSON planner, consulted only when the decision head is unavailable.
@@ -48,7 +48,7 @@ it never authors free-form `args` (see [`docs/TRUST.md`](TRUST.md)).
 ### Steps — the `Action` vocabulary
 
 A plan is a list of `Step(action, args, tier, description, confirm)`
-(`utter/types.py:138-154`). The `Action` enum (`types.py:117-135`) is the Python
+(`utter/types.py`). The `Action` enum (`types.py`) is the Python
 reference vocabulary:
 
 | `Action` | Typical args |
@@ -71,14 +71,14 @@ reference vocabulary:
 
 > In the modular protocol these are **strings + JSON Schema**, not this enum
 > (`docs/ARCHITECTURE.md` §4). `utter_py` exposes the same ops as strings
-> (`plugins/utter_py/plugin.py:43-58`).
+> (`plugins/utter_py/plugin.py`).
 
 ### Executor — `utter/executor.py`
 
-`Executor.execute_step()` dispatches `_do_<action>` (`executor.py:37-50`) and re-reads
+`Executor.execute_step()` dispatches `_do_<action>` (`executor.py`) and re-reads
 context between steps; the plan aborts on the first failed step
-(`executor.py:24-35`). `click_element` escalates **T1 accessibility → T3 vision**
-(`executor.py:226-297`). Tiers are defined in `utter/types.py:10-14`:
+(`executor.py`). `click_element` escalates **T1 accessibility → T3 vision**
+(`_do_click_element`, `executor.py`). Tiers are defined in `utter/types.py`:
 `APP` (T0) → `A11Y` (T1) → `KEYBOARD` (T2) → `VISION` (T3).
 
 ---
@@ -101,23 +101,23 @@ belongs in your profiles folder, and the catalogue is generated on each machine.
 
 The loader is `utter/router/profiles.py`:
 
-- `AppProfile` (`profiles.py:28-42`) — fields: `id`, `name`, `aliases`, `launch`,
+- `AppProfile` (`profiles.py`) — fields: `id`, `name`, `aliases`, `launch`,
   `terminal`, `new_window`, `search_url` (must contain `{q}`), `shortcuts`
   (name → chord), `app_ids` (compositor app_ids), `mime_types`, `kind`.
 - `load()` reads `_defaults.yaml`, the machine's catalogue (`GENERATED_PATH`), every
   curated `*.yaml`, then your profiles (`USER_PROFILES_DIR`), which are merged on top
   and ordered first (the reserved names `_defaults.yaml` / `generated.yaml` are skipped
-  as per-app files, `profiles.py:25`). It merges curated overrides onto generated
-  entries (`merge_profiles`, `profiles.py:88-98`) and orders curated profiles ahead
+  as per-app files, in `load`). It merges curated overrides onto generated
+  entries (`merge_profiles`, `profiles.py`) and orders curated profiles ahead
   of generated-only ones, with `generic-*` last.
-- Merge semantics (`_merge_entry`, `profiles.py:65-85`): **shortcuts are merged**;
+- Merge semantics (`_merge_entry`, `profiles.py`): **shortcuts are merged**;
   a curated `aliases` list **replaces** the generated keyword-derived aliases (it is
   not unioned); other fields are replaced.
 - Kind defaults fill missing shortcuts and a missing `search_url`
-  (`_apply_defaults`, `profiles.py:116-124`).
-- `resolve(name, profiles)` (`profiles.py:163-186`) is case-insensitive by `id`,
+  (`_apply_defaults`, `profiles.py`).
+- `resolve(name, profiles)` (`profiles.py`) is case-insensitive by `id`,
   then `name`, then `alias`, then a token-subset fallback. `rules._resolve`
-  (`rules.py:504-514`) is a defensive id/name/alias variant.
+  (`rules.py`) is a defensive id/name/alias variant.
 
 ### Building the catalog
 
@@ -134,18 +134,19 @@ scripts/gen_app_catalog.py --dry-run
 
 - Scan order (highest precedence first): `~/.local/share/applications`,
   flatpak exports, `/usr/local/share/applications`, `/usr/share/applications`
-  (`gen_app_catalog.py:38-44`).
-- Field codes (`%u`, `%f`, …) are stripped from `Exec` (`gen_app_catalog.py:115-138`).
-- `kind` is inferred from `Categories` (`gen_app_catalog.py:61-71,190-195`).
+  (`_desktop_dirs`, `scripts/gen_app_catalog.py`).
+- Field codes (`%u`, `%f`, …) are stripped from `Exec` (`clean_exec`, `gen_app_catalog.py`).
+- `kind` is inferred from `Categories` (`KIND_CATEGORIES` / `infer_kind`,
+  `gen_app_catalog.py`).
 - `app_ids` candidates come from `StartupWMClass`, flatpak ids, the binary basename
-  and the desktop-file id (`gen_app_catalog.py:145-187`).
+  and the desktop-file id (`derive_app_ids`, `gen_app_catalog.py`).
 
 ---
 
 ## 3. The contextual resolver: `ensure_url` / `ensure_app`
 
 `ensure_url` decides whether to reuse an already-open tab/window or open/launch
-(`executor.py:96-151`), in order:
+(`_do_ensure_url`, `executor.py`), in order:
 
 0. **BiDi exact tab match** (Zen only, best-effort) — `zen.activate_match()` across
    all tabs including background ones, then ask niri to raise the window. See
@@ -155,30 +156,30 @@ scripts/gen_app_catalog.py --dry-run
 3. A browser is open → `open_url`, then focus that window.
 4. No browser → `launch_app`/`xdg-open`.
 
-Browser detection uses `_BROWSERS` (`executor.py:326-330`) and the profile-kind check.
+Browser detection uses `_BROWSERS` (`executor.py`) and the profile-kind check.
 Window title matching uses the site keyword from `step.args["site"]` or
-`_host_keyword(url)` (`executor.py:342-353`).
+`_host_keyword(url)` (`executor.py`).
 
-`ensure_app` is simpler (`executor.py:153-165`): focus a window whose `app_id`
+`ensure_app` is simpler (`_do_ensure_app`, `executor.py`): focus a window whose `app_id`
 matches, else `launch_app(argv or app)`.
 
 Both read live window state from `utter/context/niri.py`:
 `build_context()` → `list_windows()`/`find_windows()` → `focus_window()` /
-`focus_window_on_workspace()` (`niri.py:247-266,65-111,211-244`). niri's
+`focus_window_on_workspace()` (`utter/context/niri.py`). niri's
 `focus-window` does **not** cross workspaces, so `focus_window_on_workspace` first
-resolves the window's workspace **index** and focuses it (`niri.py:220-244`).
+resolves the window's workspace **index** and focuses it (`niri.py`).
 
 ---
 
 ## 4. niri compositor actions
 
-The router maps phrases to niri actions via `NIRI_MAP` (`rules.py:78-118`) plus
-workspace/monitor regexes in `_niri_action` (`rules.py:218-231`). Additional phrases
+The router maps phrases to niri actions via `NIRI_MAP` (`rules.py`) plus
+workspace/monitor regexes in `_niri_action` (`rules.py`). Additional phrases
 are loaded from `utter/data/niri_phrases.json` and merged without clobbering the
-curated map (`rules.py:166-183`).
+curated map (`_load_niri_phrases`, `rules.py`).
 
 The executor runs `niri msg action <command> [args...]`
-(`executor.py:193-206`). Example phrases: `"focus right"` → `focus-column-right`,
+(`_do_niri`, `executor.py`). Example phrases: `"focus right"` → `focus-column-right`,
 `"fullscreen"` → `fullscreen-window`, `"workspace 3"` → `focus-workspace 3`.
 
 Regenerate the phrase map from your real niri config and the live action list:
@@ -189,26 +190,26 @@ scripts/gen_niri_phrases.py
 
 It reads `~/.config/niri/config.kdl` (override with `NIRI_CONFIG`),
 `utter/data/niri_actions.json`, and optionally `niri msg action`
-(`gen_niri_phrases.py:57-134`). Every niri action gets an auto phrase (dashes → spaces)
-and curated aliases win (`gen_niri_phrases.py:141-271,300-319`).
+(`read_kdl_text` / `query_live_actions`, `scripts/gen_niri_phrases.py`). Every niri action gets an auto phrase (dashes → spaces)
+and curated aliases win (`CURATED` / `build_curated`, `gen_niri_phrases.py`).
 
 ---
 
 ## 5. Terminal / CLI agents / media
 
 - **CLI agents**: `CLI_AGENTS` and `TERMINAL_LAUNCH` are loaded from
-  `utter/data/cli_agents.json` by `_load_cli_agents()` (`rules.py:131-155`).
+  `utter/data/cli_agents.json` by `_load_cli_agents()` (`rules.py`).
   Spoken names map to argv (e.g. `"opencode"` → `["opencode"]`). If a terminal is
   focused, the agent runs via `Action.TERMINAL`; otherwise it is launched as
-  `foot -e <agent>` (`rules.py:306-314`).
+  `foot -e <agent>` (`_cli_agent`, `rules.py`).
 - **Terminal commands**: `"run <cmd>"` types into a focused terminal
-  (`_do_terminal`, `executor.py:176-191`); the terminal app-id set is
-  `TERMINALS` (`rules.py:157-158`) and `_is_terminal` (`rules.py:210-215`).
-- **Media (MPRIS)**: `MEDIA_MAP` (`rules.py:121-129`) maps phrases to
+  (`_do_terminal`, `executor.py`); the terminal app-id set is
+  `TERMINALS` (`rules.py`) and `_is_terminal` (`rules.py`).
+- **Media (MPRIS)**: `MEDIA_MAP` (`rules.py`) maps phrases to
   `play|pause|play-pause|next|previous|stop`; `_mpris()` drives the active
-  `org.mpris.MediaPlayer2.*` player over DBus via `gio` (`executor.py:300-323`).
+  `org.mpris.MediaPlayer2.*` player over DBus via `gio` (`executor.py`).
   This is app-agnostic (Cine/Plezy/mpv/browser).
-- **ComfyUI** has special-cased phrases in `rules.py:326-337`.
+- **ComfyUI** has special-cased phrases in `_comfy` (`rules.py`).
 
 ---
 
@@ -218,10 +219,10 @@ and curated aliases win (`gen_niri_phrases.py:141-271,300-319`).
 
 1. **Create a curated profile** `utter/profiles/<kind>_<id>.yaml` with the
    required `id` (other fields are optional; defaults fill in). Do not name it
-   `_defaults.yaml` or `generated.yaml` — those are reserved (`profiles.py:25`).
+   `_defaults.yaml` or `generated.yaml` — those are reserved (`load`, `profiles.py`).
 2. **Add aliases** (how you'll say it) and **`app_ids`** (the compositor app_id /
    `StartupWMClass`; find it with `niri msg --json windows`).
-3. *(Optional)* Add a known site to `SITES` in `utter/router/rules.py:17-41`.
+3. *(Optional)* Add a known site to `SITES` in `utter/router/rules.py`.
 4. *(Optional)* Add a terminal CLI preset to `utter/data/cli_agents.json`.
 5. *(Optional)* Add niri bind phrases to `scripts/gen_niri_phrases.py` `CURATED`,
    then regenerate.
@@ -255,11 +256,11 @@ kind: other                      # browser | terminal | filemanager | editor |
 Notes:
 
 - Prefer **`launch` as a list** of argv tokens; field codes are not needed here — the
-  launcher spawns the list directly with no shell (`utter/actions/launch.py:71-98`).
+  launcher spawns the list directly with no shell (`launch_app`, `utter/actions/launch.py`).
 - `kind` selects which `_defaults.yaml` shortcuts/search_url apply
-  (`profiles.py:116-124`). `browser`, `terminal`, `filemanager`, `editor`, `media`,
+  (`_apply_defaults`, `profiles.py`). `browser`, `terminal`, `filemanager`, `editor`, `media`,
   `game`, `office`, `utility`, `other` are the recognised kinds.
-- `search_url` must contain `{q}` (`profiles.py:39`).
+- `search_url` should contain `{q}` (`AppProfile.search_url`, `profiles.py`).
 
 ---
 
@@ -288,7 +289,7 @@ It rewrites only the **first** `Exec=` line to
 ### 7b. Helper — `scripts/zen_bidi.py`
 
 A stdlib + `websockets` CLI (run inside `.venv-agent`). Commands
-(`zen_bidi.py:239-268`):
+(`zen_bidi.py`):
 
 | Command | Behaviour |
 |---|---|
@@ -299,31 +300,31 @@ A stdlib + `websockets` CLI (run inside `.venv-agent`). Commands
 | `activate-match <substr>` | **find + activate in ONE session** |
 
 Internals: `Agent` opens a single BiDi session via
-`ws://127.0.0.1:<port>/session` with `proxy=None` (`zen_bidi.py:50-120`), calls
+`ws://127.0.0.1:<port>/session` with `proxy=None` (`zen_bidi.py`), calls
 `browsingContext.getTree`, flattens top-level tabs (`_flatten_top_level`), and scores
 matches by hostname/path, deprioritising `accounts.`/`login.`/`consent.` subdomains
-(`_find`, `zen_bidi.py:148-175`).
+(`_find`, `zen_bidi.py`).
 
 **Why find + activate must be one session:** BiDi **context ids are not stable across
 sessions**. If you `find` (session A), close it, then `activate` (session B), the
 context id may be gone. `activate-match` therefore finds and activates inside the
-same `with Agent(...)` block (`zen_bidi.py:224-236`).
+same `with Agent(...)` block (`cmd_activate_match`, `zen_bidi.py`).
 
 ### 7c. Wrapper — `utter/browser/zen.py`
 
 A thin, importable wrapper that shells out to the helper so the main assistant needs
-no `websockets` dependency (`zen.py:1-10`):
+no `websockets` dependency (`zen.py`):
 
-- `is_up()` — a fast TCP probe of `127.0.0.1:9222` (no subprocess, `zen.py:53-59`).
+- `is_up()` — a fast TCP probe of `127.0.0.1:9222` (no subprocess, `zen.py`).
 - `list_tabs()` / `find_tab(substr)` / `activate(context)` / `activate_match(substr)`
   — run the helper via `_agent_python()` (default `<repo>/.venv-agent/bin/python`,
-  override `UTTER_AGENT_PY`) with an 8 s timeout (`zen.py:28-50,62-101`).
-- Port from `ZEN_BIDI_PORT` (default `9222`, `zen.py:21`).
+  override `UTTER_AGENT_PY`) with an 8 s timeout (`zen.py`).
+- Port from `ZEN_BIDI_PORT` (default `9222`, `PORT` in `zen.py`).
 
 ### 7d. Executor tier-0 path
 
 In `_do_ensure_url`, **before** any window-title logic
-(`executor.py:113-133`):
+(`executor.py`):
 
 ```python
 from .browser import zen
@@ -364,26 +365,26 @@ falls through to the window-title paths.
 - **Mozilla-family (Firefox, LibreWolf, Waterfox, …):** the same mechanism works —
   start it with `--remote-debugging-port=<port>`, set `ZEN_BIDI_PORT` to match, and
   adapt the niri `app_id` filter in the executor's BiDi block
-  (`executor.py:123-124`, currently `app_id="zen"`) to the new compositor app_id. The
+  (`executor.py`, currently `app_id="zen"`) to the new compositor app_id. The
   helper itself is browser-agnostic.
 - **Chromium-family (Chrome, Chromium, Brave, Edge, …):** these use the **Chrome
   DevTools Protocol (CDP)**, not WebDriver BiDi. `scripts/zen_bidi.py` will not work
   as-is; you would need a CDP client (HTTP `/json/list` + WebSocket) with equivalent
   find/activate semantics. Window-title fallback already recognises these browsers via
-  `_BROWSERS` (`executor.py:326-330`), so `ensure_url` still works without CDP — just
+  `_BROWSERS` (`executor.py`), so `ensure_url` still works without CDP — just
   without background-tab awareness.
 
 ---
 
 ## 9. Verifying a routing change
 
-Fastest checks are dry-run and the M3 verification:
+Fastest checks are dry-run and the real-plugin verification:
 
 ```bash
 # route without executing (prints the plan)
 .venv-agent/bin/python -m utter.daemon --text "open youtube" --dry-run
 
-# M3: the real assistant wrapped as a plugin through the runner
+# the real assistant wrapped as a plugin through the runner
 .venv-agent/bin/python tests/m3/verify_m3.py
 ```
 
@@ -391,7 +392,7 @@ Fastest checks are dry-run and the M3 verification:
 `"open youtube"` → `ensure_url` `https://www.youtube.com`; `"pull up youtube"` → the
 decision-head path; `"tile right"` → niri `move-column-right`; plus policy
 (`screen` `terminal` → `-32006`, `user` `terminal` → `-32003`). It also runs one real
-(non-dry-run) safe action and reports the result (`tests/m3/verify_m3.py:175-266`).
+(non-dry-run) safe action and reports the result (`tests/m3/verify_m3.py`).
 
 After changing profiles or catalogs, re-run `scripts/gen_app_catalog.py` and re-check
 that the app resolves (a curated profile beats a generated one). The full runner
