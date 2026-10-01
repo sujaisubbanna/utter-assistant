@@ -21,6 +21,7 @@ All successful JSON responses use `{"schema":"utter.cli/v1","ok":true,"command":
 | Command | Purpose |
 |---|---|
 | `utter assistant TEXT` / `utter --assistant TEXT` | Route a spoken-style command through Utter. `--dry-run` returns the plan without execution and has a 4 second hard limit; acting requires `--confirm`. |
+| `utter assistant "<app> type …"` / `"<app> press …"` / `"<app> pause"` | Target a named app instead of the focused window: `utter assistant "codex type ok"`, `"close steam"`. On Wayland this is a brief focus round-trip; `close` and media are focus-free. See [CUSTOMISING §13](CUSTOMISING.md#13-app-targeted-actions--background-input). |
 | `utter dictation TEXT` / `utter --dictation TEXT` | Type literal text through wtype, falling back to ydotool. `--dry-run` reports what would be typed. |
 | `utter listen` | Capture for up to `--timeout SEC` (default 10) and act with `--confirm`; `--transcribe-only` returns recognized text. Requires sounddevice/PipeWire and a local STT model. |
 | `utter speak TEXT` | Local TTS through `espeak-ng`, or `espeak` fallback. |

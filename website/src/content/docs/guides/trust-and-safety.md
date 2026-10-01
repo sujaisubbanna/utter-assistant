@@ -34,6 +34,12 @@ arguments**. Concretely:
 This is what makes a malicious web page, a sneaky window title or a poisoned clipboard harmless:
 at most they can nudge Utter toward one of the options it had already decided were acceptable.
 
+**App targeting** follows the same rule. When you say `codex type ok`, the app name is your
+intent, the profile's `app_ids` are precomputed, and the live compositor window list is untrusted
+— it may only **select** which window the action lands on, never supply text or a command.
+`close <app>` requires confirmation, and `screen`-derived arguments are still rejected with
+`-32006`.
+
 ## Confirmation
 
 Confirmation is **runner-enforced and argument-bearing**. Utter shows the **concrete** URL,

@@ -45,6 +45,7 @@ Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and 
 | Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into any field. |
 | Desktop actions | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | Context aware | Knows which app is focused and what is on screen — accessibility info first, screenshots only as a last resort. |
+| Target any app | Name the app up front instead of relying on focus: `codex type ok`, `spotify pause`, `close steam`. |
 | Editable per-app actions | More than 100 app profiles with their shortcuts. Change any key combination in the settings app. |
 | Safe by default | Terminal commands and raw input stay off until you enable them, and important actions ask first. |
 | Completely offline | Speech, AI models and screenshots never leave your machine. No account, no telemetry. |
