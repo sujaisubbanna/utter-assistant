@@ -78,6 +78,7 @@ copy_path plugins
 copy_path utter
 # optional UI widget package (installed only when the Noctalia step is chosen)
 copy_path widgets
+copy_path assets
 # scripts: verify + python helpers + the Wayland wrapper
 mkdir -p "$ROOT/scripts"
 for f in "$REPO"/scripts/*.py "$REPO"/scripts/verify.sh "$REPO"/scripts/utter-wayland-ready.sh; do

@@ -152,6 +152,15 @@ RUNNER_UNIT="$UNIT_DIR/utter-runner.service"
 NOCTALIA_PLUGINS="${NOCTALIA_PLUGINS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/noctalia/plugins}"
 NOCTALIA_DEST="$NOCTALIA_PLUGINS/utter"
 SYMLINK_PATH="$HOME/.local/bin/utter-gui"
+ICON_NAME="org.utter.settings"
+ICON_THEME_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
+ICON_FILES=(
+    "$ICON_THEME_DIR/32x32/apps/$ICON_NAME.png"
+    "$ICON_THEME_DIR/64x64/apps/$ICON_NAME.png"
+    "$ICON_THEME_DIR/128x128/apps/$ICON_NAME.png"
+    "$ICON_THEME_DIR/256x256/apps/$ICON_NAME.png"
+    "$ICON_THEME_DIR/scalable/apps/$ICON_NAME.svg"
+)
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -932,6 +941,9 @@ do_uninstall_legacy() {
     [[ -L "$SYMLINK_PATH" ]] && run "remove $SYMLINK_PATH" rm -f "$SYMLINK_PATH" || true
     [[ -f "$ASSISTANT_BIN" ]] && run "remove $ASSISTANT_BIN" rm -f "$ASSISTANT_BIN" || note "no assistant wrapper"
     [[ -f "$DESKTOP_FILE" ]] && run "remove $DESKTOP_FILE" rm -f "$DESKTOP_FILE" || note "no desktop file"
+    for icon in "${ICON_FILES[@]}"; do
+        [[ -f "$icon" ]] && run "remove $icon" rm -f "$icon" || true
+    done
     [[ -f "$RUNNER_UNIT" ]] && run "remove $RUNNER_UNIT" rm -f "$RUNNER_UNIT" || note "no runner unit"
     if [[ -d "$SHARE_DIR" ]]; then
         run "remove $SHARE_DIR" rm -rf "$SHARE_DIR"
@@ -1331,10 +1343,28 @@ exec_gui() {
         run "create $BIN_DIR" mkdir -p "$BIN_DIR"
         if (( DRY_RUN )); then
             printf '  [dry-run] install %s -> %s (chmod +x)\n' "$GUI_ASSET" "$GUI_BIN"
+            printf '  [dry-run] install icons -> %s\n' "$ICON_THEME_DIR"
             printf '  [dry-run] write %s\n' "$DESKTOP_FILE"
         else
             install -m 0755 "$TMP/$GUI_ASSET" "$GUI_BIN"
             printf '  [ok] installed %s\n' "$GUI_BIN"
+            if [[ -d "$SHARE_DIR/assets/icons" ]]; then
+                for pair in "utter-32.png:32x32" "utter-64.png:64x64" "utter-128.png:128x128" "utter-256.png:256x256"; do
+                    mkdir -p "$ICON_THEME_DIR/${pair##*:}/apps"
+                    install -m 0644 "$SHARE_DIR/assets/icons/${pair%%:*}" \
+                        "$ICON_THEME_DIR/${pair##*:}/apps/$ICON_NAME.png"
+                done
+                if [[ -f "$SHARE_DIR/assets/icons/utter.svg" ]]; then
+                    mkdir -p "$ICON_THEME_DIR/scalable/apps"
+                    install -m 0644 "$SHARE_DIR/assets/icons/utter.svg" \
+                        "$ICON_THEME_DIR/scalable/apps/$ICON_NAME.svg"
+                fi
+                printf '  [ok] installed icons (%s)\n' "$ICON_NAME"
+                command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+                    gtk-update-icon-cache -f -t "$ICON_THEME_DIR" >/dev/null 2>&1 || true
+            else
+                note "no bundled icons; the desktop entry falls back to a system icon"
+            fi
             mkdir -p "$APPS_DIR"
             cat > "$DESKTOP_FILE" <<DESKTOP
 [Desktop Entry]
@@ -1344,12 +1374,12 @@ GenericName=Voice Assistant Settings
 Comment=Configure the utter voice → desktop-action assistant
 Exec=$GUI_BIN
 TryExec=$GUI_BIN
-Icon=preferences-system
+Icon=$ICON_NAME
 Terminal=false
 Categories=Settings;
 Keywords=utter;voice;assistant;settings;stt;llm;
 StartupNotify=true
-StartupWMClass=org.utter.Settings
+StartupWMClass=utter
 DESKTOP
             printf '  [ok] wrote %s\n' "$DESKTOP_FILE"
             command -v update-desktop-database >/dev/null 2>&1 && \
@@ -1362,7 +1392,7 @@ DESKTOP
             symlink="$SYMLINK_PATH"
         fi
         reset_record
-        D_FILES=("$GUI_BIN" "$DESKTOP_FILE")
+        D_FILES=("$GUI_BIN" "$DESKTOP_FILE" "${ICON_FILES[@]}")
         [[ -n "$symlink" ]] && D_FILES+=("$symlink")
         record_component gui "GUI ($MODE)" "$VER_NUM" "$MODE" 0 "$ASSISTANT_BIN"
     else
