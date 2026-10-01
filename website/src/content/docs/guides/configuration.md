@@ -335,3 +335,21 @@ Read [Trust and safety](/guides/trust-and-safety/) in full. The configuration po
   action arguments. The runner enforces this invariant and rejects such requests.
 - **Dry run.** The `utter_py` plugin defaults `UTTER_DRY_RUN` to on; only `UTTER_DRY_RUN=0`
   touches the desktop. Route-only testing: `python -m utter.daemon --text "<cmd>" --dry-run`.
+
+## Forthcoming: app-targeted actions and background input
+
+**Not shipped yet.** Two feature lanes are in progress: sending an action to a specific app
+rather than the focused window, using background keyboard or mouse input. The verified platform
+limits are:
+
+- **Linux/Wayland.** Wayland has no background key injection, so the mechanism is a **focus
+  round-trip** (focus the target, send the key, restore focus). Measured cost is about **38 ms**
+  same-workspace and **41 ms** cross-workspace with compositor animations off, but **~250 ms** of
+  visible viewport scroll when niri animations are on.
+- **macOS.** The intended path is the native `CGEventPostToPid` for **keyboard** (no focus
+  change). The mouse **cannot** target background windows.
+- **Hyprland.** `sendshortcut` exists but is unreliable for Electron/Chromium apps and can
+  silently do nothing.
+
+The config keys are still being finalised; a `[wayland]` setting will control this. Do not rely on
+exact key names yet.
