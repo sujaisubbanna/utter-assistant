@@ -27,6 +27,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 notify = "8"
+# `utter --daemon` / `--runner`: the app supervises the bundled python so macOS
+# attributes its permissions to utter.app (signal forwarding needs libc).
+libc = "0.2"
 
 [profile.release]
 opt-level = "s"

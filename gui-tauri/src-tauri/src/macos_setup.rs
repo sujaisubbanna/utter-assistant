@@ -28,8 +28,16 @@ const RUNTIME_TARBALL: &str = "runtime.tar.gz";
 const RUNTIME_VERSION: &str = "runtime.version";
 const ASSISTANT_LABEL: &str = "com.utter.assistant";
 const RUNNER_LABEL: &str = "com.utter.runner";
-const ASSISTANT_PLIST: &str = include_str!("../../../macos/com.utter.assistant.plist");
-const RUNNER_PLIST: &str = include_str!("../../../macos/com.utter.runner.plist");
+
+/// How each agent is launched: through this app binary, which supervises the
+/// python child. launchd then attributes the python's permission requests to
+/// utter.app (the "responsible process"), so prompts show "utter" and the
+/// settings window, the daemon and the prompts share one grant. Pointing
+/// launchd straight at python would make the grants belong to "Python 3.12".
+const AGENTS: &[(&str, &str, &str)] = &[
+    (RUNNER_LABEL, "--runner", "runner.log"),
+    (ASSISTANT_LABEL, "--daemon", "utter.log"),
+];
 
 pub const IS_MACOS: bool = cfg!(target_os = "macos");
 
@@ -109,10 +117,79 @@ fn uid() -> String {
         .unwrap_or_else(|| "501".to_string())
 }
 
+fn launcher() -> Option<PathBuf> {
+    std::env::current_exe().ok()
+}
+
+/// True when both agents exist *and* point at this app binary (older installs
+/// that launched python directly count as outdated and get rewritten).
 pub fn agents_installed() -> bool {
     let dir = agents_dir();
-    dir.join(format!("{ASSISTANT_LABEL}.plist")).exists()
-        && dir.join(format!("{RUNNER_LABEL}.plist")).exists()
+    let Some(launcher) = launcher() else {
+        return false;
+    };
+    let launcher = launcher.to_string_lossy().into_owned();
+    AGENTS.iter().all(|(label, _, _)| {
+        fs::read_to_string(dir.join(format!("{label}.plist")))
+            .map(|text| text.contains(&launcher))
+            .unwrap_or(false)
+    })
+}
+
+fn xml_escape(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+/// A launchd user-agent plist: `<launcher> <flag>` at login, kept alive, logging
+/// to ~/Library/Logs/utter. The core path travels in the environment so the
+/// supervisor does not depend on the app's current directory.
+fn plist_xml(label: &str, launcher: &Path, flag: &str, core: &Path, log: &Path) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Written by utter.app (Set up page). Re-created by "Reinstall" there. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{launcher}</string>
+    <string>{flag}</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{core}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>UTTER_REPO</key>
+    <string>{core}</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>{log}</string>
+  <key>StandardErrorPath</key>
+  <string>{log}</string>
+</dict>
+</plist>
+"#,
+        label = xml_escape(label),
+        launcher = xml_escape(&launcher.to_string_lossy()),
+        flag = xml_escape(flag),
+        core = xml_escape(&core.to_string_lossy()),
+        log = xml_escape(&log.to_string_lossy()),
+    )
 }
 
 #[derive(Serialize, Clone)]
@@ -223,24 +300,18 @@ fn unpack_runtime(app: &AppHandle) -> Result<(PathBuf, String), String> {
     Ok((runtime_core(&root), runtime_python(&root).to_string_lossy().into_owned()))
 }
 
-fn render_plist(template: &str, python: &str, repo: &Path, logs: &Path) -> String {
-    template
-        .replace("@PYTHON@", python)
-        .replace("@REPO@", &repo.to_string_lossy())
-        .replace("@LOGDIR@", &logs.to_string_lossy())
-}
-
-/// Write + bootstrap the two launchd agents for the given runtime.
-fn install_agents(app: &AppHandle, core: &Path, python: &str) -> Result<(), String> {
+/// Write + bootstrap the two launchd agents, launched through this app binary.
+fn install_agents(app: &AppHandle, core: &Path, _python: &str) -> Result<(), String> {
     emit_progress(app, "agents", "Installing the background agents…");
+    let launcher = launcher().ok_or_else(|| "cannot determine the app's own path".to_string())?;
     let logs = log_dir();
     let dir = agents_dir();
     fs::create_dir_all(&logs).map_err(|error| error.to_string())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let domain = format!("gui/{}", uid());
-    for (label, template) in [(RUNNER_LABEL, RUNNER_PLIST), (ASSISTANT_LABEL, ASSISTANT_PLIST)] {
+    for (label, flag, log_name) in AGENTS {
         let path = dir.join(format!("{label}.plist"));
-        fs::write(&path, render_plist(template, python, core, &logs))
+        fs::write(&path, plist_xml(label, &launcher, flag, core, &logs.join(log_name)))
             .map_err(|error| format!("could not write {}: {error}", path.display()))?;
         // bootout fails harmlessly when the agent was not loaded yet.
         let _ = Command::new("/bin/launchctl")
@@ -287,4 +358,95 @@ pub async fn macos_reinstall_agents(app: AppHandle, state: State<'_, AppState>) 
         .await
         .map_err(|error| error.to_string())??;
     Ok(status(&app, &state))
+}
+
+// --------------------------------------------------------------------------- //
+// `utter --daemon` / `utter --runner`: supervise the python child
+// --------------------------------------------------------------------------- //
+#[cfg(unix)]
+mod signals {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static STOP: AtomicBool = AtomicBool::new(false);
+
+    extern "C" fn on_signal(_signum: libc::c_int) {
+        STOP.store(true, Ordering::SeqCst);
+    }
+
+    pub fn install() {
+        // SAFETY: installing a plain async-signal-safe handler that only flips an atomic.
+        unsafe {
+            libc::signal(libc::SIGTERM, on_signal as extern "C" fn(libc::c_int) as libc::sighandler_t);
+            libc::signal(libc::SIGINT, on_signal as extern "C" fn(libc::c_int) as libc::sighandler_t);
+            libc::signal(libc::SIGHUP, on_signal as extern "C" fn(libc::c_int) as libc::sighandler_t);
+        }
+    }
+
+    pub fn stopping() -> bool {
+        STOP.load(Ordering::SeqCst)
+    }
+
+    pub fn terminate(pid: u32) {
+        // SAFETY: plain kill(2) on our own child.
+        unsafe {
+            libc::kill(pid as libc::pid_t, libc::SIGTERM);
+        }
+    }
+}
+
+/// Run the python module for `mode` as a child, forward SIGTERM/SIGINT to it,
+/// and return its exit code. The app binary stays alive as the parent so macOS
+/// treats utter.app as the process responsible for the python's permissions.
+pub fn supervise_python(mode: &str, repo: &Path, python: &str) -> i32 {
+    let args: Vec<String> = match mode {
+        "daemon" => vec!["-m".into(), "utter.daemon".into()],
+        "runner" => {
+            let config = std::env::var("UTTER_CONFIG")
+                .ok()
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| repo.join("runner/config.example.toml").to_string_lossy().into_owned());
+            vec!["-m".into(), "runner".into(), "--config".into(), config]
+        }
+        other => {
+            eprintln!("utter: unknown supervise mode {other:?}");
+            return 2;
+        }
+    };
+    eprintln!("utter: supervising {python} {} (cwd {})", args.join(" "), repo.display());
+    #[cfg(unix)]
+    signals::install();
+    let mut child = match Command::new(python)
+        .args(&args)
+        .current_dir(repo)
+        .env("PYTHONPATH", repo)
+        .env("PYTHONUNBUFFERED", "1")
+        .env("UTTER_PERMISSIONS_PROCESS", "utter.app")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            eprintln!("utter: could not start {python}: {error}");
+            return 1;
+        }
+    };
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.code().unwrap_or(1),
+            Ok(None) => {}
+            Err(error) => {
+                eprintln!("utter: wait failed: {error}");
+                return 1;
+            }
+        }
+        #[cfg(unix)]
+        if signals::stopping() {
+            signals::terminate(child.id());
+            let _ = child.wait();
+            return 0;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
 }

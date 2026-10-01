@@ -98,6 +98,19 @@ fn theme_path() -> PathBuf {
     data_home().join("utter/colors.css")
 }
 
+/// Headless supervisor used by the launchd agents (see main.rs).
+pub fn supervise(mode: &str) -> i32 {
+    let mut repo = locate_repo();
+    let mut python = locate_python(&repo);
+    if std::env::var("UTTER_REPO").is_err() {
+        if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
+            repo = core;
+            python = runtime_python;
+        }
+    }
+    macos_setup::supervise_python(mode, &repo, &python)
+}
+
 pub fn run() {
     let mut repo = locate_repo();
     let mut python = locate_python(&repo);

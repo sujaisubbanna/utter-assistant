@@ -119,7 +119,7 @@ Where things end up:
 | What | Where |
 |---|---|
 | Python runtime + core | `~/Library/Application Support/utter/runtime/{python,core}` |
-| launchd agents | `~/Library/LaunchAgents/com.utter.{runner,assistant}.plist` |
+| launchd agents | `~/Library/LaunchAgents/com.utter.{runner,assistant}.plist` (run `utter.app/Contents/MacOS/utter --runner|--daemon`) |
 | logs | `~/Library/Logs/utter/{runner,utter}.log` |
 | config | `~/.config/utter/config.toml` (same file as Linux) |
 | permission status | `~/Library/Application Support/utter/permissions.json` |
@@ -174,11 +174,17 @@ and a status badge that re-checks every few seconds until everything is green.
 Below the permissions it shows the two launchd agents (plugin runner, voice
 assistant) with a Start button.
 
-The checks and prompts run in the **daemon's python**, not in the settings app:
-macOS attaches privacy permissions to the process that asks, and the process
-that needs them is the interpreter launchd starts. The app just runs
-`python -m assistant macos-permissions --json` (and `--request <name>`), and the
-daemon repeats the probe at startup and writes
+**One identity: utter.app.** macOS attaches privacy permissions to the
+*responsible process*. If launchd ran the Python binary directly, the prompts
+would say "Python 3.12", the grants would belong to that binary, and a probe
+spawned by the settings window would be attributed to utter.app instead, so the
+page would keep saying "not granted" after you had granted it. To avoid that,
+the launchd agents launch **the app binary itself** in a headless mode
+(`utter.app/Contents/MacOS/utter --daemon` / `--runner`), which supervises the
+bundled Python as its child and forwards signals. The prompts therefore show
+"utter" with its icon, and the daemon, the Set up page's probe
+(`python -m assistant macos-permissions --json`) and the prompts all share one
+grant. The daemon repeats the probe at startup and writes
 `~/Library/Application Support/utter/permissions.json`. From a terminal:
 
 ```bash

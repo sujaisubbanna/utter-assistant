@@ -403,7 +403,7 @@ export const es: Messages = {
       startFailed: "No se pudo iniciar: {detail}",
     },
     note: {
-      process: "Los permisos se conceden al Python que ejecuta el asistente ({process}), no a esta ventana: ese es el nombre que verás en Ajustes del Sistema.",
+      process: "Los permisos se conceden a utter (esta app). El asistente se ejecuta dentro de ella, así que una sola concesión cubre los avisos, el agente en segundo plano y esta página.",
       install: "Si un permiso sigue apagado después de activarlo, reinicia el asistente desde la fila de arriba.",
     },
   },
