@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 import os
-import re
-import subprocess
 from typing import Any
+
+from utter.hardware import (
+    cpu_info as _cpu_info,
+    lspci_gpus as _lspci_gpus,
+    macos_cpu_info as _macos_cpu_info,
+    macos_ram_gb as _macos_ram_gb,
+    nvidia_gpus as _nvidia_gpus,
+    ram_gb as _ram_gb,
+)
 
 from . import util
 
@@ -12,80 +19,6 @@ from . import util
 # --------------------------------------------------------------------------- #
 # probes
 # --------------------------------------------------------------------------- #
-def _cpu_info() -> dict[str, Any]:
-    model = ""
-    cores = 0
-    try:
-        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                if not model and line.lower().startswith("model name"):
-                    model = line.split(":", 1)[1].strip()
-                if line.lower().startswith("processor"):
-                    cores += 1
-    except OSError:
-        pass
-    return {"model": model or "unknown", "cores": cores or os.cpu_count() or 0}
-
-
-def _ram_gb() -> float:
-    try:
-        with open("/proc/meminfo", "r", encoding="utf-8") as fh:
-            for line in fh:
-                if line.startswith("MemTotal:"):
-                    match = re.search(r"(\d+)", line)
-                    if match:
-                        return round(int(match.group(1)) / 1024 / 1024, 1)
-    except (OSError, AttributeError, ValueError):
-        pass
-    return 0.0
-
-
-def _nvidia_gpus() -> list[dict[str, Any]]:
-    if not util.which("nvidia-smi"):
-        return []
-    try:
-        proc = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=8,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []
-    gpus: list[dict[str, Any]] = []
-    for line in proc.stdout.splitlines():
-        parts = [p.strip() for p in line.split(",")]
-        if len(parts) < 2:
-            continue
-        try:
-            vram = round(int(parts[1]) / 1024, 1)
-        except ValueError:
-            vram = 0.0
-        gpus.append({"name": parts[0], "vendor": "nvidia", "vram_gb": vram})
-    return gpus
-
-
-def _lspci_gpus() -> list[dict[str, Any]]:
-    if not util.which("lspci"):
-        return []
-    try:
-        proc = subprocess.run(["lspci", "-nnk"], capture_output=True, text=True, timeout=8)
-    except (OSError, subprocess.SubprocessError):
-        return []
-    gpus: list[dict[str, Any]] = []
-    for line in proc.stdout.splitlines():
-        low = line.lower()
-        if "vga compatible controller" not in low and "3d controller" not in low:
-            continue
-        vendor = "unknown"
-        if "nvidia" in low:
-            vendor = "nvidia"
-        elif "amd" in low or "advanced micro devices" in low or "ati" in low:
-            vendor = "amd"
-        elif "intel" in low:
-            vendor = "intel"
-        gpus.append({"name": line.split(":", 2)[-1].strip(), "vendor": vendor, "vram_gb": 0.0})
-    return gpus
-
-
 def _vulkan_present() -> bool:
     return bool(util.which("vulkaninfo"))
 
@@ -95,31 +28,6 @@ def _accel_devices() -> list[str]:
         return sorted(p for p in os.listdir("/dev/accel") if p.startswith("accel"))
     except OSError:
         return []
-
-
-def _macos_cpu_info() -> dict[str, Any]:
-    model = "Apple Silicon"
-    sysctl = util.which("sysctl")
-    if sysctl:
-        try:
-            proc = subprocess.run([sysctl, "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=2)
-            out = proc.stdout.strip()
-            if out:
-                model = out
-        except (OSError, subprocess.SubprocessError):
-            pass
-    return {"model": model, "cores": os.cpu_count() or 8}
-
-
-def _macos_ram_gb() -> float:
-    sysctl = util.which("sysctl")
-    if sysctl:
-        try:
-            proc = subprocess.run([sysctl, "-n", "hw.memsize"], capture_output=True, text=True, timeout=2)
-            return round(int(proc.stdout.strip()) / (1024 ** 3), 1)
-        except (OSError, subprocess.SubprocessError, ValueError):
-            pass
-    return 16.0
 
 
 def probe_hardware() -> dict[str, Any]:

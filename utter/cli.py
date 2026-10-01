@@ -67,48 +67,8 @@ def _transcribe_pcm(pcm):
 
 def _gpu_info():
     """Report physical GPU presence independently from torch availability."""
-    from utter import platform
-    if platform.is_macos():
-        from utter.runtime import probe_macos_gpu
-        return probe_macos_gpu()
-    for tool, runtime in (("nvidia-smi", "cuda"), ("rocm-smi", "rocm")):
-        path = shutil.which(tool)
-        if path:
-            try:
-                if runtime == "cuda":
-                    proc = subprocess.run([path, "--query-gpu=name", "--format=csv,noheader"], capture_output=True, text=True, timeout=2)
-                    name = next((line.strip() for line in proc.stdout.splitlines() if line.strip()), "NVIDIA GPU")
-                else:
-                    proc = subprocess.run([path, "--showproductname"], capture_output=True, text=True, timeout=2)
-                    name = next((line.strip() for line in proc.stdout.splitlines() if "product" in line.casefold()), "AMD GPU")
-                if proc.returncode == 0:
-                    return {"available": True, "name": name, "runtime": runtime}
-            except (OSError, subprocess.SubprocessError):
-                pass
-    try:
-        import torch
-        if torch.cuda.is_available():
-            runtime = "rocm" if getattr(torch.version, "hip", None) else "cuda"
-            return {"available": True, "name": torch.cuda.get_device_name(0), "runtime": runtime}
-    except Exception:
-        pass
-    # DRM vendor ids tell us a GPU is physically enumerated even if its compute
-    # runtime is not installed or initialized.
-    for device in Path("/sys/class/drm").glob("card[0-9]*/device"):
-        try:
-            vendor = (device / "vendor").read_text(encoding="ascii").strip().lower()
-        except OSError:
-            continue
-        if vendor in ("0x10de", "0x1002", "0x8086"):
-            label = {"0x10de": "NVIDIA GPU", "0x1002": "AMD GPU", "0x8086": "Intel GPU"}[vendor]
-            for filename in ("product_name", "product"):
-                try:
-                    label = (device / filename).read_text(encoding="utf-8").strip() or label
-                    break
-                except OSError:
-                    pass
-            return {"available": True, "name": label, "runtime": "unknown"}
-    return {"available": False, "name": None, "runtime": "unknown"}
+    from .hardware import gpu_info
+    return gpu_info()
 
 
 def _config_path(args):
