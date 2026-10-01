@@ -3,8 +3,10 @@
 #
 #   scripts/verify.sh
 #
-# Runs: runner unit tests, runner socket e2e, the independent conformance suite,
-# and the measurement spike. Hermetic: each run uses a throwaway XDG_RUNTIME_DIR
+# Runs: agent CLI/voice/platform tests, runner unit + socket e2e, guardrails
+# (stdlib-only runner, provenance, installer contract), the independent
+# conformance suite, M3 (real assistant, dry-run), M5 (assistant CLI) and the
+# measurement spike. Hermetic: each run uses a throwaway XDG_RUNTIME_DIR
 # so it never collides with a live `utter-runner` service socket.
 set -uo pipefail
 
@@ -12,8 +14,12 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="${UTTER_PY:-$REPO/.venv-agent/bin/python}"
 cd "$REPO"
 
-if [ ! -x "$PY" ]; then
-    echo "python not found at $PY (set UTTER_PY)" >&2
+# Accept a bare command (e.g. UTTER_PY=python3) as well as an explicit path.
+if [[ "$PY" != */* ]]; then
+    PY="$(command -v "$PY" || true)"
+fi
+if [ -z "$PY" ] || [ ! -x "$PY" ]; then
+    echo "python not found at ${UTTER_PY:-<default>} (set UTTER_PY)" >&2
     exit 2
 fi
 
@@ -50,6 +56,12 @@ echo "== runner unit =="
 "$PY" -m runner._selftest || rc=1
 
 echo
+echo "== guardrails: runner stdlib, provenance, installer contract =="
+"$PY" tests/test_runner_stdlib.py || rc=1
+"$PY" tests/test_provenance_invariant.py || rc=1
+"$PY" tests/test_installer_contract.py || rc=1
+
+echo
 echo "== runner e2e (socket) =="
 "$PY" -m runner._selftest --e2e || rc=1
 
@@ -63,6 +75,15 @@ if [ -f tests/m3/verify_m3.py ]; then
     # The optional real desktop action is opt-in: pass --real-action or set
     # UTTER_M3_REAL_ACTION=1. By default this never touches the desktop.
     "$PY" tests/m3/verify_m3.py || rc=1
+fi
+
+echo
+echo "== M5 (assistant CLI: model store, doctor, install-state) =="
+if [ -f tests/m5/verify_m5.py ]; then
+    "$PY" tests/m5/verify_m5.py || rc=1
+fi
+if [ -f tests/m5/test_install_state.py ]; then
+    "$PY" tests/m5/test_install_state.py || rc=1
 fi
 
 echo
