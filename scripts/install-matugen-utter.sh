@@ -3,8 +3,8 @@
 #
 # Copies the utter matugen template into ~/.config/matugen/templates/ and
 # adds a [templates.utter] block to ~/.config/matugen/config.toml. matugen
-# then renders the palette to ~/.local/share/utter/colors.css, which both
-# the GTK4 settings app and the Tauri webview read.
+# then renders the palette to ~/.local/share/utter/colors.css, which the
+# Tauri settings app reads.
 #
 #   scripts/install-matugen-utter.sh                 # install (no clobber)
 #   scripts/install-matugen-utter.sh --force         # overwrite template + block
@@ -47,7 +47,7 @@ done
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-TEMPLATE_SRC="$REPO_ROOT/gui/theme/utter-colors.css.tmpl"
+TEMPLATE_SRC="$REPO_ROOT/gui-tauri/theme/utter-colors.css.tmpl"
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/matugen"
 TEMPLATE_DIR="$CONFIG_DIR/templates"
