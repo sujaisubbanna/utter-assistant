@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.2] - 2026-10-01
 
 ### Added
 - **KDE Plasma (KWin) support.** A compositor abstraction (`utter/context/compositor.py`,
@@ -25,34 +25,59 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or running a command. Automatic sleep uses the same path as the spoken trigger, so
   holding a push-to-talk key wakes it the same way. New `[sleep]` keys `on_idle` and
   `idle_minutes`, with a switch and a minutes field on the General page (en + es).
+- **An agent-facing CLI.** `utter` now drives desktop actions directly — `assistant`,
+  `dictation`, `listen`, `speak`, `transcribe` — with discovery (`capabilities`, `schema`,
+  `apps`, `actions`, `profiles`, `status`, `doctor`, `version`) and settings/custom-command
+  editing. Every command takes `--json` with a stable `utter.cli/v1` envelope, machine output
+  on stdout and diagnostics on stderr, a documented exit-code and error-code contract, and a
+  packaged Draft 2020-12 JSON Schema (`utter/data/cli.schema.json`). `--dry-run` previews a
+  route without executing; acting requires `--confirm`. See `docs/CLI.md`.
+- **macOS support (experimental).** A platform layer (`utter/platform.py`) selects native
+  backends on Darwin while leaving every Linux path untouched: Apple `Speech.framework`
+  speech-to-text with a whisper.cpp fallback (and an optional VocaMac file-transcription
+  backend), `say`/`AVSpeechSynthesizer` replies, Quartz event-tap push-to-talk keys,
+  Quartz/AppleScript key and text injection, `NSWorkspace` + Accessibility window context,
+  `screencapture` screenshots, `pbpaste` clipboard, `afplay` sounds and notification banners.
+  New `[macos]` config section, `macos/setup.sh` with launchd agents, and a Raycast-style
+  **Set up** onboarding page that lists the Microphone, Speech Recognition, Input Monitoring,
+  Accessibility and Screen Recording permissions with live status and deep links. A
+  `build-macos` CI job produces an **unsigned** `.app`/`.dmg` (arm64 and x86_64) plus a macOS
+  core tarball, and a Homebrew formula/cask is included. Docs: `docs/MACOS.md`.
+  **Untested on real Apple hardware.**
+- **A documentation site** (Astro Starlight) published to GitHub Pages — introduction, install,
+  configuration, apps, models, plugins, trust & safety, KDE Plasma, macOS, troubleshooting, FAQ,
+  CLI and architecture reference — with full-text search. The hosted installer stays at
+  `/install.sh`, so the one-line install is unchanged.
+- **A demo page** with a real video player.
 
-## [0.1.1] - 2026-10-01
-- **Experimental macOS support.** A small platform module (`utter/platform.py`) selects
-  native backends on Darwin while leaving every Linux code path untouched: Apple
-  `Speech.framework` speech-to-text with a local whisper.cpp fallback (and an optional
-  VocaMac file-transcription backend), `say`/`AVSpeechSynthesizer` spoken replies, Quartz
-  event-tap push-to-talk keys, Quartz/AppleScript key and text injection, `NSWorkspace` +
-  Accessibility focused-window context, `screencapture` screenshots, `pbpaste` clipboard,
-  `afplay` sounds and notification banners. New `[macos]` config section, `macos/setup.sh`
-  with a launchd agent, `docs/MACOS.md` and a docs-site page with the platform matrix.
-- Release workflow: a `build-macos` job on `macos-14` that builds the macOS core tarball and
-  an **unsigned** `.app`/`.dmg` of the settings app and attaches them to the release
-  (`sha256sums-macos.txt`). The Linux job is unchanged.
-- macOS drag-and-drop install: `utter.app` ships a relocatable Python 3.12 runtime plus the
-  assistant core (`scripts/build-macos-runtime.sh`, `tauri.macos.conf.json`), and the Set up
-  page unpacks it into `~/Library/Application Support/utter/runtime`, installs and starts the
-  launchd agents, and offers Update when a newer app is opened. No terminal needed.
-- Settings app on macOS: a **Set up** onboarding page (Raycast-style) that lists the
-  Microphone, Speech Recognition, Input Monitoring, Accessibility and Screen Recording
-  permissions with live status, a Grant button that triggers the system prompt from the
-  daemon's own Python, and deep links into System Settings; launchd-backed service rows and
-  log tail; macOS variants of the Voice and Spoken replies pages that edit `[macos]`.
-  New `assistant macos-permissions` CLI. Linux builds are unchanged (`platform_info`).
-- `tests/platform/test_macos_detection.py` (run by `scripts/verify.sh` on Linux) covers the
-  detection, config defaults, STT chain selection, key tables, chord parsing, dispatch and
-  the permissions table/CLI.
+### Changed
+- The README installation instructions are split into three clear paths: clone-and-install,
+  remote (`curl | bash`) and build-from-source.
+- Platform documentation now reflects reality: **niri and KDE Plasma (KWin) are first-class**,
+  other Wayland compositors get partial support (dictation, typing, launching; no window
+  actions), and macOS is experimental.
+- Settings app: the status and General polls run every 15 s instead of 4–5 s, never overlap a
+  run that is still in flight, and pause entirely while the window is in the background.
+- Settings app: scrolling no longer repaints the entire panel on every frame (the panel shadow
+  moved off the scroll container, the status pulse animates opacity, and long lists skip
+  off-screen layout/paint).
+- The demo video is re-encoded from 1080p / 5.0 MB to 720p / 1.5 MB, and its thumbnail is the
+  settled splash screen.
 
-## [0.2.0] - 2026-10-01
+### Fixed
+- The launcher (`utter-gui`) resolves symlinks, so the copy installed on `PATH` — and the
+  optional Noctalia widget's left-click — actually starts the app.
+- `install.sh` ships and installs the app icons and writes a desktop entry that uses them.
+- macOS packaging no longer fails when the Apple signing secrets are absent: signing and
+  notarization are skipped and an unsigned artifact is produced instead.
+- The CLI's `--dry-run` no longer hangs: a dry-run bypasses the idle/sleep machinery entirely.
+- `.gitignore` matches `.venv`/`.venv-agent` as symlinks, not only directories.
+
+### Infrastructure
+- The release workflow builds AppImage, deb and rpm bundles plus the core tarball from a `v*`
+  tag and attaches them to the GitHub Release; a separate macOS job adds the `.dmg` and macOS
+  core tarball.
+- GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
 ## [0.1.1] - 2026-10-01
 
@@ -90,4 +115,5 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
+[0.1.2]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.1
