@@ -16,7 +16,8 @@ import sys
 import tempfile
 
 from . import fdpass, framing, handles, policy, rpc, security
-from .host import Host, RunnerConfig
+from .config import RunnerConfig
+from .host import Host
 from .plugin import PluginConfig, PluginInstance, RUNNER_CAPS
 from .policy import ConfirmationRequired, Provenance
 from .socket import SocketServer

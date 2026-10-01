@@ -12,7 +12,8 @@ import logging
 import signal
 import sys
 
-from .host import Host, check_config, load_config
+from .config import check_config, load_config
+from .host import Host
 
 log = logging.getLogger("runner.main")
 
