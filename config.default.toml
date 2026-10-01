@@ -56,6 +56,32 @@ click_duration_ms = 40
 # Empty = the browser you're looking at, else any open one, else the desktop default.
 preferred_browser = ""
 
+[target]
+# App-targeted input: "<app> type ..." / "<app> press ..." / "<app> pause".
+# Wayland cannot inject into an unfocused window, so this is a focus round-trip:
+# focus the target, inject, then restore. Cross-workspace / fullscreen moves are
+# disruptive, so they are gated and confirmed (never by reading window titles).
+#   mode = round_trip | leave | off
+#   cross_workspace = ask | allow | refuse   (fallback policy; see [wayland])
+#   restore = if_unchanged | always | never
+mode = "round_trip"
+cross_workspace = "ask"
+restore = "if_unchanged"
+focus_timeout_ms = 500
+
+[wayland]
+# Wayland focus round-trip policy. Measured on niri: a same-workspace
+# round-trip is ~38 ms and invisible; a cross-workspace one is ~41 ms with
+# animations off but ~250 ms of visible viewport scroll with animations on.
+#   cross_workspace = auto | ask | allow | refuse
+#     auto  = allow cross-workspace without asking only when assume_animations_off
+#             is true, else fall back to [target].cross_workspace
+#     ask/allow/refuse = explicit, overriding [target].cross_workspace
+#   assume_animations_off = true when the compositor will not visibly scroll
+#     the viewport on a workspace switch.
+cross_workspace = "auto"
+assume_animations_off = false
+
 [sleep]
 # Say a trigger phrase in assistant mode to free the GPU: the model services
 # below are stopped and the speech model is unloaded; only the listener stays

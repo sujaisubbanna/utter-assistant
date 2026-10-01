@@ -210,7 +210,7 @@ class Utter:
             from .context import desktop
             return desktop.build_context(with_a11y=with_a11y)
 
-        self.executor = Executor(ctx_builder, self.cfg)
+        self.executor = Executor(ctx_builder, self.cfg, profiles=self.profiles)
 
     # -- routing -----------------------------------------------------------
     def route(self, utterance: str, ctx: Context) -> Optional[Plan]:

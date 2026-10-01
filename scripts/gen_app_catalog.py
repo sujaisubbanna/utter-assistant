@@ -62,6 +62,24 @@ HELPER_IDS = {
 HELPER_SUBSTRINGS = ("-url-handler", "-uri-handler", "-geo-handler", "-plugin-")
 HELPER_PREFIXES = ("wine-extension-",)
 
+
+def _cli_agent_names() -> set[str]:
+    """Spoken CLI-agent names that must not become keyword aliases.
+
+    A desktop entry's Keywords may include "codex" (e.g. ChatGPT), which would
+    otherwise make a generated profile shadow the real ``codex`` CLI agent.
+    """
+    path = REPO_ROOT / "utter" / "data" / "cli_agents.json"
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return {str(k).strip().lower() for k in data if k != "terminal" and str(k).strip()}
+
+
 # Ordered so the first matching category wins.
 KIND_CATEGORIES = [
     ("browser", {"WebBrowser"}),
@@ -264,6 +282,7 @@ def collect(dirs: list[Path]) -> dict[str, dict]:
 def build_generated(catalog: dict[str, dict]) -> dict:
     """Build the bulk ``generated.yaml`` payload (every visible entry)."""
     profiles: dict[str, dict] = {}
+    reserved = _cli_agent_names()
     for desktop_id in sorted(catalog):
         app = catalog[desktop_id]
         name = app["name"]
@@ -273,7 +292,8 @@ def build_generated(catalog: dict[str, dict]) -> dict:
             aliases.append(first)
         for kw in app["keywords"][:6]:
             kw = kw.strip().lower()
-            if kw and kw not in aliases:
+            # Do not let a desktop-entry keyword shadow a CLI-agent name.
+            if kw and kw not in aliases and kw not in reserved:
                 aliases.append(kw)
         profiles[desktop_id] = {
             "id": desktop_id,

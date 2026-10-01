@@ -337,6 +337,77 @@ def _cli_agent(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -
     return None
 
 
+def _generic_app_names(profiles: dict) -> set[str]:
+    """Reuse the decision head's "too generic to be an app name" guard."""
+    try:
+        from .decide_candidates import _generic_aliases
+        return _generic_aliases(profiles)
+    except Exception:  # noqa: BLE001 - never let the guard break routing
+        return set()
+
+
+def _claim_app_target(name: str, profiles: dict):
+    """Resolve a leading ``<app>`` for a targeted command, or None.
+
+    Generic/ambiguous aliases ("media", "editor", "music", ...) are never
+    claimed, so ``type ok`` / ``press enter`` keep their focused behaviour.
+    Uses the canonical :func:`profiles.resolve`, so a generated keyword alias
+    cannot shadow an explicit CLI-agent name ("codex"); a CLI agent with no GUI
+    profile is still an explicit target.
+    """
+    if not name or not profiles:
+        return None
+    n = normalize(name)
+    if not n or n in _generic_app_names(profiles):
+        return None
+    from .profiles import AppProfile, resolve as _profiles_resolve
+    prof = _profiles_resolve(n, profiles)
+    if prof is not None:
+        return prof
+    if n in CLI_AGENTS:
+        return AppProfile(id=n, name=n, generated=False)
+    return None
+
+
+def _app_target(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
+    """Target-first app commands: ``<app> type|write ...`` / ``<app> press|hit|send ...``.
+
+    Runs before the generic ``_type``/``_key`` matchers so the app is captured.
+    A ``window_id`` is never set at plan time: the executor resolves the target
+    from the live compositor list (which may only *select* a known window).
+    """
+    m = re.match(r"^(.+?)\s+(type|write)\s+(.+)$", raw, re.I | re.S)
+    if m:
+        prof = _claim_app_target(m.group(1), profiles)
+        if prof is not None:
+            text = re.sub(r'^["\']|["\']$', "", m.group(3).strip())
+            return _make_plan(utterance, [Step(Action.TYPE_TEXT, {"text": text, "app": prof.id},
+                                              tier=Tier.APP,
+                                              description=f"type {text!r} in {prof.name}")])
+    m = re.match(r"^(.+?)\s+(press|hit|send)\s+(.+)$", raw, re.I | re.S)
+    if m:
+        prof = _claim_app_target(m.group(1), profiles)
+        if prof is not None:
+            token = m.group(3).strip()
+            chord = _COMMON_KEYS.get(token.lower(), token)
+            return _make_plan(utterance, [Step(Action.KEY, {"chord": chord, "app": prof.id},
+                                              tier=Tier.KEYBOARD,
+                                              description=f"press {chord} in {prof.name}")])
+    # ``<app> <media command>`` (e.g. "spotify pause"). Try the longest app name
+    # first so multi-word profiles still match.
+    parts = t.split()
+    for i in range(len(parts) - 1, 0, -1):
+        rest = " ".join(parts[i:])
+        if rest in MEDIA_MAP:
+            prof = _claim_app_target(" ".join(parts[:i]), profiles)
+            if prof is not None:
+                return _make_plan(utterance, [Step(Action.MEDIA, {"command": MEDIA_MAP[rest], "app": prof.id},
+                                                  tier=Tier.APP,
+                                                  description=f"{rest} in {prof.name}")])
+            break
+    return None
+
+
 def _terminal(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^(?:run|execute|terminal run)\s+(?:command\s+)?(.+)$", raw, re.I | re.S)
     if m and _is_terminal(ctx, profiles):
@@ -413,22 +484,24 @@ def _site(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Opt
 
 def _close(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Optional[Plan]:
     m = re.match(r"^close\s+(.+)$", t)
-    if m:
-        tgt = m.group(1).strip()
-        pre = None
-        if tgt in SITES:
-            pre = Step(Action.ENSURE_URL, {"url": SITES[tgt], "site": tgt}, tier=Tier.APP,
-                       description=f"focus {tgt}")
-        else:
-            prof = _resolve(profiles, tgt)
-            if prof:
-                pre = Step(Action.ENSURE_APP, {"app": prof.id,
-                                               "argv": getattr(prof, "launch", None)},
-                           tier=Tier.APP, description=f"focus {prof.name}")
-        if pre is not None:
-            return _make_plan(utterance, [pre, Step(Action.NIRI,
-                                                   {"command": "close-window", "args": []},
-                                                   tier=Tier.APP, description="close window")])
+    if not m:
+        return None
+    tgt = m.group(1).strip()
+    if tgt in SITES:
+        # Sites still use the focus-then-close pair (the target is a browser tab).
+        return _make_plan(utterance, [
+            Step(Action.ENSURE_URL, {"url": SITES[tgt], "site": tgt}, tier=Tier.APP,
+                 description=f"focus {tgt}"),
+            Step(Action.NIRI, {"command": "close-window", "args": []},
+                 tier=Tier.APP, description="close window"),
+        ])
+    prof = _claim_app_target(tgt, profiles)
+    if prof is not None:
+        return _make_plan(utterance, [Step(Action.CLOSE_APP, {"app": prof.id}, tier=Tier.APP,
+                                          description=f"close {prof.name}")])
+    if tgt in ("window", "tab"):
+        return _make_plan(utterance, [Step(Action.NIRI, {"command": "close-window", "args": []},
+                                          tier=Tier.APP, description="close window")])
     return None
 
 
@@ -545,6 +618,7 @@ _MATCHERS = (
     _niri,       # compositor actions
     _media,      # MPRIS media control
     _cli_agent,  # CLI agents (claude/codex/...) in a terminal
+    _app_target, # app-targeted type/press/media ("codex type ok")
     _terminal,   # run/clear a shell command in the focused terminal
     _comfy,      # ComfyUI launch/open/queue
     _open,       # explicit open URL / domain / site / app

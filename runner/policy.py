@@ -68,6 +68,10 @@ class ConfirmationRequired(Exception):
 
 
 # op registry: action.terminal is OFF by default; open_url schemes restricted.
+# Input ops (key/type_text/...) are ENABLED by default (matching the plugin's
+# advertised ops and the legacy dictation path); the runner still enforces the
+# risky-target confirmation described in docs/TRUST.md. `terminal`/`input` stay
+# OFF.
 DEFAULT_OPS: dict[str, OpPolicy] = {
     "ensure_url": OpPolicy("ensure_url", schemes=("http", "https", "mailto"), concrete_args=("url",)),
     "open_url": OpPolicy("open_url", schemes=("http", "https", "mailto"), concrete_args=("url",)),
@@ -76,6 +80,21 @@ DEFAULT_OPS: dict[str, OpPolicy] = {
                       concrete_args=("text", "key", "chord", "action", "button")),
     "niri": OpPolicy("niri", concrete_args=("app_id", "window_id", "command")),
     "launch_app": OpPolicy("launch_app", concrete_args=("app_id", "command")),
+    # app / compositor targets
+    "ensure_app": OpPolicy("ensure_app", concrete_args=("app", "argv")),
+    "focus_app": OpPolicy("focus_app", concrete_args=("app", "window_id")),
+    # input injection (enabled by default; the app/window target is what may
+    # need a confirmation round-trip, enforced in the executor)
+    "key": OpPolicy("key", concrete_args=("chord", "key", "app", "window_id")),
+    "type_text": OpPolicy("type_text", concrete_args=("text", "app", "window_id")),
+    "scroll": OpPolicy("scroll", concrete_args=("direction", "amount")),
+    "media": OpPolicy("media", concrete_args=("command", "app")),
+    # perception
+    "click_element": OpPolicy("click_element", concrete_args=("description",)),
+    "click_point": OpPolicy("click_point", concrete_args=("x", "y")),
+    # search / destructive close. close_app is confirmed by the runner.
+    "search": OpPolicy("search", concrete_args=("query", "q")),
+    "close_app": OpPolicy("close_app", needs_confirm=True, concrete_args=("app", "window_id")),
 }
 
 
@@ -167,4 +186,17 @@ class Policy:
             return f"Run command: {args.get('command') or args.get('argv')}"
         if op == "input":
             return f"Inject input: {args.get('text') or args.get('key') or args.get('chord')}"
+        if op == "close_app":
+            return f"Close app: {args.get('app')}"
+        if op == "key":
+            return f"Press key: {args.get('chord') or args.get('key')}" + (
+                f" in {args.get('app')}" if args.get("app") else "")
+        if op == "type_text":
+            return f"Type text" + (f" in {args.get('app')}" if args.get("app") else "") + f": {args.get('text')}"
+        if op == "focus_app":
+            return f"Focus app: {args.get('app')}"
+        if op == "ensure_app":
+            return f"Open app: {args.get('app')}"
+        if op == "media":
+            return f"Media {args.get('command')}" + (f" in {args.get('app')}" if args.get("app") else "")
         return f"{op}: {args}"
