@@ -91,7 +91,7 @@ class Runner:
         env["UTTER_DRY_RUN"] = "1" if self.dry_run else "0"
         env["UTTER_RUNNER_SOCK"] = self.sock_path
         env["PYTHONPATH"] = str(REPO) + os.pathsep + env.get("PYTHONPATH", "")
-        # make the bare `python` in the plugin entrypoint resolve to this venv
+        # make `python3` in the plugin entrypoint resolve to this venv
         env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "runner", "--config", str(CONFIG), "--socket", self.sock_path],

@@ -3,7 +3,7 @@
 #   .venv-agent/bin/python -m runner --config config.m3.toml
 #
 # The plugin is the existing assistant wrapped as a bundle plugin. It runs with
-# cwd=plugins/utter_py (so `python -m plugin` resolves) and the runner
+# cwd=plugins/utter_py (so `python3 -m plugin` resolves) and the runner
 # prepends the repo root to PYTHONPATH (so `import utter` works).
 #
 # Dry-run is controlled by the UTTER_DRY_RUN environment variable and
@@ -29,7 +29,7 @@ kind = "bundle"
 runtime = "subprocess"
 transport = "stdio"
 cwd = "plugins/utter_py"
-entrypoint = ["python", "-m", "plugin"]
+entrypoint = ["python3", "-m", "plugin"]
 permissions = ["input-injection", "process-spawn", "screenshot", "accessibility"]
 provides = [
     "router.plan@1",

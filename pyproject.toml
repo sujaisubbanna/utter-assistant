@@ -37,7 +37,13 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["utter*"]
+# `utter` is the legacy assistant; `assistant`/`runner` are the modular entry
+# points (`python -m assistant`, `python -m runner`); `plugins` is a namespace
+# package holding the bundled plugins. Exclude the Rust fake's Cargo sources
+# and build output, which are not Python packages.
+include = ["utter*", "assistant*", "runner*", "plugins*"]
+exclude = ["plugins.fake_rs.src*", "plugins.fake_rs.target*"]
+namespaces = true
 
 [tool.setuptools.package-data]
 utter = ["profiles/*.yaml", "data/*.json"]
