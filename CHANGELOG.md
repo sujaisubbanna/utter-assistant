@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2026-10-01
+
+### Internal
+- Consolidated GPU/CPU/RAM probing into `utter/hardware.py`, shared by `utter.runtime`,
+  `assistant recommend` and the `utter` CLI, and split `probe_runtime()` per platform.
+  Output shapes and `--json` fields are unchanged.
+
 ## [0.1.9] - 2026-10-01
 
 ### Changed
@@ -206,6 +213,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
+[0.1.10]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.10
 [0.1.9]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.9
 [0.1.8]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.8
 [0.1.7]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.7
