@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import json
 import sys
 import threading
 import time
@@ -86,6 +87,7 @@ class Utter:
         self.executor: Optional[Executor] = None
         self.profiles: dict = {}
         self._profiles_mod = None
+        self.last_plan: Optional[Plan] = None
 
     def setup(self) -> None:
         from .router import profiles as profiles_mod
@@ -141,6 +143,10 @@ class Utter:
         utterance = (utterance or "").strip()
         if not utterance:
             return False
+        # A dry-run must never enter the idle/sleep machinery: a one-shot process
+        # has no idle timer running, and entering it there blocks.
+        if self.dry_run:
+            return self._handle_utterance(utterance)
         from . import sleep as _sleep
         # A spoken command is Utter activity, and the idle timer must not put
         # the models to sleep while the command is still being carried out.
@@ -148,19 +154,20 @@ class Utter:
             return self._handle_utterance(utterance)
 
     def _handle_utterance(self, utterance: str) -> bool:
-        from . import sleep as _sleep
-        sleeper = _sleep.get(self.cfg)
-        if sleeper.matches(utterance):
-            log.info("sleep trigger: %r", utterance)
-            if not self.dry_run:
+        if not self.dry_run:
+            from . import sleep as _sleep
+            sleeper = _sleep.get(self.cfg)
+            if sleeper.matches(utterance):
+                log.info("sleep trigger: %r", utterance)
                 sleeper.sleep()
                 _play("sleep")
-            return True
+                return True
         t0 = time.perf_counter()
         from .context import desktop
         ctx = desktop.build_context(with_a11y=False)
         log.info("utterance: %r (focused=%s)", utterance, ctx.focused_app or "?")
         plan = self.route(utterance, ctx)
+        self.last_plan = plan
         if plan is None:
             log.warning("no plan for %r", utterance)
             if _assistant_context():
@@ -347,6 +354,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--bridge", action="store_true", help="reuse vocalinux recognition")
     ap.add_argument("--config", help="path to config.toml")
     ap.add_argument("--log-level", default=None)
+    ap.add_argument("--json-plan", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
 
     app = Utter(load_config(args.config), dry_run=args.dry_run)
@@ -354,7 +362,36 @@ def main(argv: Optional[list[str]] = None) -> int:
     app.setup()
 
     if args.text:
-        return 0 if app.handle_utterance(args.text) else 1
+        if args.dry_run:
+            # One-shot previews are route-only. Keep this out of
+            # handle_utterance: daemon sleep/idle wrappers may acquire service
+            # or busy-state locks that are irrelevant to a preview.
+            from .context import niri
+            ctx = niri.build_context(with_a11y=False)
+            plan = app.route(args.text, ctx)
+            app.last_plan = plan
+            ok = plan is not None
+            if plan is not None:
+                for step in plan.steps:
+                    log.info("DRY-RUN %s tier=%s args=%s", step.action.value,
+                             step.tier.value, step.args)
+            else:
+                log.warning("no plan for %r", args.text)
+        else:
+            ok = app.handle_utterance(args.text)
+        if args.json_plan:
+            plan = app.last_plan
+            payload = {"accepted": ok, "plan": None if plan is None else {
+                "utterance": plan.utterance,
+                "source": plan.source,
+                "confidence": plan.confidence,
+                "needs_perception": plan.needs_perception,
+                "steps": [{"action": step.action.value, "tier": step.tier.value,
+                           "args": step.args, "description": step.description}
+                          for step in plan.steps],
+            }}
+            print(json.dumps(payload, ensure_ascii=False))
+        return 0 if ok else 1
 
     from . import platform
     if platform.is_macos():

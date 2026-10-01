@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -253,13 +252,26 @@ def _dispatch(args) -> int:
         if command in ("assistant", "dictation"):
             if args.dry_run:
                 if command == "assistant":
-                    from .daemon import Utter, _setup_logging
-                    from .config import load_config
-                    app = Utter(load_config(args.config), dry_run=True)
-                    logging.disable(logging.CRITICAL)
-                    app.setup()
-                    ok = app.handle_utterance(args.text)
-                    return _out(args, command, data={"accepted": ok, "dry_run": True},
+                    child_args = [sys.executable, "-m", "utter.daemon", "--text", args.text,
+                                  "--dry-run", "--json-plan", "--log-level", "CRITICAL"]
+                    if args.config:
+                        child_args.extend(["--config", args.config])
+                    try:
+                        proc = subprocess.run(child_args, capture_output=True, text=True,
+                                              timeout=4.0, check=False)
+                    except subprocess.TimeoutExpired:
+                        return _err(args, command, 4, "E_PREVIEW_TIMEOUT",
+                                    "Dry-run routing exceeded its 4 second limit.")
+                    if proc.stderr:
+                        sys.stderr.write(proc.stderr)
+                    try:
+                        preview = json.loads(proc.stdout)
+                    except json.JSONDecodeError:
+                        return _err(args, command, 4, "E_BACKEND_UNAVAILABLE",
+                                    "The route preview process returned invalid JSON.")
+                    ok = bool(preview.get("accepted"))
+                    return _out(args, command, data={"accepted": ok, "dry_run": True,
+                                 "plan": preview.get("plan")},
                                 error=None if ok else {"code": "E_NO_ACTION", "message": "No action matched."}, code=0 if ok else 1)
                 return _out(args, command, data={"typed": False, "dry_run": True,
                              "characters": len(args.text)})
@@ -483,7 +495,8 @@ COMMANDS = {
 ERROR_CODES = {"E_USAGE": 2, "E_ACTION_FAILED": 1, "E_BLOCKED": 3,
                "E_BACKEND_UNAVAILABLE": 4, "E_RUNNER_UNAVAILABLE": 4,
                "E_NOT_FOUND": 5, "E_NO_ACTION": 1,
-               "E_INVALID_SETTING": 2, "E_INVALID_COMMAND": 2}
+               "E_INVALID_SETTING": 2, "E_INVALID_COMMAND": 2,
+               "E_PREVIEW_TIMEOUT": 4}
 
 
 def build_parser():
