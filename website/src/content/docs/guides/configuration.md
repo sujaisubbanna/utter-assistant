@@ -335,8 +335,8 @@ An utterance can name its target up front instead of acting on the focused windo
 | Utterance | Plan |
 |-----------|------|
 | `codex type ok` | `TYPE_TEXT{text="ok", app="codex"}` |
-| `codex press enter` | `KEY{chord="enter", app="codex"}` |
-| `spotify pause` | `MEDIA{command="play-pause", app="spotify"}` |
+| `codex press enter` | `KEY{chord="Return", app="codex"}` |
+| `spotify pause` | `MEDIA{command="pause", app="spotify"}` |
 | `close steam` | `CLOSE_APP{app="steam"}` |
 
 Target-first `type`/`write`, `press`/`hit`/`send` and `<app> <media-command>` are matched before the
