@@ -11,13 +11,13 @@ core tarball, all checksummed in `sha256sums.txt`.
 git checkout main && git pull
 
 # 2. tag and push (the tag drives the version)
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 Pushing a `v*` tag triggers the `release` workflow, which:
 
-1. resolves the version from the tag (`v0.2.0` → `0.1.0`);
+1. resolves the version from the tag (`v0.1.1` → `0.1.0`);
 2. installs the Tauri v2 build deps on **`ubuntu-24.04`** (it has
    `webkit2gtk-4.1`; 22.04 does **not** and Tauri v2 requires 4.1);
 3. builds the Python core tarball first (`scripts/build-core-tarball.sh`);

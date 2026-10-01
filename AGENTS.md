@@ -68,7 +68,7 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
   accepted.
 - **Releases are cut on request, not per change.** When the owner asks for a release:
   1. add or update `CHANGELOG.md` with the user-visible changes;
-  2. bump the **minor** version everywhere it lives — `pyproject.toml`,
+  2. bump the version everywhere it lives — **patch by default** (`0.1.0` → `0.1.1`); reserve a **minor** bump for notable features — `pyproject.toml`,
      `gui-tauri/package.json`, `gui-tauri/src-tauri/Cargo.toml`,
      `gui-tauri/src-tauri/tauri.conf.json` (and any version shown in the UI);
   3. merge to `main`, then tag `v<version>` and push the tag — the `release` workflow
