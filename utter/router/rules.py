@@ -292,6 +292,12 @@ def plan(utterance: str, ctx: Context, profiles: dict) -> Optional[Plan]:
         return Plan(utterance=utterance, steps=steps, source=source,
                     confidence=confidence, needs_perception=needs)
 
+    focused_profile = profiles.get(ctx.focused_app) if ctx.focused_app else None
+    custom_chord = (getattr(focused_profile, "commands", {}) or {}).get(t) if focused_profile else None
+    if custom_chord:
+        return P([Step(Action.KEY, {"chord": custom_chord}, tier=Tier.KEYBOARD,
+                       description=f"custom command: {t}")])
+
     browser = _is_browser(ctx, profiles)
 
     # --- niri compositor actions (no app/model needed) ----------------------

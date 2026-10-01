@@ -23,13 +23,37 @@ All successful JSON responses use `{"schema":"utter.cli/v1","ok":true,"command":
 | `utter listen` | Capture for up to `--timeout SEC` (default 10) and act with `--confirm`; `--transcribe-only` returns recognized text. Requires sounddevice/PipeWire and a local STT model. |
 | `utter speak TEXT` | Local TTS through `espeak-ng`, or `espeak` fallback. |
 | `utter transcribe --file FILE` | Transcribe uncompressed PCM WAV (16 kHz, mono/stereo) with the configured local STT backend. |
-| `utter capabilities --json` | Input/audio backends, TTS, GPU, models, and runner connectivity. |
-| `utter schema --json` | Versioned command and error registry. |
+| `utter capabilities --json` | Input/audio backends, TTS, GPU presence and compute runtime, installed models, and runner connectivity. GPU presence is probed independently from CUDA/ROCm availability. |
+| `utter schema --json` | Versioned command and error registry plus the complete Draft 2020-12 response schema. |
 | `utter apps list --json` | App profile identifiers and aliases. |
 | `utter actions list [--app ID] --json` | Action catalog, optionally scoped to an app. |
 | `utter profiles --json` | Loaded profile summary. |
 | `utter status --json`, `utter doctor --json` | Runner state and diagnostics. |
 | `utter version --json` | Utter version. |
+| `utter settings list|get|set` | Read or edit the active TOML settings. |
+| `utter commands list|set|remove` | List built-in app shortcuts and create/remove per-app custom spoken phrases that send a key chord. |
+
+## Settings and custom commands
+
+Settings use dotted keys matching the config sections. Values to `settings set` are JSON values, type-checked against Utter's config model. Use `--dry-run` to preview; writing requires `--confirm`. Edits preserve other TOML lines and comments and replace the file atomically.
+
+```sh
+utter settings list --json
+utter settings get stt.device --json
+utter settings set stt.device --value '"cuda"' --dry-run --json
+utter settings set audio.sample_rate --value 48000 --confirm --json
+```
+
+`commands set APP PHRASE CHORD` adds a phrase for the selected app. When that app is focused and the phrase is spoken, Utter sends the configured keyboard chord. It accepts only a bounded printable phrase and a keyboard chord; it cannot define shell commands or arbitrary action arguments. Preview writes with `--dry-run`; persist or remove them with `--confirm`.
+
+```sh
+utter commands list --app firefox --json
+utter commands set firefox "toggle developer tools" ctrl+shift+i --dry-run --json
+utter commands set firefox "toggle developer tools" ctrl+shift+i --confirm --json
+utter commands remove firefox "toggle developer tools" --confirm --json
+```
+
+The canonical JSON Schema is packaged at `utter/data/cli.schema.json` and returned under `data.json_schema` by `utter schema --json`. Validate responses with any Draft 2020-12 JSON Schema validator.
 
 The old `utter --text TEXT` and `python -m utter.daemon` service/bridge interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `models`, `install-state`).
 
