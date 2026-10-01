@@ -74,9 +74,10 @@ press **Enter** for the recommended default, or answer:
 The nine steps, in order:
 
 1. **System deps.** Probes `python3`, systemd `--user`, PipeWire, `ydotool` (and `ydotoold`),
-   `wtype`, `grim`, `wl-clipboard`, GTK4/libadwaita and the optional `keyd`. Offers to install
-   what is missing with the detected package manager (**sudo**), or prints the exact command when
-   there is no passwordless sudo.
+   `wtype`, `grim`, `wl-clipboard`, the Tauri v2 WebKit runtime `webkit2gtk-4.1`/`libsoup-3.0`
+   and the optional `keyd`. Offers to install what is missing with the detected package manager
+   (**sudo**), or prints the exact command when there is no passwordless sudo. AT-SPI
+   accessibility (`python-gobject` + `at-spi2-core`) is optional and degrades gracefully.
 2. **Core runner + CLI.** The Python core (protocol, runner, `assistant` CLI, plugins) to
    `$PREFIX/share/utter`, plus the `assistant` wrapper at `$PREFIX/bin/assistant`. PyYAML and
    requests are installed into a per-user venv at `$PREFIX/share/utter/.venv-agent`, so the CLI

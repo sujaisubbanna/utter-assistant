@@ -77,9 +77,11 @@ At each prompt, press **Enter** for the recommended default, or answer
 The nine steps, in order:
 
 1. **System deps** — probes `python3`, systemd `--user`, PipeWire, `ydotool`
-   (+`ydotoold`), `wtype`, `grim`, `wl-clipboard`, GTK4/libadwaita (and optional
-   `keyd`); offers to install what is missing with the detected package manager
-   (**sudo**), or prints the exact command when there is no passwordless sudo.
+   (+`ydotoold`), `wtype`, `grim`, `wl-clipboard`, the Tauri v2 WebKit runtime
+   `webkit2gtk-4.1`/`libsoup-3.0` (and optional `keyd`); offers to install what is
+   missing with the detected package manager (**sudo**), or prints the exact command
+   when there is no passwordless sudo. AT-SPI accessibility (`python-gobject` +
+   `at-spi2-core`) is optional and degrades gracefully.
 2. **Core runner + CLI** — the Python core (protocol, runner, `assistant` CLI,
    plugins) to `$PREFIX/share/utter`, plus the `assistant` wrapper at
    `$PREFIX/bin/assistant`. PyYAML and requests are installed into a per-user
