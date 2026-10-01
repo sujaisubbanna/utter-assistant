@@ -20,26 +20,31 @@
 
 <a href="https://www.producthunt.com/products/utter-offline-personal-assistant?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-utter-offline-personal-assistant" target="_blank" rel="noopener noreferrer"><img alt="Utter — Offline personal assistant - Hold a key, say it — your desktop does it. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1266975&theme=dark" /></a>
 
-**Documentation: [sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)**
+**[Documentation](https://sujaisubbanna.github.io/utter-assistant/)** · [Install](#install) · [CLI](docs/CLI.md) · [Roadmap](#roadmap) · [Changelog](CHANGELOG.md)
 
 </div>
 
 ---
 
-Utter is a context-aware desktop assistant for Linux (Wayland), with an experimental macOS port. It turns speech into real actions — opening apps and websites, focusing and closing windows, clicking, typing, pressing shortcuts — using models that run on your own machine. It is private by design, and it also exposes the same pipeline as a headless command-line interface.
+## Contents
 
-## At a glance
+- [Features](#features) · [Demo](#demo) · [Quick start](#quick-start) · [Use it without voice](#use-it-without-voice)
+- [How it works](#how-it-works) · [Install](#install) · [Configure](#configure) · [Plugins](#plugins)
+- [Roadmap](#roadmap) · [Documentation](#documentation) · [Trust & safety](#trust--safety) · [Contributing](#contributing) · [License](#license)
 
-| Capability | What it does |
+## Features
+
+Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and KDE Plasma first-class ([docs/PLASMA.md](docs/PLASMA.md)) — plus an **experimental macOS port** ([docs/MACOS.md](docs/MACOS.md)).
+
+| Feature | What it does |
 |---|---|
 | Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into any field. |
 | Desktop actions | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | Context aware | Knows which app is focused and what is on screen — accessibility info first, screenshots only as a last resort. |
 | Editable per-app actions | More than 100 app profiles with their shortcuts. Change any key combination in the settings app. |
-| Safe by default | Risky abilities (terminal commands, raw input) stay off until you enable them, and important actions ask first. |
+| Safe by default | Terminal commands and raw input stay off until you enable them, and important actions ask first. |
 | Completely offline | Speech, AI models and screenshots never leave your machine. No account, no telemetry. |
-| Headless CLI | Drive commands, settings and per-app phrases from a terminal, script or agent, with JSON output. |
-| Localised | The settings app speaks English and Spanish, with more languages easy to add. |
+| Headless CLI | Drive the same commands and settings from a terminal, script or agent, with JSON output. |
 
 ## Demo
 
@@ -49,122 +54,42 @@ Utter is a context-aware desktop assistant for Linux (Wayland), with an experime
   <sub><b>Watch the demo</b> (47 s): “Open YouTube” → “Click the search box” → <i>dictate</i> “Rick Astley, never gonna give you up” → “Press enter” → “Click the first video”. No hands.</sub>
 </div>
 
-<!--
-  The thumbnail links to the docs site's demo page, which has a real <video>
-  player (GitHub's Markdown cannot play a relative file link). For a native
-  inline player here as well, edit this README on github.com, drag
-  docs/media/utter-demo.mp4 into the editor, and put the user-attachments URL it
-  inserts on its own line above.
--->
-
-<details>
-<summary>Tour of the settings app</summary>
+<details><summary>Tour of the settings app</summary>
 <div align="center">
   <img src="docs/media/settings-tour.gif" alt="A tour of the Utter settings app" width="820">
 </div>
 </details>
 
+## Quick start
+
+1. Run the installer. A real terminal lets the wizard ask about each component:
+   ```bash
+   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
+   chmod +x install.sh && ./install.sh
+   ```
+2. Or install with the recommended defaults, no prompts:
+   ```bash
+   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+   ```
+3. Open the settings app, set your push-to-talk keys on the **Voice** page, and pick a model on the **Models** page. Full walkthrough: [docs/INSTALL.md](docs/INSTALL.md).
+
 ## Use it without voice
 
-Utter ships a full command-line interface. The same router, safety policy and desktop actions that voice uses are exposed through two entry points, so the whole assistant can be driven headlessly from a terminal, a script or an agent — no microphone required.
+Utter ships a full command-line interface, so the same router, safety policy and desktop actions can be driven headlessly from a terminal, a script or an agent — no microphone required.
 
-- **`utter`** — the agent CLI: run commands, discover what is available, and edit settings and per-app voice phrases.
-- **`python -m assistant`** — management: runner status, models, hardware recommendations, macOS permissions and install state.
+- `utter` — run commands, discover capabilities, and edit settings and per-app phrases.
+- `python -m assistant` — manage the runner, models, recommendations and install state.
 
 ```bash
-# Route a spoken-style command and preview the plan — no execution, no microphone
-utter assistant "open youtube" --dry-run --json
-
-# Carry it out (acting is explicit)
-utter assistant "open youtube" --confirm --json
-
-# Discover what is available
-utter capabilities --json                  # backends, TTS, GPU, models, runner connectivity
-utter apps list --json                     # app profiles and their aliases
-utter actions list --app firefox --json    # actions available for one app
-utter schema --json                        # machine-readable command and error registry
-
-# Manage the runner, models and install state
+utter assistant "open youtube" --dry-run --json   # preview the plan; nothing runs
+utter assistant "open youtube" --confirm --json   # carry it out (explicit)
+utter capabilities --json                          # backends, GPU, models, runner status
+utter schema --json                                # machine-readable command + error registry
 python -m assistant doctor --json
 python -m assistant models list --json
 ```
 
-Every command accepts `--json` and returns the same stable `utter.cli/v1` envelope, so scripts can rely on it. `--dry-run` previews and never acts; `--confirm` is required for anything consequential. Read-only commands such as `capabilities`, `apps list` and `doctor` need no confirmation.
-
-`utter assistant "open youtube" --dry-run --json` prints the route it chose and the action it would take:
-
-```json
-{
-  "schema": "utter.cli/v1",
-  "ok": true,
-  "command": "assistant",
-  "data": {
-    "accepted": true,
-    "dry_run": true,
-    "plan": {
-      "utterance": "open youtube",
-      "source": "rules",
-      "confidence": 1.0,
-      "needs_perception": false,
-      "steps": [
-        {
-          "action": "ensure_url",
-          "tier": "app",
-          "args": { "url": "https://www.youtube.com", "site": "youtube" },
-          "description": "open youtube"
-        }
-      ]
-    }
-  }
-}
-```
-
-Commands that need the background runner report it as offline until the service is running; `utter doctor --json` shows the details. `utter speak`, `utter listen` and `utter transcribe` are also available, and need the relevant local audio or speech backend. The full command list, JSON schemas, exit codes and safety behaviour live in [docs/CLI.md](docs/CLI.md).
-
-## Two modes, two keys
-
-| | Hold | What happens to your words | On screen |
-|---|---|---|---|
-| **Assistant** | the *assistant key* (Insert by default) | Turned into an action: open apps and sites, click things, press shortcuts | A yellow waveform |
-| **Dictation** | the *dictation key* (F13 by default) | Typed into whatever field has focus | A blue waveform with “Dictation · typing” |
-
-Each mode has its own start sound, so you can tell them apart without looking. Change either key on the **Voice** page of the settings app.
-
-## Sleep mode
-
-Say **“go to sleep”** (in assistant mode) and Utter frees your graphics card. The AI model services stop, the speech model is unloaded, and only a tiny listener stays alive. **Hold either push-to-talk key to wake it**: speech is back in a fraction of a second, and the bigger models reload in the background.
-
-Utter also **falls asleep by itself** after a while without being used (15 minutes by default). Only *Utter* activity counts: a push-to-talk key, a spoken command, or waking up. Typing and clicking in other apps do not, so the GPU gets freed while you work. It never dozes off mid-sentence or mid-command, and waking is the same key press. Turn it off or change the time on the **General** page (“Sleep when idle”).
-
-The phrase and the timer are up to you. Change them on the **General** page, or in `~/.config/utter/config.toml`:
-
-```toml
-[sleep]
-trigger = ["go to sleep", "take a break"]
-services = ["utter-vision", "utter-planner"]   # what gets unloaded
-unload_speech = true
-on_idle = true                                 # sleep by itself when unused…
-idle_minutes = 15                              # …after this long
-```
-
-## Completely offline
-
-**Nothing leaves your computer.** Speech is recognised locally, the AI models run locally, and screenshots never leave the machine. There is no account and no telemetry.
-
-The only time Utter goes online is when **you** download a model. If you deliberately point it at a server on another machine, the settings app tells you so in amber.
-
-<div align="center">
-<table>
-  <tr>
-    <td><img src="docs/media/general-dark.png" alt="General settings, dark theme" width="420"></td>
-    <td><img src="docs/media/general-light.png" alt="General settings, light theme" width="420"></td>
-  </tr>
-  <tr>
-    <td><img src="docs/media/app-actions.png" alt="App actions list" width="420"></td>
-    <td><img src="docs/media/app-actions-editor.png" alt="Editing an app's actions" width="420"></td>
-  </tr>
-</table>
-</div>
+Every command takes `--json` and returns a stable `utter.cli/v1` envelope. `--dry-run` previews, `--confirm` acts, and read-only commands need no confirmation. Full reference, exit codes and safety behaviour: [docs/CLI.md](docs/CLI.md).
 
 ## How it works
 
@@ -177,135 +102,52 @@ The only time Utter goes online is when **you** download a model. If you deliber
 ```
 
 - **Rules first.** Most commands are matched by fast, predictable rules.
-- **A small local AI picks, it never invents.** When a rule does not match, a constrained model chooses among actions prepared in advance. It cannot write its own commands.
-- **Screen text can guide, never command.** Anything read from the screen, window titles or the clipboard can only *select* between prepared options.
+- **A small local AI picks, it never invents.** It chooses among actions prepared in advance and cannot write its own commands.
+- **Untrusted text can guide, never command.** Screen text, window titles and the clipboard only *select* between prepared options.
 
-Under the hood, a tiny **runner** supervises swappable **plugins** (speech, decision, perception, actions, speech output, UI) over one versioned protocol. The same pipeline is available from the command line — see [Use it without voice](#use-it-without-voice) or [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+A tiny **runner** supervises swappable **plugins** over one versioned protocol. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Getting started
+## Install
 
-> **Requirements:** Linux on Wayland — **niri** and **KDE Plasma (KWin)** are first-class, other
-> compositors get partial support (dictation, typing, launching; no window actions) — plus PipeWire and
-> Python 3.12+. Plasma specifics: [docs/PLASMA.md](docs/PLASMA.md).
-> **macOS** is experimental and untested on real hardware: see [docs/MACOS.md](docs/MACOS.md)
-> (native Speech.framework + whisper.cpp voice, Quartz hotkeys, unsigned `.dmg`).
-> An NVIDIA GPU is recommended for the larger models but not required. Building the settings app
-> needs Node + pnpm and a Rust toolchain.
+Linux on Wayland — niri and KDE Plasma first-class — plus PipeWire and Python 3.12+. macOS is experimental and untested on real hardware. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
 
-The installer is an **interactive wizard**: it walks each component — the runner and `assistant`
-CLI, the settings app, the background services, speech models and the optional Noctalia widget —
-and asks whether you want it. In a terminal, Enter accepts the recommended default; `--yes` accepts
-them all non-interactively.
+- **Clone:** `git clone https://github.com/sujaisubbanna/utter-assistant.git && cd utter-assistant && ./install.sh` (`--dry-run` previews). Minimal package install: `install/install.sh --yes`; undo with `install/uninstall.sh --yes`.
+- **Remote:** `curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
+- **Source:** the runner core is stdlib-only Python; the settings app is Tauri v2 + React + Tailwind CSS v4. Build it with `pnpm install && pnpm tauri build` in `gui-tauri/`, and run `scripts/verify.sh` for the test suites.
 
-### 1. Clone and install
+## Configure
 
-To keep the repository and install from your own checkout:
+Settings live in `~/.config/utter/config.toml` and are mostly editable in the settings app: hotkeys, speech and language, AI and vision models, audio devices, and sleep. See [docs/CUSTOMISING.md](docs/CUSTOMISING.md), or use `utter settings list --json` and `utter settings set`.
 
-```bash
-git clone https://github.com/sujaisubbanna/utter-assistant.git
-cd utter-assistant
+## Plugins
 
-./install.sh --dry-run   # walk the wizard, print the plan, change nothing
-./install.sh             # install the components you choose
-```
-
-Want the smallest possible install — distro packages and the background service, nothing else?
-
-```bash
-install/install.sh --dry-run
-install/install.sh --yes
-```
-
-Undo either one with `./install.sh --uninstall`.
-
-### 2. Remote install
-
-No clone needed. **Download the script, then run it** — that way it is a real terminal and the
-interactive wizard can ask you about each component:
-
-```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
-chmod +x install.sh
-./install.sh
-```
-
-`./install.sh --dry-run` walks the wizard and prints the plan without changing anything.
-
-Piping straight into `bash` also works, but a pipe is **not** a terminal, so the wizard cannot
-prompt: it prints the plan and changes nothing. Use that form only when you want to pass flags
-explicitly:
-
-```bash
-# recommended defaults, no prompts
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
-
-# native package (.deb/.rpm) through your package manager instead of the AppImage (needs sudo)
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --package --yes
-
-# only these components
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --only core,gui --yes
-```
-
-Other flags: `--skip <csv>`, `--with-noctalia`, `--dry-run`, `--uninstall`. Every download is checked
-against `sha256sums.txt` from the release.
-
-### 3. Build from source
-
-The runner core is stdlib-only Python; the assistant adds a few optional runtime deps (numpy, PyYAML, requests, evdev) and the settings app is Tauri v2 + React + Tailwind CSS v4.
-
-```bash
-# the assistant core, straight from the checkout
-python3 -m utter.daemon --text "open youtube" --dry-run
-scripts/verify.sh            # unit + e2e + conformance + spike
-
-# the settings app
-cd gui-tauri
-pnpm install
-pnpm tauri build             # release binary (and a .deb) in src-tauri/target/release
-pnpm tauri dev               # …or run it with hot reload
-```
-
-On Wayland with a dual-NVIDIA setup, launch the built app with the DMABUF renderer disabled —
-`./utter-gui` does this for you:
-
-```bash
-WEBKIT_DISABLE_DMABUF_RENDERER=1 ./gui-tauri/src-tauri/target/release/utter
-```
-
-Writing a plugin? Start from `plugins/fake_py/` (Python) or `plugins/fake_rs/` (Rust) and read
-[`docs/PLUGINS.md`](docs/PLUGINS.md).
-
-Once it is installed, open the **Utter settings app**, set your push-to-talk keys on the **Voice**
-page, and pick a recommended model on the **Models** page.
+Utter is a small runner supervising swappable plugins (STT, decision, LLM, perception, actions, TTS, context, UI) over one versioned protocol. Start from `plugins/fake_py/` (Python) or `plugins/fake_rs/` (Rust); see [docs/PLUGINS.md](docs/PLUGINS.md).
 
 ## Roadmap
 
-Shipped recently: **KDE Plasma (KWin)** support, **sleep when idle**, an **agent-facing CLI**
-(`utter assistant|dictation|listen|speak|transcribe`, with `capabilities`/`schema` discovery), and
-an **experimental macOS port**. See [CHANGELOG.md](CHANGELOG.md).
+Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and an experimental macOS port. Recent changes: [CHANGELOG.md](CHANGELOG.md). Everything below is still open.
 
-- [ ] **Actions, not just commands** *(most important)*. Let Utter handle whole requests rather than single commands: ask a question and it finds the answer and tells you; ask for an outcome and it works out the steps. For example:
-  - *"Launch Control Resonant"*: find the game and start it through Steam.
-  - *"Play some jazz"*: open Spotify and start playing jazz.
-- [ ] **Optimise for GPUs with less memory**: smaller default models, quantised builds and sharing one GPU between the models, so Utter runs well on 8 GB cards (and on CPU-only machines)
-- [ ] **macOS: finish and verify** — the experimental port landed ([docs/MACOS.md](docs/MACOS.md)) with a Metal-native runtime (Ollama / whisper.cpp / VocaMac, no NVIDIA assumptions); it still needs testing on real Apple hardware, a signed and notarized app, and launchd controls in the settings app
-- [ ] **Windows version**
-- [ ] **Personal memory with [mem0](https://github.com/mem0ai/mem0)**. Give Utter a memory of you so it stops asking the same things and starts acting on standing preferences. Sketch:
-  - **What it stores.** Small facts and preferences, not transcripts: *"my editor is Cursor"*, *"the browser I mean by 'open X' is Helium"*, *"playing jazz = Spotify"*, *"they say 'the box' for the terminal"*. Each entry keeps its source and a confidence.
-  - **When it is consulted.** A memory lookup runs *before* the rules when no rule matched, and its hits are injected into the decision head as **candidates** — so memory can only **select** among prepared actions, never author `args` (it stays inside the provenance rule; screen/OCR text is still untrusted, memory is user-owned and is not treated as an instruction source).
-  - **When it is written.** Either on an explicit *"remember that …"* (its own intent, confirmed by the user) or, off by default, after a user accepts a suggestion twice. Utter asks *"always use Helium for that?"* and only then writes.
-  - **Where it lives.** Locally and offline: a mem0 store under `~/.local/share/utter/memory/` using the embedded path (SQLite + a local embedding model from the existing model store), never a hosted API. The `assistant` CLI gains `memory list|search|forget|export` and every entry is inspectable and deletable from the settings app.
-  - **Safety.** Memory may raise a *preference*, never a permission: it cannot enable `terminal`/`input`, cannot lower a confirmation, and cannot override an app profile. Facts are redacted from logs like other secrets.
-- [ ] **Support for more apps**: more hand-tuned app profiles and actions
-- [ ] **Key sequences for app actions**: let one action press several keys in order (e.g. `/`, then type, then Enter) so common steps don't need vision
-- [ ] **More text-to-speech voices**: support for other TTS engines beyond eSpeak, Speech Dispatcher and Piper
+**Command understanding**
+- [ ] **Actions, not just commands** *(most important)* — handle whole requests rather than single commands: ask for an outcome and Utter works out the steps (for example, *"Play some jazz"* opens Spotify and starts jazz).
+
+**Platforms and performance**
+- [ ] **macOS: finish and verify** — the port landed with a Metal-native runtime; it needs real-hardware testing, a signed app and launchd controls ([docs/MACOS.md](docs/MACOS.md)).
+- [ ] **Windows version.**
+- [ ] **Run well on less memory** — smaller default models, quantised builds and one shared GPU, so 8 GB cards and CPU-only machines work.
+
+**Memory and personalisation**
+- [ ] **Personal memory with [mem0](https://github.com/mem0ai/mem0)** — remember standing preferences instead of asking every time.
+  - Stores small facts, not transcripts; each entry keeps its source and a confidence. Consulted before the rules, and only as candidates that *select* among prepared actions (never author `args`).
+  - Written on an explicit *"remember that…"* or after accepting a suggestion twice; local and offline under `~/.local/share/utter/memory/`, with `memory list|search|forget|export`. It can raise a preference, never a permission, a confirmation or an app override.
+
+**Apps and voices**
+- [ ] **More apps** — more hand-tuned profiles and actions.
+- [ ] **Key sequences** — let one action press several keys in order (for example `/`, type, Enter) so common steps need no vision.
+- [ ] **More TTS voices** — beyond eSpeak, Speech Dispatcher and Piper.
 
 ## Documentation
 
-The full documentation lives at **[sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)**
-(introduction, install, configuration, apps, models, plugins, trust & safety, troubleshooting).
-It is built from `website/` with Astro Starlight; the Markdown sources below remain the
-in-repo reference.
+Full documentation: **[sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)** (built from `website/` with Astro Starlight). The in-repo Markdown sources:
 
 | Doc | What's inside |
 |---|---|
@@ -319,6 +161,18 @@ in-repo reference.
 | [`docs/THEMING.md`](docs/THEMING.md) | Matugen colours for the settings app and widgets |
 | [`AGENTS.md`](AGENTS.md) | Repo guide and invariants for contributors and AI agents |
 
+## Trust & safety
+
+- **Untrusted content selects, never authors.** Screen, accessibility, OCR, window titles and the clipboard may only choose among precomputed actions — they cannot supply arguments.
+- **Risky abilities are opt-in.** `terminal` and raw `input` stay off until explicitly enabled and confirmed; the runner enforces policy, not the plugin.
+- **The socket is default-deny** (allow-list plus `SO_PEERCRED`), and handles are capabilities, not paths. Details: [docs/TRUST.md](docs/TRUST.md).
+
+## Contributing
+
+- **Never commit to `main`.** Use a feature branch (`fix/…`, `feat/…`, `chore/…`) and open it for review.
+- **Run `scripts/verify.sh`** before declaring anything done.
+- **Read [AGENTS.md](AGENTS.md)** for the repo map, contracts and invariants.
+
 ## License
 
-[Apache-2.0](LICENSE)
+Apache-2.0 — see [LICENSE](LICENSE).
