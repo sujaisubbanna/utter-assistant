@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Experimental macOS support.** A small platform module (`utter/platform.py`) selects
+  native backends on Darwin while leaving every Linux code path untouched: Apple
+  `Speech.framework` speech-to-text with a local whisper.cpp fallback (and an optional
+  VocaMac file-transcription backend), `say`/`AVSpeechSynthesizer` spoken replies, Quartz
+  event-tap push-to-talk keys, Quartz/AppleScript key and text injection, `NSWorkspace` +
+  Accessibility focused-window context, `screencapture` screenshots, `pbpaste` clipboard,
+  `afplay` sounds and notification banners. New `[macos]` config section, `macos/setup.sh`
+  with a launchd agent, `docs/MACOS.md` and a docs-site page with the platform matrix.
+- Release workflow: a `build-macos` job on `macos-14` that builds the macOS core tarball and
+  an **unsigned** `.app`/`.dmg` of the settings app and attaches them to the release
+  (`sha256sums-macos.txt`). The Linux job is unchanged.
+- `tests/platform/test_macos_detection.py` (run by `scripts/verify.sh` on Linux) covers the
+  detection, config defaults, STT chain selection, key tables, chord parsing and dispatch.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added

@@ -119,6 +119,12 @@ step()   { printf '\n== %s ==\n' "$*"; }
 note()   { printf '  note: %s\n' "$*"; }
 warn()   { printf '  WARNING: %s\n' "$*" >&2; }
 die()    { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+# This wizard installs the Linux (Wayland/systemd) stack. macOS has its own,
+# much smaller path: the .dmg from the release page plus macos/setup.sh.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    die "this installer is for Linux. On macOS: open the utter-gui .dmg from the release page and run macos/setup.sh from the core tarball (see docs/MACOS.md)."
+fi
 heading() { printf '\n[%s/%s] %s\n' "$1" "$2" "$3"; }
 run() {
     local desc="$1"; shift

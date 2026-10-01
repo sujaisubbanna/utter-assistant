@@ -23,6 +23,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from utter import platform
 from utter.types import Rect
 
 # Stable directory so repeated captures overwrite instead of leaking files.
@@ -101,8 +102,13 @@ def capture() -> tuple[str, Rect]:
     """Capture the focused output (v1: single monitor).
 
     Returns ``(png_path, logical_rect)`` for the focused output. Falls back to
-    the first reported output when niri has no focused output.
+    the first reported output when niri has no focused output. On macOS the
+    capture is delegated to :mod:`utter.macos.screenshot` (``screencapture``).
     """
+    if platform.is_macos():
+        from utter.macos import screenshot as _mac
+
+        return _mac.capture()
     outputs = list_outputs()
     name = focused_output_name()
     if not name or name not in outputs:

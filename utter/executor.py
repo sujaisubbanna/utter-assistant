@@ -59,11 +59,11 @@ class Executor:
         return launch.launch_app(step.args.get("argv") or step.args["app"])
 
     def _do_focus_app(self, step: Step) -> ActionResult:
-        from .context import niri
+        from .context import desktop
         app = step.args["app"]
         for win in _list_windows():
             if win.get("app_id") == app:
-                ok = niri.focus_window(win["id"])
+                ok = desktop.focus_window(win["id"])
                 return ActionResult(ok, step.action, Tier.APP, f"focus {app}")
         return ActionResult(False, step.action, Tier.APP, f"{app} not running")
 
@@ -80,9 +80,9 @@ class Executor:
         return mouse.scroll(step.args.get("direction", "down"), step.args.get("amount", 5))
 
     def _focus_window(self, window_id: int) -> None:
-        """Focus a niri window (switching workspace first when available)."""
+        """Focus a window (switching workspace first when the platform can)."""
         try:
-            from .context import niri
+            from .context import desktop as niri
         except Exception:
             return
         fn = getattr(niri, "focus_window_on_workspace", None) or getattr(niri, "focus_window", None)
@@ -127,7 +127,7 @@ class Executor:
                     # BiDi selects the tab but does not raise the window on Wayland;
                     # ask niri to focus the browser window (title now matches the site).
                     try:
-                        from .context import niri
+                        from .context import desktop as niri
                         cand = (niri.find_windows(app_id="zen", title_contains=kw)
                                 or niri.find_windows(app_id="zen"))
                         if cand:
@@ -228,7 +228,12 @@ class Executor:
         return ActionResult(True, step.action, step.tier, "done")
 
     def _do_speak(self, step: Step) -> ActionResult:
-        return ActionResult(True, step.action, step.tier, step.args.get("text", ""))
+        text = step.args.get("text", "")
+        from . import platform
+        if platform.is_macos():
+            from .voice import tts
+            tts.speak(text, self.cfg)
+        return ActionResult(True, step.action, step.tier, text)
 
     # -- perception escalation --------------------------------------------
     def _do_click_element(self, step: Step) -> ActionResult:
@@ -370,6 +375,13 @@ def _title_has(title, keyword) -> bool:
 def _list_windows() -> list[dict]:
     import json
     import subprocess
+    from . import platform
+    if platform.is_macos():
+        try:
+            from .context import desktop
+            return desktop.windows_as_dicts()
+        except Exception:
+            return []
     try:
         raw = subprocess.run(["niri", "msg", "--json", "windows"],
                              capture_output=True, text=True, timeout=5).stdout

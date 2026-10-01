@@ -17,6 +17,17 @@ agent = [
 inference = [
     "vllm>=0.10",
 ]
+# macOS voice + desktop glue (see docs/MACOS.md). Linux installs never need these.
+macos = [
+    "numpy>=1.26",
+    "sounddevice>=0.4",
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Speech>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-AVFoundation>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-ApplicationServices>=10.0; sys_platform == 'darwin'",
+    "pywhispercpp>=1.2",
+]
 
 [project.scripts]
 utter = "utter.daemon:main"

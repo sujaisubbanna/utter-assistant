@@ -6,6 +6,9 @@ handles XKB key names and modifier chords directly. `ydotool` is the fallback
 
 Chord syntax: "ctrl+t", "super+Return", "ctrl+shift+Tab", "Return".
 No shell is used.
+
+On macOS (``utter.platform.is_macos()``) both entry points delegate to
+:mod:`utter.macos.inject` (Quartz ``CGEventPost``, AppleScript fallback).
 """
 from __future__ import annotations
 
@@ -13,7 +16,17 @@ import os
 import subprocess
 import time
 
+from utter import platform
 from utter.types import Action, ActionResult, Tier
+
+
+def _macos_backend() -> str:
+    try:
+        from utter.config import load_config
+
+        return getattr(load_config().macos, "injection", "quartz") or "quartz"
+    except Exception:  # noqa: BLE001
+        return "quartz"
 
 _TIMEOUT = 5.0
 
@@ -110,6 +123,10 @@ def _run(argv: list[str], env: dict | None = None) -> subprocess.CompletedProces
 
 def send_key(chord: str) -> ActionResult:
     """Send a key chord, e.g. "ctrl+t", "super+Return", "Return"."""
+    if platform.is_macos():
+        from utter.macos import inject
+
+        return inject.send_key(chord, backend=_macos_backend())
     t0 = time.perf_counter()
     spec = (chord or "").strip()
     if not spec:
@@ -160,6 +177,10 @@ def send_key(chord: str) -> ActionResult:
 
 def type_text(text: str) -> ActionResult:
     """Type literal text."""
+    if platform.is_macos():
+        from utter.macos import inject
+
+        return inject.type_text(text, backend=_macos_backend())
     t0 = time.perf_counter()
     if text is None:
         text = ""

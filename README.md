@@ -13,6 +13,7 @@
 **Hands-free, private and completely offline.** Hold a key, say what you want, and Utter does it.
 
 ![Platform: Linux](https://img.shields.io/badge/platform-Linux%20(Wayland)-f7c948)
+![macOS: experimental](https://img.shields.io/badge/macOS-experimental-8a8f98)
 ![Runs offline](https://img.shields.io/badge/runs-100%25%20offline-20a05a)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f1f1f)
 ![Languages: English · Español](https://img.shields.io/badge/UI-English%20·%20Español-6b6b70)
@@ -115,6 +116,8 @@ Under the hood, a tiny **runner** supervises swappable **plugins** (speech, deci
 ## 🚀 Getting started
 
 > **Requirements:** Linux on Wayland (niri is the first-class target), PipeWire, and Python 3.12+.
+> **macOS** is experimental and untested on real hardware: see [docs/MACOS.md](docs/MACOS.md)
+> (native Speech.framework + whisper.cpp voice, Quartz hotkeys, unsigned `.dmg`).
 > An NVIDIA GPU is recommended for the larger models but not required. Building the settings app
 > needs Node + pnpm and a Rust toolchain.
 
@@ -205,7 +208,7 @@ page, and pick a recommended model on the **Models** page.
   - *"Play some jazz"*: open Spotify and start playing jazz.
 - [ ] **Optimise for GPUs with less memory**: smaller default models, quantised builds and sharing one GPU between the models, so Utter runs well on 8 GB cards (and on CPU-only machines)
 - [ ] **Windows version**
-- [ ] **macOS version**
+- [ ] **macOS version** — experimental port landed ([docs/MACOS.md](docs/MACOS.md)); needs testing on real hardware, a signed app and launchd controls in the settings app
 - [ ] **Support for more apps**: more hand-tuned app profiles and actions
 - [ ] **Key sequences for app actions**: let one action press several keys in order (e.g. `/`, then type, then Enter) so common steps don't need vision
 - [ ] **More text-to-speech voices**: support for other TTS engines beyond eSpeak, Speech Dispatcher and Piper

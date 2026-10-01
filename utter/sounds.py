@@ -83,6 +83,8 @@ def _player() -> list[str] | None:
         return ["pw-play", "--volume=0.35"]
     if shutil.which("paplay"):
         return ["paplay", "--volume=11500"]
+    if shutil.which("afplay"):  # macOS
+        return ["afplay", "-v", "0.35"]
     return None
 
 

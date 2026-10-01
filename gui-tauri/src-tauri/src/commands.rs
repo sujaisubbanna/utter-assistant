@@ -523,7 +523,8 @@ pub fn app_profile_reset(state: State<AppState>, id: String) -> Result<(), Strin
 }
 
 /// Open an https project/repo page in the default browser. Only `https://`
-/// URLs are accepted, and `xdg-open` gets the URL as a single argument.
+/// URLs are accepted, and the launcher (`xdg-open`, or `open` on macOS) gets
+/// the URL as a single argument.
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     let valid = url.starts_with("https://")
@@ -532,7 +533,8 @@ pub fn open_url(url: String) -> Result<(), String> {
     if !valid {
         return Err("only https:// links can be opened".to_string());
     }
-    std::process::Command::new("xdg-open")
+    let launcher = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    std::process::Command::new(launcher)
         .arg(&url)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd user agent for the utter voice daemon on macOS.
+
+  Installed by macos/setup.sh to ~/Library/LaunchAgents/com.utter.assistant.plist
+  with the @PLACEHOLDERS@ filled in. Manage it with:
+
+      launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.utter.assistant.plist
+      launchctl bootout   gui/$(id -u)/com.utter.assistant
+      launchctl kickstart -k gui/$(id -u)/com.utter.assistant
+
+  The agent needs Microphone, Speech Recognition, Accessibility, Input Monitoring
+  and Screen Recording permissions, granted to the *python* binary it runs.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.utter.assistant</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@PYTHON@</string>
+    <string>-m</string>
+    <string>utter.daemon</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@REPO@</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>
+    <string>@REPO@</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>@LOGDIR@/utter.log</string>
+  <key>StandardErrorPath</key>
+  <string>@LOGDIR@/utter.log</string>
+</dict>
+</plist>

@@ -40,6 +40,13 @@ pipeline without tagging).
 | RPM | `utter-gui-<ver>-1.x86_64.rpm` |
 | Core tarball | `utter-core-<ver>.tar.gz` |
 | Checksums | `sha256sums.txt` |
+| macOS disk image (arm64, unsigned) | `utter-gui_<ver>_aarch64.dmg` |
+| macOS app bundle (arm64, unsigned) | `utter-gui_<ver>_aarch64.app.tar.gz` |
+| macOS core tarball | `utter-core-<ver>-macos.tar.gz` |
+| macOS checksums | `sha256sums-macos.txt` |
+
+The macOS assets come from the separate `build-macos` job (`macos-14`, Apple
+Silicon). They are **not code-signed or notarised**; see `docs/MACOS.md`.
 
 `<ver>` is the tag without the leading `v` (e.g. `0.1.0`). The bootstrap
 installer (`install.sh`) resolves these names from the release tag.

@@ -87,6 +87,8 @@ for f in "$REPO"/scripts/*.py "$REPO"/scripts/verify.sh "$REPO"/scripts/utter-wa
 done
 # systemd units + the runner unit from install/
 copy_path systemd
+# macOS launchd agent + setup script (tiny; harmless in the Linux tarball)
+copy_path macos
 mkdir -p "$ROOT/install"
 [[ -f "$REPO/install/utter-runner.service" ]] && \
     cp -a "$REPO/install/utter-runner.service" "$ROOT/install/"
@@ -114,16 +116,31 @@ rm -rf "$ROOT/gui" "$ROOT/gui-tauri" "$ROOT/.github" 2>/dev/null || true
 # deterministic-ish tar (sorted, fixed mtime/owner)
 # --------------------------------------------------------------------------- #
 echo "packing: $TARBALL"
-tar --sort=name \
-    --mtime='UTC 2020-01-01' \
-    --owner=0 --group=0 --numeric-owner \
-    -czf "$TARBALL" -C "$STAGE" "$STAGE_NAME"
+# GNU tar is needed for the deterministic flags; on macOS it is `gtar`
+# (brew install gnu-tar). Without it fall back to a plain (non-reproducible) tar.
+TAR="tar"
+if command -v gtar >/dev/null 2>&1; then
+    TAR="gtar"
+fi
+if "$TAR" --version 2>/dev/null | grep -q "GNU tar"; then
+    "$TAR" --sort=name \
+        --mtime='UTC 2020-01-01' \
+        --owner=0 --group=0 --numeric-owner \
+        -czf "$TARBALL" -C "$STAGE" "$STAGE_NAME"
+else
+    echo "  (GNU tar not found; producing a non-reproducible tarball)" >&2
+    COPYFILE_DISABLE=1 "$TAR" -czf "$TARBALL" -C "$STAGE" "$STAGE_NAME"
+fi
 
 # --------------------------------------------------------------------------- #
 # sha256sums.txt (core tarball; CI appends the GUI assets)
 # --------------------------------------------------------------------------- #
 SUMS="$OUT_DIR/sha256sums.txt"
-( cd "$OUT_DIR" && sha256sum "$(basename "$TARBALL")" > "$SUMS" )
+sha256_file() {
+    # sha256sum on Linux; shasum on macOS. Same "<hash>  <name>" output.
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi
+}
+( cd "$OUT_DIR" && sha256_file "$(basename "$TARBALL")" > "$SUMS" )
 echo "wrote: $SUMS"
 
 # --------------------------------------------------------------------------- #

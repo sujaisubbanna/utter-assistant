@@ -14,7 +14,25 @@ import subprocess
 import time
 from pathlib import Path
 
+from utter import platform
 from utter.types import Action, ActionResult, Tier
+
+
+def _url_opener() -> list[str]:
+    """``xdg-open`` on Linux, ``open`` on macOS."""
+    return ["open"] if platform.is_macos() else ["xdg-open"]
+
+
+def _macos_app_argv(spec: str) -> list[str] | None:
+    """``open -a <App>`` / ``open -b <bundle.id>`` for a bare app name on macOS."""
+    if not platform.is_macos():
+        return None
+    if os.path.isabs(spec) or shutil.which(spec):
+        return None  # a binary on PATH / absolute path: spawn it directly as on Linux
+    name = spec[:-8] if spec.endswith(".desktop") else spec
+    if "." in name and " " not in name and not name.endswith(".app"):
+        return ["open", "-b", name]
+    return ["open", "-a", name[:-4] if name.endswith(".app") else name]
 
 # XDG Exec field codes (%f %F %u %U %d %D %n %N %i %c %k %v %m) plus literal %%.
 _FIELD_CODE = re.compile(r"%[fFuUdDnNickvm%]")
@@ -103,8 +121,8 @@ def launch_app(app_id_or_argv) -> ActionResult:
         return ActionResult(False, Action.LAUNCH_APP, Tier.APP, "empty app spec",
                             (time.perf_counter() - t0) * 1000)
 
-    argv: list[str] | None = None
-    desktop = _find_desktop(spec)
+    argv: list[str] | None = _macos_app_argv(spec)
+    desktop = None if argv else _find_desktop(spec)
     if desktop is not None:
         line = _exec_line(desktop)
         if line:
@@ -168,7 +186,7 @@ def open_url(url: str, browser_app_id: str | None = None) -> ActionResult:
     argv = None
     if browser_app_id and target.startswith(("http://", "https://")):
         argv = _browser_argv(browser_app_id)
-    ok, detail = _spawn([*(argv or ["xdg-open"]), target])
+    ok, detail = _spawn([*(argv or _url_opener()), target])
     return ActionResult(ok, Action.OPEN_URL, Tier.APP, detail,
                         (time.perf_counter() - t0) * 1000)
 

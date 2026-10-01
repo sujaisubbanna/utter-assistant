@@ -49,6 +49,18 @@ def _play(name: str) -> None:
         pass
 
 
+def _notify(message: str, macos_cfg=None) -> None:
+    """macOS notification banner (no-op elsewhere or when disabled)."""
+    try:
+        from . import platform
+        if not platform.is_macos() or not getattr(macos_cfg, "notifications", True):
+            return
+        from .macos import notify
+        notify.notify(message)
+    except Exception:
+        pass
+
+
 def _plan_from_decision(dec) -> Optional[Plan]:
     """Convert a decide.Decision into an executable Plan (single step)."""
     c = getattr(dec, "candidate", None)
@@ -82,8 +94,8 @@ class Utter:
         log.info("loaded %d app profiles", len(self.profiles))
 
         def ctx_builder(with_a11y: bool = False) -> Context:
-            from .context import niri
-            return niri.build_context(with_a11y=with_a11y)
+            from .context import desktop
+            return desktop.build_context(with_a11y=with_a11y)
 
         self.executor = Executor(ctx_builder, self.cfg)
 
@@ -138,8 +150,8 @@ class Utter:
                 _play("sleep")
             return True
         t0 = time.perf_counter()
-        from .context import niri
-        ctx = niri.build_context(with_a11y=False)
+        from .context import desktop
+        ctx = desktop.build_context(with_a11y=False)
         log.info("utterance: %r (focused=%s)", utterance, ctx.focused_app or "?")
         plan = self.route(utterance, ctx)
         if plan is None:
@@ -165,7 +177,7 @@ class Utter:
         import numpy as np
         import sounddevice as sd
 
-        stt = Transcriber(self.cfg.stt)
+        stt = Transcriber.for_platform(self.cfg)
         rec_lock = threading.Lock()
         chunks: list = []
 
@@ -200,6 +212,83 @@ class Utter:
                 self.handle_utterance(text)
 
         hotkey.listen(record_start, record_stop, key_name=self.cfg.hotkey.key)
+
+    def run_macos(self) -> None:
+        """macOS voice loop: two push-to-talk keys, native STT, no vocalinux.
+
+        * ``[macos] dictation_key`` -> the transcript is typed into the focused
+          field (Quartz/AppleScript injection).
+        * ``[macos] assistant_key`` -> the transcript is routed like any other
+          utterance (rules -> decision head -> actions).
+        """
+        import numpy as np
+        import sounddevice as sd
+
+        from .macos import hotkey as mac_hotkey
+        from .voice.stt import Transcriber
+
+        mc = self.cfg.macos
+        stt = Transcriber.for_platform(self.cfg)
+        log.info("macOS voice: stt chain=%s dictation=%s assistant=%s hotkeys=%s",
+                 [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)
+        rec_lock = threading.Lock()
+        session: dict = {"stream": None, "chunks": [], "mode": None}
+
+        def start(mode: str) -> None:
+            with rec_lock:
+                if session["stream"] is not None:
+                    return
+                session["chunks"] = []
+                session["mode"] = mode
+
+                def cb(indata, frames, t, status):
+                    with rec_lock:
+                        session["chunks"].append(indata.copy())
+                stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
+                                        channels=self.cfg.audio.channels, dtype="float32",
+                                        device=(self.cfg.audio.device or None), callback=cb)
+                stream.start()
+                session["stream"] = stream
+            _play("dictate" if mode == "dictation" else "start")
+            log.info("PTT down (%s) - listening", mode)
+
+        def stop(mode: str) -> None:
+            with rec_lock:
+                stream = session["stream"]
+                if stream is None or session["mode"] != mode:
+                    return
+                session["stream"] = None
+                stream.stop(); stream.close()
+                data = np.concatenate(session["chunks"]) if session["chunks"] else np.zeros((0, 1), dtype="float32")
+            audio = data.reshape(-1).astype("float32")
+            if audio.size < self.cfg.audio.sample_rate * 0.2:
+                log.info("too short, ignoring")
+                return
+            try:
+                text = stt.transcribe(audio)
+            except Exception as e:  # noqa: BLE001
+                log.error("transcription failed: %s", e)
+                _notify(f"Transcription failed: {e}", mc)
+                return
+            log.info("transcript (%s): %r", mode, text)
+            if not text:
+                return
+            if mode == "dictation":
+                from .actions import keyboard
+                res = keyboard.type_text(text)
+                if res.ok:
+                    _play("typed")
+                else:
+                    log.warning("dictation typing failed: %s", res.detail)
+                    _notify(f"Could not type text: {res.detail}", mc)
+                return
+            self.handle_utterance(text)
+
+        keys = {
+            mc.dictation_key: (lambda: start("dictation"), lambda: stop("dictation")),
+            mc.assistant_key: (lambda: start("assistant"), lambda: stop("assistant")),
+        }
+        mac_hotkey.listen_many(keys, backend=mc.hotkey_backend)
 
     def run_bridge(self) -> None:
         from .voice import vocalinux_bridge
@@ -236,7 +325,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.text:
         return 0 if app.handle_utterance(args.text) else 1
 
-    if args.bridge or app.cfg.general.trigger == "bridge":
+    from . import platform
+    if platform.is_macos():
+        if args.bridge or app.cfg.general.trigger == "bridge":
+            log.info("vocalinux bridge is Linux-only; using the native macOS voice loop")
+        app.run_macos()
+    elif args.bridge or app.cfg.general.trigger == "bridge":
         app.run_bridge()
     else:
         app.run_hotkey()

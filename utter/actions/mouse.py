@@ -23,6 +23,7 @@ import os
 import subprocess
 import time
 
+from utter import platform
 from utter.types import Action, ActionResult, Tier
 
 _TIMEOUT = 5.0
@@ -116,6 +117,10 @@ def _abs_xy(x: int, y: int) -> tuple[int, int, float]:
 
 def move_to(x: int, y: int) -> ActionResult:
     """Move the pointer to logical (x, y) without clicking (useful for hover)."""
+    if platform.is_macos():
+        from utter.macos import pointer
+
+        return pointer.move_to(x, y)
     t0 = time.perf_counter()
     px, py, factor = _abs_xy(x, y)
     ok, err = _run(["ydotool", "mousemove", "--absolute", "-x", str(px), "-y", str(py)])
@@ -127,6 +132,10 @@ def move_to(x: int, y: int) -> ActionResult:
 
 def click_point(x: int, y: int, button: str = "left") -> ActionResult:
     """Move the pointer to logical (x, y) and click `button`."""
+    if platform.is_macos():
+        from utter.macos import pointer
+
+        return pointer.click_point(x, y, button)
     t0 = time.perf_counter()
     code = _BUTTONS.get(str(button).strip().casefold())
     if code is None:
@@ -149,6 +158,10 @@ def click_point(x: int, y: int, button: str = "left") -> ActionResult:
 
 def scroll(direction: str, amount: int = 3) -> ActionResult:
     """Scroll the wheel: direction in up/down/left/right, `amount` steps."""
+    if platform.is_macos():
+        from utter.macos import pointer
+
+        return pointer.scroll(direction, amount)
     t0 = time.perf_counter()
     vec = _SCROLL_DIR.get(str(direction).strip().casefold())
     if vec is None:

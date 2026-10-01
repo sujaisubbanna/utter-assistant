@@ -75,3 +75,22 @@ window_s = 6
 
 [daemon]
 log_level = "INFO"
+
+[macos]
+# Only read on macOS; Linux ignores this whole section (see docs/MACOS.md).
+# Speech-to-text: Apple Speech.framework first, local whisper.cpp as fallback.
+stt_backend = "apple_speech"     # apple_speech | whisper_cpp | faster_whisper | vocamac
+stt_fallback = "whisper_cpp"
+speech_locale = "en-US"
+on_device_only = true            # never send audio to Apple's servers
+# Spoken replies: the system `say` command, or AVSpeechSynthesizer via PyObjC.
+tts_backend = "say"              # say | avspeech | none
+tts_voice = ""                   # empty = system default voice
+tts_rate = 0                     # words per minute; 0 = default
+# Push-to-talk keys (Quartz event tap; needs Accessibility/Input Monitoring).
+hotkey_backend = "quartz"        # quartz | pynput
+dictation_key = "right_option"   # transcript is typed into the focused field
+assistant_key = "right_command"  # transcript is run as a desktop action
+# Key presses and typed text: Quartz CGEventPost, AppleScript as fallback.
+injection = "quartz"             # quartz | applescript
+notifications = true             # macOS notification banners for replies/errors
