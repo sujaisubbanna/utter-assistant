@@ -1,6 +1,8 @@
 # Install & model store
 
-Target: Linux only (Wayland/niri first). Nothing here touches macOS/Windows.
+Target: Linux on Wayland — **niri** and **KDE Plasma (KWin)** are first-class, other compositors
+get partial support (dictation, typing, launching; no window actions). **macOS is experimental**
+(see [`MACOS.md`](MACOS.md)); Windows is not supported.
 
 ## 1. Installer
 

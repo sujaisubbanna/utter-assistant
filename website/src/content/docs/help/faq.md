@@ -29,14 +29,18 @@ or change the time under **Sleep when idle** on the General page, or set `[sleep
 
 ### Does it work on X11, GNOME, KDE, Hyprland, sway?
 
-Utter targets **Wayland**, and the niri compositor is the first-class target for window and
-workspace actions. The generic tools it uses (`wtype`, `ydotool`, `grim`, `wl-clipboard`,
-PipeWire, MPRIS, AT-SPI) work across Wayland compositors, but compositor-specific actions
-(focus, move, workspaces) are implemented against `niri msg`. X11 is not supported.
+Utter targets **Wayland**. **niri** and **KDE Plasma (KWin)** are first-class: a small compositor
+layer detects which one is running and uses its native interface for window and workspace actions
+(`niri msg` on niri, KWin's D-Bus interfaces on Plasma). Other Wayland compositors get partial
+support — the generic tools it uses (`wtype`, `ydotool`, `grim`, `wl-clipboard`, PipeWire, MPRIS,
+AT-SPI) work across compositors, so dictation, typing and launching work, but compositor-specific
+actions (focus, move, workspaces) are not implemented for them. X11 is not supported.
 
 ### Windows or macOS?
 
-Both are on the roadmap and neither has started. Nothing in the current code touches them.
+**macOS is experimental** — native `Speech.framework` + whisper.cpp voice, Quartz push-to-talk and
+injection, and an unsigned `.dmg`; it has not been tested on real Apple hardware. See
+[macOS](/guides/macos/). **Windows is not supported** and has not been started.
 
 ### What is the difference between the assistant key and the dictation key?
 
