@@ -19,8 +19,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Release workflow: a `build-macos` job on `macos-14` that builds the macOS core tarball and
   an **unsigned** `.app`/`.dmg` of the settings app and attaches them to the release
   (`sha256sums-macos.txt`). The Linux job is unchanged.
+- Settings app on macOS: a **Set up** onboarding page (Raycast-style) that lists the
+  Microphone, Speech Recognition, Input Monitoring, Accessibility and Screen Recording
+  permissions with live status, a Grant button that triggers the system prompt from the
+  daemon's own Python, and deep links into System Settings; launchd-backed service rows and
+  log tail; macOS variants of the Voice and Spoken replies pages that edit `[macos]`.
+  New `assistant macos-permissions` CLI. Linux builds are unchanged (`platform_info`).
 - `tests/platform/test_macos_detection.py` (run by `scripts/verify.sh` on Linux) covers the
-  detection, config defaults, STT chain selection, key tables, chord parsing and dispatch.
+  detection, config defaults, STT chain selection, key tables, chord parsing, dispatch and
+  the permissions table/CLI.
 
 ## [0.2.0] - 2026-10-01
 

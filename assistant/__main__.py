@@ -43,6 +43,35 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_macos_permissions(args: argparse.Namespace) -> int:
+    """Status (and optional prompting) of the macOS privacy permissions.
+
+    Runs inside the daemon's own interpreter so the TCC prompts attach to the
+    binary launchd starts, not to the settings app. On Linux every status is
+    ``unknown`` and nothing is prompted.
+    """
+    from utter.macos import permissions
+
+    names = None
+    request = False
+    if args.request:
+        request = True
+        if args.request != "all":
+            names = [n.strip() for n in args.request.split(",") if n.strip()]
+            unknown = [n for n in names if n not in permissions.PERMISSION_IDS]
+            if unknown:
+                util.eprint(f"unknown permission(s): {', '.join(unknown)}")
+                return 2
+    doc = permissions.status_all(request=request, names=names)
+    if args.json:
+        util.emit(doc)
+    else:
+        for item in doc["permissions"]:
+            print(f"{item['status']:<15} {item['label']}")
+        print("all granted" if doc["all_granted"] else "missing permissions")
+    return 0 if doc["all_granted"] else 1
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     client = RunnerClient(util.runner_sock_path(), timeout=args.timeout)
     try:
@@ -173,6 +202,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.add_argument("--json", action="store_true")
     p_status.add_argument("--timeout", type=float, default=10.0)
     p_status.set_defaults(func=cmd_status)
+
+    p_perm = sub.add_parser("macos-permissions",
+                            help="macOS privacy permissions status (+ prompt with --request)")
+    p_perm.add_argument("--json", action="store_true")
+    p_perm.add_argument("--request", default=None, metavar="NAME|all",
+                        help="trigger the system prompt for one permission (or 'all')")
+    p_perm.set_defaults(func=cmd_macos_permissions)
 
     p_models = sub.add_parser("models", help="model store")
     msub = p_models.add_subparsers(dest="models_action", required=True)

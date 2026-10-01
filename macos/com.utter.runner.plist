@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd user agent for the utter plugin runner (the settings app talks to it) on macOS.
+
+  Installed by macos/setup.sh to ~/Library/LaunchAgents/com.utter.runner.plist
+  with the @PLACEHOLDERS@ filled in. Manage it with:
+
+      launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.utter.runner.plist
+      launchctl bootout   gui/$(id -u)/com.utter.runner
+      launchctl kickstart -k gui/$(id -u)/com.utter.runner
+
+  The agent needs Microphone, Speech Recognition, Accessibility, Input Monitoring
+  and Screen Recording permissions, granted to the *python* binary it runs.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.utter.runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@PYTHON@</string>
+    <string>-m</string>
+    <string>runner</string>
+    <string>--config</string>
+    <string>@REPO@/runner/config.example.toml</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@REPO@</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>
+    <string>@REPO@</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>@LOGDIR@/runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>@LOGDIR@/runner.log</string>
+</dict>
+</plist>

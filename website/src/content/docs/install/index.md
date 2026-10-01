@@ -14,7 +14,8 @@ and asks whether you want it. In a terminal, Enter accepts the recommended defau
 accepts them all non-interactively. Every download is verified against the release's
 `sha256sums.txt`.
 
-Pick the path that suits you.
+Pick the path that suits you. On a Mac none of these apply: see
+[macOS (experimental)](/guides/macos/) for the `.dmg` and `macos/setup.sh`.
 
 ## 1. Clone and install
 

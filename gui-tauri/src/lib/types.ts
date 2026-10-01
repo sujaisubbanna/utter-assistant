@@ -19,6 +19,30 @@ export interface AppInfo {
   runner_sock: string;
 }
 
+export interface PlatformInfo {
+  os: string;
+  arch: string;
+  macos: boolean;
+}
+
+export interface PermissionItem {
+  id: string;
+  label: string;
+  why: string;
+  status: "granted" | "denied" | "not_determined" | "unknown" | string;
+  settings_url: string;
+}
+
+export interface PermissionReport {
+  ok?: boolean;
+  error?: string;
+  platform?: string;
+  process?: string;
+  all_granted?: boolean;
+  permissions: PermissionItem[];
+  ts?: number;
+}
+
 export interface BootParams {
   route?: string | null;
   theme?: string | null;

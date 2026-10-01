@@ -113,6 +113,49 @@ run `xattr -dr com.apple.quarantine /Applications/utter.app`. Its service page
 still talks to `systemctl` and will show the services as unavailable on macOS;
 use `launchctl` (see the plist header) until that page grows a launchd backend.
 
+## First run: the Set up page
+
+On a Mac the settings app opens on **Set up** the first time (and keeps it in the
+sidebar). It is modelled on how Raycast onboards: one screen that lists every
+permission, says why it is needed, has a **Grant access** button that triggers
+the system prompt, an **Open System Settings** button that deep-links to the
+exact pane (`x-apple.systempreferences:com.apple.preference.security?Privacy_…`),
+and a status badge that re-checks every few seconds until everything is green.
+Below the permissions it shows the two launchd agents (plugin runner, voice
+assistant) with a Start button.
+
+The checks and prompts run in the **daemon's python**, not in the settings app:
+macOS attaches privacy permissions to the process that asks, and the process
+that needs them is the interpreter launchd starts. The app just runs
+`python -m assistant macos-permissions --json` (and `--request <name>`), and the
+daemon repeats the probe at startup and writes
+`~/Library/Application Support/utter/permissions.json`. From a terminal:
+
+```bash
+.venv-macos/bin/python -m assistant macos-permissions            # table
+.venv-macos/bin/python -m assistant macos-permissions --request all
+```
+
+macOS only shows each prompt once; after a refusal the row's button opens the
+pane so you can flip the switch by hand. Accessibility and Input Monitoring have
+no prompt-then-allow flow at all: the prompt only opens System Settings.
+
+### What the settings app looks like on a Mac
+
+The same Tauri app, built as `utter.app`, with platform-aware pages:
+
+| Page | macOS behaviour |
+|---|---|
+| Set up | permissions onboarding + launchd agents (macOS only) |
+| General | the service rows are backed by `launchctl` (`com.utter.runner`, `com.utter.assistant`); vision/planner/audio units show as not installed |
+| Voice | writes `[macos]`: push-to-talk keys by name (Right ⌘ / Right ⌥ …), Apple Speech / whisper.cpp / VocaMac engine + fallback, locale, on-device switch |
+| Spoken replies | `say` / AVSpeechSynthesizer, voice name, rate, with a test button |
+| Troubleshooting | log tail reads `~/Library/Logs/utter/*.log` instead of `journalctl` |
+| Models, App actions, AI model, Screen, Plugins, Safety | unchanged |
+
+Linux builds never show the macOS pages: the switch is `std::env::consts::OS` in
+the Rust backend, exposed as `platform_info`.
+
 ## Configuration
 
 Everything macOS-specific lives in one section. Linux ignores it entirely.
@@ -165,7 +208,11 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
 - `screencapture` + Retina point/pixel geometry handling in the vision tier
 - runner socket peer credentials via `LOCAL_PEERCRED` / `LOCAL_PEERPID` and
   `proc_pidpath` (replaces `SO_PEERCRED` + `/proc`)
-- the launchd agent and `macos/setup.sh`
+- the launchd agents and `macos/setup.sh`
+- the Set up page: permission probes (`AVCaptureDevice`, `SFSpeechRecognizer`,
+  `IOHIDCheckAccess`, `AXIsProcessTrustedWithOptions`,
+  `CGPreflightScreenCaptureAccess`), System Settings deep links, `launchctl`
+  status/start/stop mapping in the settings app
 - the unsigned `.app` / `.dmg` produced by the `build-macos` CI job
 
 **Linux-only (no macOS equivalent yet)**
@@ -179,8 +226,8 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
 - the Noctalia widget and on-screen display
 - `ydotool`, `wtype`, `grim`, `wl-paste`, `keyd`, systemd units, the sandbox
   wrapper (`systemd-run` / `bwrap`; the runner runs unhardened on macOS)
-- the Linux installer wizard, AppImage/deb/rpm packages, and the settings app's
-  service controls (`systemctl`)
+- the Linux installer wizard and AppImage/deb/rpm packages
+- Matugen desktop colours and the Noctalia-specific rows in the settings app
 
 **Known gaps**
 

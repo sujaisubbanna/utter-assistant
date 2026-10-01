@@ -12,7 +12,9 @@ import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
 import { linkFor } from "../lib/links";
+import { usePlatform } from "../lib/platform";
 import { optionLabel, TTS_ENGINES } from "../lib/services";
+import { TtsMacPage } from "./TtsMac";
 
 const ENGINE_BINARY: Record<string, string> = {
   "espeak-ng": "espeak-ng",
@@ -22,6 +24,12 @@ const ENGINE_BINARY: Record<string, string> = {
 };
 
 export function TtsPage() {
+  const { isMac } = usePlatform();
+  if (isMac) return <TtsMacPage />;
+  return <TtsLinuxPage />;
+}
+
+function TtsLinuxPage() {
   const t = useT();
   const { get, set } = useConfig();
   const toast = useToast();

@@ -130,6 +130,10 @@ pub fn run() {
             commands::stop_log_tail,
             commands::get_theme_palette,
             commands::export_bundle,
+            commands::platform_info,
+            commands::open_settings_pane,
+            commands::macos_permissions,
+            commands::macos_request_permission,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

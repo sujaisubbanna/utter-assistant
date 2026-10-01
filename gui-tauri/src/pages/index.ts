@@ -9,10 +9,12 @@ import { ModelsPage } from "./Models";
 import { PerceptionPage } from "./Perception";
 import { PluginsPage } from "./Plugins";
 import { SafetyPage } from "./Safety";
+import { SetupPage } from "./Setup";
 import { TtsPage } from "./Tts";
 import { VoicePage } from "./Voice";
 
 export const PAGES: Record<string, ComponentType> = {
+  setup: SetupPage,
   general: GeneralPage,
   voice: VoicePage,
   models: ModelsPage,

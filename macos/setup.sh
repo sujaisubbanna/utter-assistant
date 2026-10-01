@@ -23,7 +23,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 VENV="$REPO/.venv-macos"
 LABEL="com.utter.assistant"
+RUNNER_LABEL="com.utter.runner"
 AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
+RUNNER_AGENT="$HOME/Library/LaunchAgents/$RUNNER_LABEL.plist"
 LOGDIR="$HOME/Library/Logs/utter"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/utter"
 WITH_AGENT=1
@@ -33,8 +35,9 @@ for arg in "$@"; do
         --no-agent) WITH_AGENT=0 ;;
         --uninstall)
             launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-            rm -f "$AGENT"
-            echo "removed launchd agent ($AGENT). The virtualenv at $VENV and your config were kept."
+            launchctl bootout "gui/$(id -u)/$RUNNER_LABEL" 2>/dev/null || true
+            rm -f "$AGENT" "$RUNNER_AGENT"
+            echo "removed launchd agents ($AGENT, $RUNNER_AGENT). The virtualenv at $VENV and your config were kept."
             exit 0 ;;
         -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown argument: $arg" >&2; exit 2 ;;
@@ -65,9 +68,19 @@ if [[ "$WITH_AGENT" == "1" ]]; then
         -e "s|@REPO@|$REPO|g" \
         -e "s|@LOGDIR@|$LOGDIR|g" \
         "$SCRIPT_DIR/$LABEL.plist" > "$AGENT"
-    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+    sed -e "s|@PYTHON@|$VENV/bin/python|g" \
+        -e "s|@REPO@|$REPO|g" \
+        -e "s|@LOGDIR@|$LOGDIR|g" \
+        "$SCRIPT_DIR/$RUNNER_LABEL.plist" > "$RUNNER_AGENT"
+    for label in "$RUNNER_LABEL" "$LABEL"; do
+        launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+    done
+    launchctl bootstrap "gui/$(id -u)" "$RUNNER_AGENT"
     launchctl bootstrap "gui/$(id -u)" "$AGENT"
-    echo "launchd agent installed: $AGENT (logs: $LOGDIR/utter.log)"
+    echo "launchd agents installed: $RUNNER_AGENT, $AGENT (logs: $LOGDIR/)"
+    # Ask for the privacy permissions from the daemon's python so the prompts
+    # attach to that binary (the settings app's Setup page does the same).
+    "$VENV/bin/python" -m assistant macos-permissions --request all || true
 fi
 
 cat <<EOF

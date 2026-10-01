@@ -1,5 +1,6 @@
 import { useT } from "../i18n";
-import { NAV } from "../lib/nav";
+import { navFor } from "../lib/nav";
+import { usePlatform } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { Icon, type IconName } from "./icons";
 import { Logo } from "./Logo";
@@ -59,10 +60,12 @@ export function Sidebar({
   version: string;
 }) {
   const t = useT();
+  const { isMac } = usePlatform();
+  const groups = navFor(isMac);
   return (
     <aside className="flex w-[224px] shrink-0 flex-col bg-chrome max-[879px]:w-[60px]">
       <nav className="flex-1 overflow-y-auto px-3 pb-3 pt-1 max-[879px]:px-2" aria-label={t("nav.sections")}>
-        {NAV.map((group, index) => (
+        {groups.map((group, index) => (
           <div key={group.labelKey} className={cn(index > 0 && "mt-5")}>
             <div className="eyebrow px-2.5 pb-1.5 max-[879px]:sr-only">{t(group.labelKey)}</div>
             <div className="space-y-px">

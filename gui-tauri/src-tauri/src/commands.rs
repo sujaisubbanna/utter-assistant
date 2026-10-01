@@ -73,6 +73,167 @@ fn err(message: impl Into<String>) -> String {
 }
 
 // --------------------------------------------------------------------------- //
+// platform (macOS vs Linux)
+// --------------------------------------------------------------------------- //
+pub const IS_MACOS: bool = cfg!(target_os = "macos");
+
+/// systemd unit -> launchd label. Units with no macOS counterpart map to None
+/// and are reported as "not-found", so the General page needs no platform code.
+fn launchd_label(unit: &str) -> Option<&'static str> {
+    match unit {
+        "utter-runner" => Some("com.utter.runner"),
+        "utter-bridge" => Some("com.utter.assistant"),
+        _ => None,
+    }
+}
+
+fn launchd_log(unit: &str) -> Option<&'static str> {
+    match unit {
+        "utter-runner" => Some("runner.log"),
+        "utter-bridge" => Some("utter.log"),
+        _ => None,
+    }
+}
+
+fn current_uid() -> String {
+    std::process::Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| fallback_uid().to_string())
+}
+
+fn launchd_target(label: &str) -> String {
+    format!("gui/{}/{label}", current_uid())
+}
+
+/// `launchctl print gui/<uid>/<label>` -> the UnitStatus shape systemd users expect.
+fn parse_launchctl_print(unit: &str, text: &str, found: bool) -> UnitStatus {
+    if !found {
+        return UnitStatus {
+            id: unit.to_string(),
+            load_state: "not-found".to_string(),
+            ..Default::default()
+        };
+    }
+    let mut state = String::new();
+    let mut pid: Option<String> = None;
+    for raw in text.lines() {
+        let line = raw.trim();
+        if let Some(value) = line.strip_prefix("state = ") {
+            state = value.trim().to_string();
+        } else if let Some(value) = line.strip_prefix("pid = ") {
+            pid = Some(value.trim().to_string());
+        }
+    }
+    let running = state == "running" || pid.is_some();
+    UnitStatus {
+        id: unit.to_string(),
+        load_state: "loaded".to_string(),
+        active_state: if running { "active" } else { "inactive" }.to_string(),
+        sub_state: if running { "running" } else { "dead" }.to_string(),
+        // launchd agents installed by macos/setup.sh run at login.
+        unit_file_state: "enabled".to_string(),
+    }
+}
+
+#[derive(Serialize)]
+pub struct PlatformInfo {
+    pub os: String,
+    pub arch: String,
+    pub macos: bool,
+}
+
+#[tauri::command]
+pub fn platform_info() -> PlatformInfo {
+    PlatformInfo {
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        macos: IS_MACOS,
+    }
+}
+
+/// Privacy panes the Setup page may deep-link to (System Settings -> Privacy & Security).
+const SETTINGS_PANES: &[&str] = &[
+    "Privacy_Microphone",
+    "Privacy_SpeechRecognition",
+    "Privacy_ListenEvent",
+    "Privacy_Accessibility",
+    "Privacy_ScreenCapture",
+    "Privacy",
+];
+
+/// Open a System Settings privacy pane (macOS only; the pane is allow-listed).
+#[tauri::command]
+pub fn open_settings_pane(pane: String) -> Result<(), String> {
+    if !IS_MACOS {
+        return Err("System Settings deep links only exist on macOS".to_string());
+    }
+    if !SETTINGS_PANES.contains(&pane.as_str()) {
+        return Err(format!("pane not allowed: {pane}"));
+    }
+    let url = format!("x-apple.systempreferences:com.apple.preference.security?{pane}");
+    std::process::Command::new("open")
+        .arg(url)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|mut child| {
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        })
+        .map_err(|error| error.to_string())
+}
+
+/// Status of the macOS privacy permissions, probed by the daemon's own python
+/// (`assistant macos-permissions --json`) so the result reflects the binary
+/// launchd runs, not this app.
+#[tauri::command]
+pub async fn macos_permissions(state: State<'_, AppState>) -> Result<Value, String> {
+    let cmd = state.assistant(&["macos-permissions", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| error.to_string())?;
+        Ok(parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        ))
+    })
+    .await
+}
+
+/// Trigger the system prompt for one permission (or "all") from the daemon's python.
+#[tauri::command]
+pub async fn macos_request_permission(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<Value, String> {
+    const ALLOWED: &[&str] = &[
+        "all",
+        "microphone",
+        "speech_recognition",
+        "input_monitoring",
+        "accessibility",
+        "screen_recording",
+    ];
+    if !ALLOWED.contains(&name.as_str()) {
+        return Err(format!("permission not allowed: {name}"));
+    }
+    let cmd = state.assistant(&["macos-permissions", "--json", "--request", name.as_str()]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| error.to_string())?;
+        Ok(parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        ))
+    })
+    .await
+}
+
+// --------------------------------------------------------------------------- //
 // app / environment
 // --------------------------------------------------------------------------- //
 #[derive(Serialize)]
@@ -367,6 +528,30 @@ pub async fn systemctl_show(
     state: State<'_, AppState>,
     units: Vec<String>,
 ) -> Result<Vec<UnitStatus>, String> {
+    if IS_MACOS {
+        return blocking(move || {
+            let mut statuses = Vec::new();
+            for unit in &units {
+                let status = match launchd_label(unit) {
+                    None => parse_launchctl_print(unit, "", false),
+                    Some(label) => {
+                        let out = Cmd::new("launchctl")
+                            .args(["print", &launchd_target(label)])
+                            .output();
+                        match out {
+                            Ok(out) if out.status.success() => {
+                                parse_launchctl_print(unit, &String::from_utf8_lossy(&out.stdout), true)
+                            }
+                            _ => parse_launchctl_print(unit, "", false),
+                        }
+                    }
+                };
+                statuses.push(status);
+            }
+            Ok(statuses)
+        })
+        .await;
+    }
     let mut cmd = state.systemctl(&["show"]);
     for unit in &units {
         cmd = cmd.arg(unit.clone());
@@ -390,6 +575,22 @@ pub async fn systemctl(
     }
     if !UNITS.contains(&unit.as_str()) {
         return Err(format!("unit not allowed: {unit}"));
+    }
+    if IS_MACOS {
+        let Some(label) = launchd_label(&unit) else {
+            return Err(format!("{unit} has no launchd agent on macOS"));
+        };
+        let target = launchd_target(label);
+        let cmd = match action.as_str() {
+            "start" => Cmd::new("launchctl").args(["kickstart", &target]),
+            "restart" => Cmd::new("launchctl").args(["kickstart", "-k", &target]),
+            "stop" => Cmd::new("launchctl").args(["kill", "SIGTERM", &target]),
+            "enable" => Cmd::new("launchctl").args(["enable", &target]),
+            "disable" => Cmd::new("launchctl").args(["disable", &target]),
+            "is-active" | "is-enabled" => Cmd::new("launchctl").args(["print", &target]),
+            other => return Err(format!("action not allowed: {other}")),
+        };
+        return blocking(move || Ok(CmdResult::from_output(cmd.output()))).await;
     }
     let cmd = state.systemctl(&[action.as_str(), unit.as_str()]);
     blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
@@ -450,6 +651,9 @@ pub async fn tts_test(
         "espeak" => Cmd::new("espeak").arg("-v").arg(voice).arg(text),
         "spd-say" => Cmd::new("spd-say").arg("-v").arg(voice).arg(text),
         "piper" => Cmd::new("piper").arg("--output-raw").arg("--model").arg(voice).arg(text),
+        // macOS: the system `say` CLI; "en" is the Linux default, meaning "system voice".
+        "say" | "avspeech" if voice == "en" => Cmd::new("say").arg("--").arg(text),
+        "say" | "avspeech" => Cmd::new("say").arg("-v").arg(voice).arg("--").arg(text),
         other => return Err(format!("unsupported engine: {other}")),
     };
     blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
@@ -663,17 +867,26 @@ pub fn start_log_tail(
     }
     state.kill_child(&tail_id);
 
-    let cmd = Cmd::new("journalctl").args([
-        "--user",
-        "-u",
-        &unit,
-        "-n",
-        "200",
-        "-o",
-        "short-iso",
-        "--no-pager",
-        "-f",
-    ]);
+    let cmd = if IS_MACOS {
+        let Some(file) = launchd_log(&unit) else {
+            return Err(format!("{unit} has no log on macOS"));
+        };
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let path = format!("{home}/Library/Logs/utter/{file}");
+        Cmd::new("tail").args(["-n", "200", "-F", &path])
+    } else {
+        Cmd::new("journalctl").args([
+            "--user",
+            "-u",
+            &unit,
+            "-n",
+            "200",
+            "-o",
+            "short-iso",
+            "--no-pager",
+            "-f",
+        ])
+    };
     let mut child = cmd.spawn_piped().map_err(|error| error.to_string())?;
     let stdout = child.stdout.take().ok_or_else(|| err("no stdout pipe"))?;
     let children = state.children.clone();

@@ -228,6 +228,16 @@ class Utter:
         from .voice.stt import Transcriber
 
         mc = self.cfg.macos
+        try:
+            from .macos import permissions
+            doc = permissions.status_all(request=True)
+            missing = [p["label"] for p in doc["permissions"] if p["status"] != permissions.GRANTED]
+            if missing:
+                log.warning("macOS permissions missing: %s (System Settings -> Privacy & Security)",
+                            ", ".join(missing))
+                _notify("Utter needs permissions: " + ", ".join(missing), mc)
+        except Exception as e:  # noqa: BLE001 - never block startup on the probe
+            log.debug("permission probe failed: %s", e)
         stt = Transcriber.for_platform(self.cfg)
         log.info("macOS voice: stt chain=%s dictation=%s assistant=%s hotkeys=%s",
                  [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)

@@ -297,6 +297,49 @@ check("notification applescript escapes", notify.applescript_notification('a "b"
 check("clipboard: linux uses wl-paste", clipboard.commands_for("linux")[0][0] == "wl-paste")
 check("clipboard: darwin uses pbpaste", clipboard.commands_for("darwin")[0][0] == "pbpaste")
 
+# --------------------------------------------------------------------------- #
+# 9. permissions (onboarding): table, deep links, Linux = unknown, state file, CLI
+# --------------------------------------------------------------------------- #
+import json  # noqa: E402
+import subprocess  # noqa: E402
+
+from utter.macos import permissions as perms  # noqa: E402
+
+check("permissions: five in onboarding order", perms.PERMISSION_IDS
+      == ["microphone", "speech_recognition", "input_monitoring", "accessibility", "screen_recording"])
+check("permissions: deep link for input monitoring", perms.settings_url("input_monitoring")
+      == "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+check("permissions: deep link for accessibility", perms.settings_url("accessibility").endswith("?Privacy_Accessibility"))
+try:
+    perms.settings_url("nope")
+    check("permissions: unknown id raises", False)
+except KeyError:
+    check("permissions: unknown id raises", True)
+with forced("linux"):
+    check("permissions: linux check -> unknown, no prompt", perms.check("accessibility") == perms.UNKNOWN
+          and perms.request("microphone") == perms.UNKNOWN)
+with tempfile.TemporaryDirectory() as tmp:
+    os.environ["UTTER_PERMISSIONS_FILE"] = str(Path(tmp) / "perm.json")
+    try:
+        with forced("linux"):
+            doc = perms.status_all(request=True)
+        on_disk = json.loads((Path(tmp) / "perm.json").read_text())
+        check("permissions: status_all writes the state file", on_disk["permissions"][0]["id"] == "microphone"
+              and on_disk["all_granted"] is False and on_disk["platform"] == "linux")
+        check("permissions: every item carries a settings_url", all(i["settings_url"].startswith("x-apple.")
+                                                                      for i in doc["permissions"]))
+        check("permissions: read_state round-trips", perms.read_state()["ts"] == on_disk["ts"])
+        env = dict(os.environ, UTTER_PLATFORM="linux")
+        proc = subprocess.run([sys.executable, "-m", "assistant", "macos-permissions", "--json"],
+                              capture_output=True, text=True, env=env, cwd=str(Path(__file__).resolve().parents[2]))
+        cli = json.loads(proc.stdout)
+        check("CLI: assistant macos-permissions --json", proc.returncode == 1 and len(cli["permissions"]) == 5)
+        proc = subprocess.run([sys.executable, "-m", "assistant", "macos-permissions", "--request", "bogus"],
+                              capture_output=True, text=True, env=env, cwd=str(Path(__file__).resolve().parents[2]))
+        check("CLI: unknown permission is rejected", proc.returncode == 2)
+    finally:
+        os.environ.pop("UTTER_PERMISSIONS_FILE", None)
+
 # runner: darwin peer-cred helpers exist and fail closed on a bogus socket
 from runner import socket as rsock  # noqa: E402
 

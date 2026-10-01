@@ -22,7 +22,15 @@ def xdg_state_home() -> Path:
 
 
 def xdg_runtime_dir() -> Path:
-    return Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    override = os.environ.get("XDG_RUNTIME_DIR")
+    if override:
+        return Path(override)
+    linux_default = Path(f"/run/user/{os.getuid()}")
+    if linux_default.is_dir():
+        return linux_default
+    # macOS has no XDG runtime dir; mirror runner.socket.default_socket_path().
+    import tempfile
+    return Path(tempfile.gettempdir()) / f"utter-{os.getuid()}"
 
 
 def models_root() -> Path:

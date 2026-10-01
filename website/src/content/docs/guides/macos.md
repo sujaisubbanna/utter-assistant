@@ -48,6 +48,26 @@ Recognition**, **Input Monitoring**, **Accessibility** and **Screen Recording**.
 
 The Linux installer (`install.sh`) refuses to run on macOS and points you here.
 
+## First run: the Set up page
+
+On a Mac the settings app opens on **Set up** the first time. Like Raycast's onboarding it
+lists each permission with a one-line reason, a **Grant access** button that triggers the
+macOS prompt, an **Open System Settings** button that jumps to the exact pane, and a status
+badge that re-checks live until everything is granted. The two launchd agents (plugin runner
+and voice assistant) are shown underneath with a Start button.
+
+The prompts come from the assistant's own Python, not from the app window, because macOS
+grants permissions to the process that asks. That is the name you will see in System
+Settings. The same check works from a terminal:
+
+```bash
+.venv-macos/bin/python -m assistant macos-permissions --request all
+```
+
+The rest of the app adapts too: **Voice** edits the `[macos]` keys and engines, **Spoken
+replies** offers the system voices, **General** controls the launchd agents, and
+**Troubleshooting** tails `~/Library/Logs/utter/`.
+
 ## Configuration
 
 ```toml
