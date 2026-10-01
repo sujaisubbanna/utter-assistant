@@ -37,7 +37,7 @@ class AudioConfig:
 class STTConfig:
     backend: str = "faster_whisper"
     model: str = "distil-small.en"
-    device: str = "cuda"
+    device: str = "cuda"  # Linux default (CUDA/NVIDIA; ignored on macOS)
     compute_type: str = "float16"
 
 
@@ -56,7 +56,7 @@ class VisionConfig:
     base_url: str = "http://127.0.0.1:8000/v1"
     model: str = "uitars"
     target_width: int = 1344
-    cuda_visible_devices: str = "1"
+    cuda_visible_devices: str = "1"  # Linux default (RTX 3090 Ti; ignored on macOS)
 
 
 @dataclass
@@ -99,6 +99,22 @@ class OsdConfig:
 
 
 @dataclass
+class MacosRuntimeConfig:
+    """Ready-made Metal runtime backends for macOS (``[macos.runtime]``).
+
+    External inference tools running on Apple Silicon via Metal:
+      - LLM: Ollama (primary), LM Studio, llama.cpp, or MLX
+      - Vision: local VLM (e.g. llama3.2-vision, qwen2.5-vl) served by Ollama/LM Studio
+    """
+    llm_provider: str = "ollama"           # ollama | lm_studio | llamacpp | mlx
+    llm_base_url: str = "http://127.0.0.1:11434/v1"
+    llm_model: str = "qwen2.5:3b"
+    vision_provider: str = "ollama"        # ollama | lm_studio | llamacpp
+    vision_base_url: str = "http://127.0.0.1:11434/v1"
+    vision_model: str = "llama3.2-vision:11b"
+
+
+@dataclass
 class MacosConfig:
     """macOS-only settings (``[macos]``). Ignored on Linux.
 
@@ -127,6 +143,14 @@ class MacosConfig:
     # fallback, or "applescript" only.
     injection: str = "quartz"
     notifications: bool = True
+    # Ready-made Metal runtime backends (Ollama primary; LM Studio / llama.cpp alternatives).
+    runtime: MacosRuntimeConfig = field(default_factory=MacosRuntimeConfig)
+    llm_provider: str = "ollama"
+    llm_base_url: str = "http://127.0.0.1:11434/v1"
+    llm_model: str = "qwen2.5:3b"
+    vision_provider: str = "ollama"
+    vision_base_url: str = "http://127.0.0.1:11434/v1"
+    vision_model: str = "llama3.2-vision:11b"
 
 
 @dataclass
@@ -176,7 +200,11 @@ class Config:
 def _merge(dc, data: dict):
     for key, value in (data or {}).items():
         if hasattr(dc, key) and not isinstance(getattr(dc, key), type):
-            setattr(dc, key, value)
+            attr = getattr(dc, key)
+            if hasattr(attr, "__dataclass_fields__") and isinstance(value, dict):
+                _merge(attr, value)
+            else:
+                setattr(dc, key, value)
 
 
 def load_config(path: str | os.PathLike | None = None) -> Config:
@@ -201,6 +229,14 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.osd, raw.get("osd", {}))
         _merge(cfg.macos, raw.get("macos", {}))
         _merge(cfg.kwin, raw.get("kwin", {}))
+        # Keep flat [macos] and nested [macos.runtime] fields in sync
+        mac_raw = raw.get("macos", {})
+        mac_rt_raw = mac_raw.get("runtime", {}) if isinstance(mac_raw, dict) else {}
+        for attr in ("llm_provider", "llm_base_url", "llm_model", "vision_provider", "vision_base_url", "vision_model"):
+            if attr in mac_rt_raw:
+                setattr(cfg.macos, attr, getattr(cfg.macos.runtime, attr))
+            elif attr in mac_raw:
+                setattr(cfg.macos.runtime, attr, getattr(cfg.macos, attr))
         if "log_level" in raw.get("daemon", {}):
             cfg.log_level = raw["daemon"]["log_level"]
     return cfg

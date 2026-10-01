@@ -57,6 +57,18 @@ def _compositor_name() -> str:
 
 
 def probe_deps() -> dict[str, bool]:
+    from utter import platform
+    if platform.is_macos():
+        return {
+            "screencapture": bool(util.which("screencapture")),
+            "pbpaste": bool(util.which("pbpaste")),
+            "pbcopy": bool(util.which("pbcopy")),
+            "say": bool(util.which("say")),
+            "afplay": bool(util.which("afplay")),
+            "osascript": bool(util.which("osascript")),
+            "ollama": bool(util.which("ollama")),
+            "vocamac": bool(util.which("VocaMac") or os.path.exists(os.path.expanduser("/Applications/VocaMac.app"))),
+        }
     comp = _compositor_name()
     deps: dict[str, bool] = {}
     if comp == "kwin":

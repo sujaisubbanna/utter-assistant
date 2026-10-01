@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Platform-aware runtime resolution and detection tests.
+
+Verifies:
+  - macOS runtime resolution: Metal GPU, Ollama LLM, Ollama Vision, Apple Speech / whisper.cpp, say.
+  - Linux runtime resolution: CUDA/ROCm GPU, vLLM LLM/Vision, faster-whisper, espeak-ng.
+  - Graceful degradation when external tools (Ollama, VocaMac) are unavailable or not installed.
+  - Config parsing for [macos.runtime] and synchronization with [macos].
+  - CLI settings resolution for macos.runtime keys.
+
+Runs hermetically on Linux by forcing UTTER_PLATFORM=darwin/linux.
+"""
+from __future__ import annotations
+
+import contextlib
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from utter import platform, runtime
+from utter.config import Config, MacosConfig, MacosRuntimeConfig, load_config
+
+
+@contextlib.contextmanager
+def forced_platform(name: str):
+    orig = os.environ.get("UTTER_PLATFORM")
+    os.environ["UTTER_PLATFORM"] = name
+    try:
+        yield
+    finally:
+        if orig is None:
+            os.environ.pop("UTTER_PLATFORM", None)
+        else:
+            os.environ["UTTER_PLATFORM"] = orig
+
+
+class TestMacosRuntime(unittest.TestCase):
+    def test_probe_macos_gpu(self):
+        with forced_platform("darwin"):
+            info = runtime.probe_macos_gpu()
+            self.assertTrue(info["available"])
+            self.assertEqual(info["runtime"], "metal")
+            self.assertIn("Metal", info["name"])
+            self.assertGreaterEqual(info.get("unified_memory_gb", 0), 1.0)
+
+    def test_probe_ollama_unavailable_path(self):
+        """When Ollama is not running, it must return a structured result with no exceptions."""
+        with patch.object(runtime.urllib.request, "urlopen", side_effect=OSError("Connection refused")):
+            with patch("shutil.which", return_value=None):
+                info = runtime.probe_ollama("http://127.0.0.1:11434/v1", timeout=0.1)
+                self.assertFalse(info["installed"])
+                self.assertFalse(info["running"])
+                self.assertEqual(info["models"], [])
+                self.assertEqual(info["status"], "not_installed")
+
+            with patch("shutil.which", return_value="/usr/local/bin/ollama"):
+                info = runtime.probe_ollama("http://127.0.0.1:11434/v1", timeout=0.1)
+                self.assertTrue(info["installed"])
+                self.assertFalse(info["running"])
+                self.assertEqual(info["models"], [])
+                self.assertEqual(info["status"], "stopped")
+
+    def test_probe_ollama_ready_path(self):
+        """When Ollama answers /v1/models, models are parsed and status is ready."""
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"data": [{"id": "qwen2.5:3b"}, {"id": "llama3.2-vision:11b"}]}'
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch.object(runtime.urllib.request, "urlopen", return_value=mock_resp):
+            with patch("shutil.which", return_value="/usr/local/bin/ollama"):
+                info = runtime.probe_ollama("http://127.0.0.1:11434/v1", timeout=0.1)
+                self.assertTrue(info["installed"])
+                self.assertTrue(info["running"])
+                self.assertEqual(info["models"], ["qwen2.5:3b", "llama3.2-vision:11b"])
+                self.assertEqual(info["status"], "ready")
+
+    def test_probe_vocamac_detection(self):
+        with patch.object(runtime.Path, "is_file", return_value=False), patch("shutil.which", return_value=None):
+            info = runtime.probe_vocamac()
+            self.assertFalse(info["installed"])
+            self.assertEqual(info["status"], "not_installed")
+
+        with patch.object(runtime.Path, "is_file", return_value=True):
+            info = runtime.probe_vocamac()
+            self.assertTrue(info["installed"])
+            self.assertEqual(info["status"], "installed")
+
+    def test_probe_runtime_macos_structure_and_degradation(self):
+        """Full probe_runtime on macOS must report all roles without hanging or crashing."""
+        with forced_platform("darwin"):
+            with patch.object(runtime, "probe_http_models", return_value=(False, [], "Connection refused")):
+                with patch("shutil.which", return_value=None):
+                    rep = runtime.probe_runtime()
+                    self.assertEqual(rep["platform"], "darwin")
+                    self.assertEqual(rep["device"], "metal")
+                    self.assertEqual(rep["gpu"]["runtime"], "metal")
+
+                    # LLM role
+                    self.assertIn("llm", rep)
+                    self.assertEqual(rep["llm"]["provider"], "ollama")
+                    self.assertFalse(rep["llm"]["available"])
+                    self.assertEqual(rep["llm"]["status"], "not_installed")
+
+                    # Vision role
+                    self.assertIn("vision", rep)
+                    self.assertFalse(rep["vision"]["available"])
+
+                    # STT role
+                    self.assertIn("stt", rep)
+                    self.assertEqual(rep["stt"]["primary"], "apple_speech")
+                    self.assertEqual(rep["stt"]["fallback"], "whisper_cpp")
+
+                    # TTS role
+                    self.assertIn("tts", rep)
+                    self.assertEqual(rep["tts"]["engine"], "say")
+
+    def test_probe_runtime_linux_structure(self):
+        with forced_platform("linux"):
+            rep = runtime.probe_runtime()
+            self.assertEqual(rep["platform"], "linux")
+            self.assertIn(rep["device"], ("cuda", "rocm", "cpu"))
+            self.assertEqual(rep["llm"]["provider"], "vllm")
+            self.assertEqual(rep["vision"]["provider"], "vllm")
+            self.assertEqual(rep["stt"]["primary"], "faster_whisper")
+
+    def test_resolve_router_platform_aware(self):
+        cfg = Config()
+        # Linux resolution -> unchanged vLLM defaults
+        with forced_platform("linux"):
+            r_linux = runtime.resolve_router(cfg)
+            self.assertEqual(r_linux.llm_base_url, "http://127.0.0.1:8001/v1")
+            self.assertEqual(r_linux.llm_model, "qwen3-4b")
+
+        # macOS resolution -> Metal Ollama defaults
+        with forced_platform("darwin"):
+            r_mac = runtime.resolve_router(cfg)
+            self.assertEqual(r_mac.llm_base_url, "http://127.0.0.1:11434/v1")
+            self.assertEqual(r_mac.llm_model, "qwen2.5:3b")
+
+    def test_resolve_vision_platform_aware(self):
+        cfg = Config()
+        # Linux resolution -> unchanged UI-TARS vLLM defaults
+        with forced_platform("linux"):
+            v_linux = runtime.resolve_vision(cfg)
+            self.assertEqual(v_linux.base_url, "http://127.0.0.1:8000/v1")
+            self.assertEqual(v_linux.model, "uitars")
+            self.assertEqual(v_linux.cuda_visible_devices, "1")
+
+        # macOS resolution -> Metal VLM defaults with CUDA cleared
+        with forced_platform("darwin"):
+            v_mac = runtime.resolve_vision(cfg)
+            self.assertEqual(v_mac.base_url, "http://127.0.0.1:11434/v1")
+            self.assertEqual(v_mac.model, "llama3.2-vision:11b")
+            self.assertEqual(v_mac.cuda_visible_devices, "")
+
+    def test_config_macos_runtime_toml_merging(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "config.toml"
+            p.write_text("""
+[macos.runtime]
+llm_provider = "lm_studio"
+llm_base_url = "http://127.0.0.1:1234/v1"
+llm_model = "qwen2.5-coder:7b"
+vision_model = "qwen2.5-vl:7b"
+""")
+            cfg = load_config(p)
+            self.assertEqual(cfg.macos.runtime.llm_provider, "lm_studio")
+            self.assertEqual(cfg.macos.runtime.llm_base_url, "http://127.0.0.1:1234/v1")
+            self.assertEqual(cfg.macos.runtime.llm_model, "qwen2.5-coder:7b")
+            self.assertEqual(cfg.macos.runtime.vision_model, "qwen2.5-vl:7b")
+            # Flat attributes synced
+            self.assertEqual(cfg.macos.llm_model, "qwen2.5-coder:7b")
+
+            with forced_platform("darwin"):
+                r = runtime.resolve_router(cfg)
+                self.assertEqual(r.llm_base_url, "http://127.0.0.1:1234/v1")
+                self.assertEqual(r.llm_model, "qwen2.5-coder:7b")
+
+                v = runtime.resolve_vision(cfg)
+                self.assertEqual(v.model, "qwen2.5-vl:7b")
+
+    def test_cli_setting_spec_macos_runtime(self):
+        from utter.cli import _setting_spec
+        spec = _setting_spec("macos.runtime.llm_model")
+        self.assertIsNotNone(spec)
+        section, key, typ, default = spec
+        self.assertEqual(section, "macos.runtime")
+        self.assertEqual(key, "llm_model")
+        self.assertEqual(typ, str)
+        self.assertEqual(default, "qwen2.5:3b")
+
+        # Flat macos.llm_model also works
+        spec_flat = _setting_spec("macos.llm_model")
+        self.assertIsNotNone(spec_flat)
+        self.assertEqual(spec_flat[0], "macos")
+        self.assertEqual(spec_flat[1], "llm_model")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -205,6 +205,56 @@ export function DiagnosticsPage() {
           )}
         </Section>
 
+        {report?.runtime && (
+          <Section
+            title="Inference & runtime"
+            description="Local model runners, speech recognition, and acceleration detected on this machine."
+          >
+            <Row
+              leading={<Tile icon="sparkles" tone={report.runtime.gpu?.available ? "accent" : "muted"} />}
+              title={report.runtime.gpu?.name ?? "GPU"}
+              description={report.runtime.device ? `Runtime: ${report.runtime.device.toUpperCase()}${report.runtime.gpu?.unified_memory_gb ? ` · ${report.runtime.gpu.unified_memory_gb} GB unified memory` : ""}` : undefined}
+            >
+              <Badge tone={report.runtime.gpu?.available ? "ok" : "muted"}>
+                {report.runtime.device?.toUpperCase() ?? "UNKNOWN"}
+              </Badge>
+            </Row>
+            {report.runtime.llm && (
+              <Row
+                leading={<Tile icon="cpu" tone={report.runtime.llm.available ? "ok" : "warn"} />}
+                title={`LLM (${report.runtime.llm.provider ?? "server"})`}
+                description={report.runtime.llm.message || `${report.runtime.llm.model} @ ${report.runtime.llm.endpoint}`}
+              >
+                <Badge tone={report.runtime.llm.available ? "ok" : "warn"}>
+                  {report.runtime.llm.status ?? "unknown"}
+                </Badge>
+              </Row>
+            )}
+            {report.runtime.vision && (
+              <Row
+                leading={<Tile icon="eye" tone={report.runtime.vision.available ? "ok" : "warn"} />}
+                title={`Vision (${report.runtime.vision.provider ?? "server"})`}
+                description={report.runtime.vision.message || `${report.runtime.vision.model} @ ${report.runtime.vision.endpoint}`}
+              >
+                <Badge tone={report.runtime.vision.available ? "ok" : "warn"}>
+                  {report.runtime.vision.status ?? "unknown"}
+                </Badge>
+              </Row>
+            )}
+            {report.runtime.stt && (
+              <Row
+                leading={<Tile icon="mic" tone={report.runtime.stt.available ? "ok" : "warn"} />}
+                title="Speech-to-Text"
+                description={report.runtime.stt.message || `${report.runtime.stt.primary} (fallback: ${report.runtime.stt.fallback})`}
+              >
+                <Badge tone={report.runtime.stt.available ? "ok" : "warn"}>
+                  {report.runtime.stt.status ?? "unknown"}
+                </Badge>
+              </Row>
+            )}
+          </Section>
+        )}
+
         <Section
           title={t("diagnostics.desktop.title")}
           description={t("diagnostics.desktop.description")}

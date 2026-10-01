@@ -59,6 +59,7 @@ def _drift(runner_info: dict) -> list[dict]:
 
 
 def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
+    from utter import runtime
     runner_info = {"protocol": RUNNER_PROTOCOL, "abi": RUNNER_ABI, "version": _runner_version()}
     report: dict[str, Any] = {
         "ok": True,
@@ -67,6 +68,7 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
         "drift": [],
         "deps": deps_mod.probe_deps(),
         "compositor": compositor_section(),
+        "runtime": runtime.probe_runtime(),
         "connected": False,
     }
 
@@ -126,6 +128,37 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
 
 def compositor_section() -> dict:
     """Detected compositor + active backend + capabilities (never raises, never acts)."""
+    from utter import platform
+    if platform.is_macos():
+        return {
+            "platform": "darwin",
+            "requested": "macos",
+            "detected": "quartz",
+            "session_type": "aqua",
+            "desktop": "Aqua/WindowServer",
+            "plasma_version": "",
+            "evidence": ["platform=darwin (macOS WindowServer)"],
+            "active": "quartz",
+            "reason": "macOS native WindowServer + Accessibility",
+            "available": True,
+            "capabilities": {
+                "focused_window": True,
+                "list_windows": True,
+                "activate": True,
+                "close": True,
+                "minimize": True,
+                "maximize": True,
+                "move_to_workspace": False,
+                "switch_workspace": False,
+                "screenshot": bool(util.which("screencapture")),
+                "compositor_action": False,
+            },
+            "tools": {
+                "screencapture": util.which("screencapture"),
+                "osascript": util.which("osascript"),
+                "pbpaste": util.which("pbpaste"),
+            },
+        }
     try:
         from utter.context import compositor
 
@@ -154,6 +187,28 @@ def human(report: dict) -> str:
     runner = report.get("runner", {})
     lines.append(f"runner: protocol {runner.get('protocol')} abi {runner.get('abi')} "
                  f"version {runner.get('version')}")
+    rt = report.get("runtime", {})
+    if rt:
+        lines.append(f"runtime: platform {rt.get('platform')} device {rt.get('device')}")
+        gpu_info = rt.get("gpu", {})
+        if gpu_info:
+            lines.append(f"  gpu: {gpu_info.get('name')} ({gpu_info.get('runtime')})")
+        llm = rt.get("llm", {})
+        if llm:
+            lines.append(f"  llm: [{llm.get('status')}] {llm.get('provider')} @ {llm.get('endpoint')} ({llm.get('model')})")
+            if llm.get("message"):
+                lines.append(f"       {llm.get('message')}")
+        vision = rt.get("vision", {})
+        if vision:
+            lines.append(f"  vision: [{vision.get('status')}] {vision.get('provider')} @ {vision.get('endpoint')} ({vision.get('model')})")
+            if vision.get("message"):
+                lines.append(f"          {vision.get('message')}")
+        stt = rt.get("stt", {})
+        if stt:
+            lines.append(f"  stt: [{stt.get('status')}] primary={stt.get('primary')} fallback={stt.get('fallback')}")
+        tts = rt.get("tts", {})
+        if tts:
+            lines.append(f"  tts: [{tts.get('status')}] engine={tts.get('engine')}")
     comp = report.get("compositor") or {}
     if comp:
         lines.append(f"compositor: detected {comp.get('detected')} -> backend {comp.get('active')}"

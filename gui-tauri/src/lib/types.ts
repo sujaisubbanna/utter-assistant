@@ -125,6 +125,25 @@ export interface CompositorInfo {
   error?: string;
 }
 
+export interface RuntimeRole {
+  provider?: string;
+  endpoint?: string;
+  model?: string;
+  available?: boolean;
+  status?: string;
+  message?: string;
+}
+
+export interface RuntimeInfo {
+  platform?: string;
+  device?: string;
+  gpu?: { available?: boolean; name?: string; runtime?: string; unified_memory_gb?: number };
+  llm?: RuntimeRole;
+  vision?: RuntimeRole;
+  stt?: RuntimeRole;
+  tts?: RuntimeRole;
+}
+
 export interface DoctorReport {
   ok?: boolean;
   connected?: boolean;
@@ -134,6 +153,7 @@ export interface DoctorReport {
   drift?: unknown[];
   deps?: Record<string, boolean>;
   compositor?: CompositorInfo;
+  runtime?: RuntimeInfo;
 }
 
 export interface StatusReport {

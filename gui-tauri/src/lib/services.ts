@@ -83,6 +83,7 @@ export const MAC_TTS_BACKENDS: OptionDef[] = [
 export const LLM_PROVIDERS: (OptionDef & { url: string })[] = [
   { value: "vllm", label: "vLLM", url: "http://127.0.0.1:8001/v1", link: "vllm" },
   { value: "ollama", label: "Ollama", url: "http://127.0.0.1:11434/v1", link: "ollama" },
+  { value: "lm_studio", label: "LM Studio", url: "http://127.0.0.1:1234/v1", link: "lm_studio" },
   { value: "llamacpp", label: "llama.cpp", url: "http://127.0.0.1:8080/v1", link: "llamacpp" },
   { value: "remote", labelKey: "llm.provider.remote", url: "" },
 ];

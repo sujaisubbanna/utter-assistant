@@ -21,6 +21,8 @@ in `utter/macos/` is imported and every existing code path is unchanged.
 | Push-to-talk | evdev / keyd / vocalinux bridge | Quartz `CGEventTap` via PyObjC (`utter/macos/hotkey.py`), `pynput` fallback |
 | Speech-to-text | faster-whisper / whisper.cpp / vocalinux | Apple `Speech.framework` (`SFSpeechRecognizer`, on-device) → local **whisper.cpp** fallback; optional **VocaMac** CLI backend |
 | Spoken replies | plugin lane | `say` (default) or `AVSpeechSynthesizer` |
+| Decision router / LLM | vLLM (`http://127.0.0.1:8001/v1`) | **Ollama** (`http://127.0.0.1:11434/v1`, Metal) default; LM Studio / llama.cpp |
+| Vision / Grounding | UI-TARS (`http://127.0.0.1:8000/v1`) | **Ollama** VLM (`llama3.2-vision:11b`, Metal) default; LM Studio |
 | Key presses / typing | `wtype` → `ydotool` | Quartz `CGEventPost` → AppleScript (`System Events`) |
 | Mouse | `ydotool` | Quartz mouse / scroll events |
 | Focused app + window | `niri msg --json` | `NSWorkspace.frontmostApplication` + Accessibility `AXUIElement` title, `CGWindowListCopyWindowInfo` |
@@ -70,11 +72,50 @@ file-transcription CLI as a batch STT engine if you prefer its models (untested)
 - Python packages: `pip install -e '.[macos]'` installs `pyobjc-framework-Cocoa`,
   `-Quartz`, `-Speech`, `-AVFoundation`, `-ApplicationServices`, `sounddevice`,
   `numpy` and `pywhispercpp`.
-- `brew install portaudio` (for `sounddevice`) and, optionally, `terminal-notifier`.
-- The decision head / planner / vision servers are the same OpenAI-compatible
-  HTTP endpoints as on Linux (`[router]`, `[vision]`); run them wherever you like.
+## Metal-native Local Runtime (Ollama / LM Studio / llama.cpp)
 
-### Permissions
+On Linux, Utter runs background services assuming NVIDIA GPUs and CUDA (`device = "cuda"`, `cuda_visible_devices = "1"`, vLLM, UI-TARS). Macs have Apple Silicon with **Metal** and unified memory, without NVIDIA GPUs or CUDA.
+
+Rather than bundling or shipping an ad-hoc inference server, Utter integrates with **ready-made, well-maintained macOS tools** that leverage Metal acceleration natively out of the box:
+
+| Role | Tool | Why chosen | Default Endpoint & Model |
+|---|---|---|---|
+| **LLM / Decision Router** | **Ollama** ([ollama.com](https://ollama.com)) | First-class Metal acceleration, zero-config on Apple Silicon, standard Homebrew daemon (`brew services start ollama`), OpenAI-compatible `/v1` API | `http://127.0.0.1:11434/v1`<br>`qwen2.5:3b` |
+| **Vision / Screen Grounding** | **Ollama** | Single daemon hosts both text and multimodal vision models, unified memory management | `http://127.0.0.1:11434/v1`<br>`llama3.2-vision:11b` |
+| **STT (Voice Input)** | **Apple Speech** / **whisper.cpp** | Built-in zero-model STT via `SFSpeechRecognizer` (on-device); offline high-accuracy fallback via `whisper.cpp` with Metal acceleration | Built-in / `models/whisper/` |
+| **TTS (Spoken Replies)** | System **`say`** | Built-in macOS speech synthesizer, native voices, zero setup | Built-in |
+
+### Alternative Local Servers
+
+Utter's macOS runtime resolver (`utter/runtime.py`) speaks standard OpenAI `/v1` HTTP endpoints:
+- **LM Studio** ([lmstudio.ai](https://lmstudio.ai)): Start the local server (`lms server start` or via the GUI) on `http://127.0.0.1:1234/v1`. Configure `[macos.runtime] provider = "lm_studio"`.
+- **llama.cpp** ([github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)): Start `llama-server` with `-ngl 99` (offload all layers to Metal) on `http://127.0.0.1:8080/v1`. Configure `[macos.runtime] provider = "llama_cpp"`.
+
+### Setup & Recommended Models
+
+1. **Install Ollama via Homebrew:**
+   ```bash
+   brew install ollama
+   brew services start ollama
+   ```
+2. **Pull the recommended models:**
+   ```bash
+   # Decision Router (fast 3B parameter model, low latency)
+   ollama pull qwen2.5:3b
+
+   # Vision / Screen Grounding (UI element detection and visual reasoning)
+   ollama pull llama3.2-vision:11b
+   ```
+   *(Note: For 8GB unified memory Macs, `qwen2.5:1.5b` and `qwen2.5-coder:1.5b` are lightweight alternatives. For 32GB+ Macs, `qwen2.5:7b` or `qwen2.5:14b` offer higher instruction accuracy.)*
+
+### Detection & Graceful Degradation
+
+Utter probes the local runtime before every request and during diagnostic checks (`utter doctor`, `utter capabilities`):
+- **Metal GPU detection:** Probes system memory and Metal accelerator status via `system_profiler SPDisplaysDataType` and `sysctl hw.memsize`.
+- **HTTP endpoint liveness:** Fast stdlib HTTP probe (`0.5s` timeout) against `/v1/models`.
+- **Model availability check:** Verifies whether the configured model (`qwen2.5:3b`, `llama3.2-vision:11b`) is actually loaded/pulled.
+- **Graceful degradation:** If Ollama is not installed or stopped, Utter reports structured status (`"stopped"` or `"not_installed"`) with actionable instructions (e.g. `brew services start ollama` or `ollama pull <model>`) rather than crashing or hanging.
+
 
 macOS gates everything Utter does. Grant these to the **python binary that runs
 the daemon** (`.venv-macos/bin/python`, or your terminal app when testing) under
@@ -242,6 +283,14 @@ dictation_key = "right_option"   # transcript is typed into the focused field
 assistant_key = "right_command"  # transcript is run as a desktop action
 injection = "quartz"             # quartz | applescript
 notifications = true
+
+[macos.runtime]
+provider = "ollama"              # ollama | lm_studio | llama_cpp | custom
+base_url = "http://127.0.0.1:11434/v1"
+model = "qwen2.5:3b"
+vision_provider = "ollama"       # ollama | lm_studio | llama_cpp | custom
+vision_base_url = "http://127.0.0.1:11434/v1"
+vision_model = "llama3.2-vision:11b"
 ```
 
 Key names: `right_option`, `right_command`, `right_control`, `left_*`, `fn`,
@@ -254,6 +303,8 @@ The STT chain is `[stt_backend, stt_fallback]`; backends whose runtime is missin
 with a logged warning. whisper.cpp models are looked up exactly as on Linux
 (`$UTTER_WHISPER_MODEL`, `$UTTER_MODELS_DIR`, `models/whisper/`).
 
+On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native endpoints configured in `[macos.runtime]` (defaulting to local Ollama) rather than the Linux-only CUDA / vLLM / UI-TARS defaults.
+
 ## Platform matrix
 
 **Verified by CI (automated packaging and platform tests)**
@@ -262,13 +313,15 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
   Intel (`x86_64`) `.dmg` installers and `.app.tar.gz` bundles
 - Fail-safe signing: signed and notarized when Apple secrets exist, otherwise
   producing unsigned bundles with clear diagnostic reporting
-- Platform detection and backend selection unit tests (`tests/platform/test_macos_detection.py`)
+- Platform detection and backend selection unit tests (`tests/platform/test_macos_detection.py`, `tests/platform/test_macos_runtime.py`)
 - Python core tarball assembly and bundled runtime structure (`scripts/build-macos-runtime.sh`)
 
 **Works (by design, unit-tested on Linux, not yet run on a Mac)**
 
-- platform detection and backend selection (`tests/platform/test_macos_detection.py`)
-- the `[macos]` config section and its defaults
+- platform detection and backend selection (`tests/platform/test_macos_detection.py`, `tests/platform/test_macos_runtime.py`)
+- the `[macos]` and `[macos.runtime]` config sections and resolution to Ollama / LM Studio / llama.cpp
+- platform-aware router and vision client resolution avoiding CUDA/NVIDIA on Darwin
+- detection and graceful degradation for stopped Ollama services or missing models in CLI `capabilities` and `doctor`
 - two-key push-to-talk loop (`Utter.run_macos`) wired to the native STT chain,
   `type_text` for dictation and the normal router for assistant commands
 - `open <url>`, `open -a <App>` / `open -b <bundle.id>` launching
@@ -315,6 +368,7 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
 
 - Physical hardware validation: real microphone audio capture, physical Quartz event tap listening,
   real macOS Accessibility synthetic key typing, real Screen Recording capture.
+- Real Metal GPU inference under load with Ollama / LM Studio and actual unified memory allocation.
 - Real Apple Developer code signing and Gatekeeper notarization testing with active Apple Developer credentials.
 
 ## Developing on Linux

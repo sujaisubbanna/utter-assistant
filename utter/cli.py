@@ -67,6 +67,10 @@ def _transcribe_pcm(pcm):
 
 def _gpu_info():
     """Report physical GPU presence independently from torch availability."""
+    from utter import platform
+    if platform.is_macos():
+        from utter.runtime import probe_macos_gpu
+        return probe_macos_gpu()
     for tool, runtime in (("nvidia-smi", "cuda"), ("rocm-smi", "rocm")):
         path = shutil.which(tool)
         if path:
@@ -133,6 +137,15 @@ def _setting_spec(key):
     parts = key.split(".")
     if parts == ["log_level"] or parts == ["daemon", "log_level"]:
         return "daemon", "log_level", str, "INFO"
+    if len(parts) == 3 and parts[0] == "macos" and parts[1] == "runtime":
+        from .config import MacosRuntimeConfig
+        from dataclasses import fields
+        field_name = parts[2]
+        field = next((f for f in fields(MacosRuntimeConfig) if f.name == field_name), None)
+        if field is None:
+            return None
+        default = getattr(MacosRuntimeConfig(), field_name)
+        return "macos.runtime", field_name, type(default), default
     if len(parts) != 2:
         return None
     from .config import Config
@@ -292,6 +305,7 @@ def _dispatch(args) -> int:
                         error=None if ok else {"code": "E_NO_ACTION", "message": "No action matched."}, code=0 if ok else 1)
         if command == "capabilities":
             from assistant.deps import probe_deps
+            from utter import platform, runtime
             deps = probe_deps()
             gpu = _gpu_info()
             model_dirs = [Path(os.environ.get("UTTER_MODELS_DIR", "~/.local/share/utter/models")).expanduser(), Path("~/.local/share/vocalinux/models/whispercpp").expanduser(), Path("models")]
@@ -302,9 +316,23 @@ def _dispatch(args) -> int:
                 client = RunnerClient(runner_sock_path(), timeout=0.4); client.connect(); connected = True; client.close()
             except Exception:
                 connected = False
+            rt_info = runtime.probe_runtime()
+            if platform.is_macos():
+                backends = {
+                    "quartz": bool(platform.has_module("Quartz") or shutil.which("osascript")),
+                    "apple_speech": bool(platform.has_module("Speech")),
+                    "whisper_cpp": bool(platform.has_module("pywhispercpp") or shutil.which("whisper-cli")),
+                    "vocamac": bool(shutil.which("VocaMac") or Path("/Applications/VocaMac.app").exists()),
+                    "say": bool(shutil.which("say")),
+                    "screencapture": bool(shutil.which("screencapture")),
+                }
+                tts_name = "say" if shutil.which("say") else None
+                ollama_models = rt_info.get("llm", {}).get("models", [])
+                all_models = sorted(set(models + ollama_models))
+                return _out(args, command, data={"backends": backends, "tts": tts_name, "gpu": gpu, "models": all_models, "runner_connected": connected, "runtime": rt_info})
             backends = {k: deps.get(k, False) for k in ("wtype", "ydotool", "ydotoold", "pw_play")}
             backends.update({"keyd": bool(shutil.which("keyd")), "pipewire": bool(shutil.which("pw-cli"))})
-            return _out(args, command, data={"backends": backends, "tts": Path(_tts_engine()).name if _tts_engine() else None, "gpu": gpu, "models": models, "runner_connected": connected})
+            return _out(args, command, data={"backends": backends, "tts": Path(_tts_engine()).name if _tts_engine() else None, "gpu": gpu, "models": models, "runner_connected": connected, "runtime": rt_info})
         if command == "schema":
             schema_path = Path(__file__).resolve().parent / "data" / "cli.schema.json"
             schema_doc = json.loads(schema_path.read_text(encoding="utf-8"))

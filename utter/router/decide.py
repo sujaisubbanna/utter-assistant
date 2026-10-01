@@ -608,8 +608,10 @@ def _parse_decision(data: dict, candidates: list[Candidate], letters: list[str],
 
 def _query(utterance: str, ctx: Context, candidates: list[Candidate],
            cfg=None) -> Optional[Decision]:
-    base_url = getattr(cfg, "llm_base_url", None) or _DEFAULT_BASE_URL
-    model = getattr(cfg, "llm_model", None) or _DEFAULT_MODEL
+    from utter import runtime
+    resolved_cfg = runtime.resolve_router(cfg)
+    base_url = getattr(resolved_cfg, "llm_base_url", None) or _DEFAULT_BASE_URL
+    model = getattr(resolved_cfg, "llm_model", None) or _DEFAULT_MODEL
     try:
         import requests  # lazy: module import must work offline
     except Exception:

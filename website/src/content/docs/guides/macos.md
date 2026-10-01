@@ -21,11 +21,35 @@ code-signed or notarised** unless Apple Developer credentials are configured. On
 | Push-to-talk | Quartz `CGEventTap` (PyObjC), `pynput` fallback |
 | Speech-to-text | Apple `Speech.framework` on-device with pause chunking (> 50s), then local **whisper.cpp** fallback |
 | Spoken replies | `say` or `AVSpeechSynthesizer` |
+| Decision router / LLM | **Ollama** (`http://127.0.0.1:11434/v1`, Metal) default; LM Studio / llama.cpp |
+| Vision / Grounding | **Ollama** VLM (`llama3.2-vision:11b`, Metal) default; LM Studio |
 | Typing and key chords | Quartz `CGEventPost`, AppleScript fallback |
 | Focused app and window | `NSWorkspace` + Accessibility `kAXRaiseAction` for per-window raise |
 | Screenshots, clipboard, sounds | `screencapture`, `pbpaste`, `afplay` |
 | Background service | launchd user agents (`com.utter.assistant`, `com.utter.runner`) |
 | Homebrew | `Formula/utter.rb` (CLI + service) and `Casks/utter.rb` (app) |
+
+## Metal-native local runtime
+
+On Linux, Utter runs background services assuming NVIDIA GPUs and CUDA. Macs have Apple Silicon with **Metal** and unified memory. Utter integrates with ready-made macOS tools rather than shipping a bespoke inference server:
+
+- **LLM / Decision Router**: **Ollama** (Metal-accelerated out of the box, standard OpenAI-compatible `/v1` endpoint on port 11434). LM Studio and llama.cpp (`llama-server`) are supported drop-ins.
+- **Vision / Screen Grounding**: Ollama hosting multimodal models (e.g. `llama3.2-vision:11b`).
+- **STT**: Apple `Speech.framework` (zero-model, on-device) or `whisper.cpp` (Metal).
+- **TTS**: macOS `say`.
+
+### Installing Ollama & pulling models
+
+```bash
+brew install ollama
+brew services start ollama
+
+# Pull recommended router and vision models
+ollama pull qwen2.5:3b
+ollama pull llama3.2-vision:11b
+```
+
+Utter probes the local runtime before requests and reports status in `utter doctor` and `utter capabilities`. If Ollama is stopped or a model is missing, Utter returns a clean, structured status rather than hanging or crashing.
 
 **Why not Voca?** VocaHQ makes [vocalinux](https://github.com/VocaHQ/vocalinux), which Utter
 bridges on Linux, and [VocaMac](https://github.com/VocaHQ/vocamac) for macOS. VocaMac is a
@@ -91,17 +115,24 @@ dictation_key = "right_option"   # transcript is typed
 assistant_key = "right_command"  # transcript is run as an action
 injection = "quartz"             # quartz | applescript
 notifications = true
+
+[macos.runtime]
+provider = "ollama"              # ollama | lm_studio | llama_cpp | custom
+base_url = "http://127.0.0.1:11434/v1"
+model = "qwen2.5:3b"
+vision_provider = "ollama"       # ollama | lm_studio | llama_cpp | custom
+vision_base_url = "http://127.0.0.1:11434/v1"
+vision_model = "llama3.2-vision:11b"
 ```
 
-Linux ignores this section entirely; the Linux sections are unchanged on macOS but the
-`[macos]` keys win for voice and hotkeys.
+Linux ignores this section entirely. On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native endpoints configured in `[macos.runtime]` (defaulting to local Ollama) rather than the Linux CUDA/vLLM endpoints.
 
 ## What works, what is Linux-only
 
 - **Verified by CI:** automated matrix packaging of both Apple Silicon (`aarch64`) and
   Intel (`x86_64`) .dmg/.app bundles, fail-safe codesigning/notarization, platform detection tests.
 - **Implemented against documented APIs (untested on real hardware):** push-to-talk with two keys,
-  native speech recognition with pause-aware audio chunking (> 50s) and whisper.cpp runtime fallback,
+  Metal runtime resolution and graceful degradation, native speech recognition with pause-aware audio chunking (> 50s) and whisper.cpp runtime fallback,
   dictation typing, app and URL launching, window focus with AX window raising (`kAXRaiseAction`),
   clipboard, spoken replies, notifications, screenshots for the vision tier with Retina geometry handling,
   the plugin runner socket with peer credentials (`LOCAL_PEERCRED` / `LOCAL_PEERPID` and `proc_pidpath`),
@@ -111,7 +142,8 @@ Linux ignores this section entirely; the Linux sections are unchanged on macOS b
   the Noctalia widget and OSD, the sandbox wrapper, the Linux installer wizard, and the settings
   app's service controls (they call `systemctl`).
 - **Needs real Mac hardware to confirm:** physical audio input, hardware key-tap edge detection,
-  actual AX synthetic keystrokes, and real Screen Recording permission capture.
+  actual AX synthetic keystrokes, real Screen Recording permission capture, and physical Metal GPU inference under load with Ollama.
 
 The complete matrix, with the per-module status, is in
 [`docs/MACOS.md`](https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/MACOS.md).
+

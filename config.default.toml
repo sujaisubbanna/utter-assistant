@@ -33,7 +33,7 @@ device = ""          # empty = default input
 # local whisper backend: "faster_whisper" | "whisper_cpp" | "none" (when bridge supplies text)
 backend = "faster_whisper"
 model = "distil-small.en"
-device = "cuda"
+device = "cuda"          # Linux-only: CUDA/NVIDIA (ignored on macOS)
 compute_type = "float16"
 
 [router]
@@ -49,7 +49,7 @@ enabled = true
 base_url = "http://127.0.0.1:8000/v1"
 model = "uitars"
 target_width = 1344          # UI-TARS recommended; biggest latency lever
-cuda_visible_devices = "1"   # RTX 3090 Ti
+cuda_visible_devices = "1"   # Linux-only: RTX 3090 Ti (ignored on macOS)
 
 [actions]
 require_confirm = ["send", "submit", "delete", "purchase", "pay", "confirm order"]
@@ -104,6 +104,16 @@ assistant_key = "right_command"  # transcript is run as a desktop action
 # Key presses and typed text: Quartz CGEventPost, AppleScript as fallback.
 injection = "quartz"             # quartz | applescript
 notifications = true             # macOS notification banners for replies/errors
+
+[macos.runtime]
+# Ready-made Metal runtime backends (Ollama primary; LM Studio / llama.cpp / MLX alternatives).
+# These configure the external servers that provide LLM and vision capabilities on macOS.
+llm_provider = "ollama"           # ollama | lm_studio | llamacpp | mlx
+llm_base_url = "http://127.0.0.1:11434/v1"
+llm_model = "qwen2.5:3b"
+vision_provider = "ollama"        # ollama | lm_studio | llamacpp
+vision_base_url = "http://127.0.0.1:11434/v1"
+vision_model = "llama3.2-vision:11b"
 
 [kwin]
 # KDE Plasma (KWin) backend. Only used when [general] compositor resolves to "kwin".

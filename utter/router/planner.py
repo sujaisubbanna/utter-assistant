@@ -62,10 +62,12 @@ def _parse_json(text: str) -> Optional[dict]:
 
 
 def plan(utterance: str, ctx: Context, profiles: dict, cfg=None) -> Optional[Plan]:
-    if cfg is not None and not getattr(cfg, "llm_fallback", True):
+    from utter import runtime
+    resolved_cfg = runtime.resolve_router(cfg)
+    if resolved_cfg is not None and not getattr(resolved_cfg, "llm_fallback", True):
         return None
-    base_url = getattr(cfg, "llm_base_url", "http://127.0.0.1:8001/v1")
-    model = getattr(cfg, "llm_model", "Qwen3-4B-Instruct")
+    base_url = getattr(resolved_cfg, "llm_base_url", "http://127.0.0.1:8001/v1")
+    model = getattr(resolved_cfg, "llm_model", "Qwen3-4B-Instruct")
     try:
         import requests
     except Exception:

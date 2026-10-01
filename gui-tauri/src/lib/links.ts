@@ -20,6 +20,7 @@ export const LINKS = {
   // AI servers
   vllm: "https://docs.vllm.ai/en/latest/getting_started/installation/",
   ollama: "https://ollama.com/download",
+  lm_studio: "https://lmstudio.ai/",
   llamacpp: "https://github.com/ggml-org/llama.cpp",
   // voices
   "espeak-ng": "https://github.com/espeak-ng/espeak-ng",
@@ -61,6 +62,15 @@ export const DEP_HELP: Record<string, { url?: string; fix?: string }> = {
   uinput: { fix: "sudo modprobe uinput" },
   webkit2gtk: { url: "https://webkitgtk.org/" },
   gtk3: { url: "https://www.gtk.org/" },
+  // macOS tools
+  ollama: { url: "https://ollama.com/", fix: "brew install ollama && brew services start ollama" },
+  vocamac: { url: "https://github.com/VocaHQ/vocamac", fix: "brew install --cask vocamac" },
+  screencapture: { url: "https://ss64.com/osx/screencapture.html" },
+  pbpaste: { url: "https://ss64.com/osx/pbpaste.html" },
+  pbcopy: { url: "https://ss64.com/osx/pbcopy.html" },
+  say: { url: "https://ss64.com/osx/say.html" },
+  afplay: { url: "https://ss64.com/osx/afplay.html" },
+  osascript: { url: "https://ss64.com/osx/osascript.html" },
 };
 
 export function openLink(url: string): void {

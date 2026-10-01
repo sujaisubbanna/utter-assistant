@@ -71,8 +71,10 @@ def _base_url() -> str:
     env = os.environ.get("UTTER_VISION_URL")
     if env:
         return env.rstrip("/")
+    from utter import runtime
     cfg = _cfg()
-    base = getattr(cfg, "base_url", None) or _DEFAULT_BASE_URL
+    resolved = runtime.resolve_vision(cfg)
+    base = getattr(resolved, "base_url", None) or _DEFAULT_BASE_URL
     return base.rstrip("/")
 
 
@@ -80,8 +82,10 @@ def _model() -> str:
     env = os.environ.get("UTTER_VISION_MODEL")
     if env:
         return env
+    from utter import runtime
     cfg = _cfg()
-    return getattr(cfg, "model", None) or _DEFAULT_MODEL
+    resolved = runtime.resolve_vision(cfg)
+    return getattr(resolved, "model", None) or _DEFAULT_MODEL
 
 
 def _target_width() -> int:

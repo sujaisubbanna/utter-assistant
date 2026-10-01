@@ -262,6 +262,10 @@ class Transcriber:
         model_ref = self._explicit_model_path or getattr(cfg, "model", "base")
         device = getattr(cfg, "device", "cpu") or "cpu"
         compute_type = getattr(cfg, "compute_type", "int8") or "int8"
+        from utter import platform
+        if platform.is_macos() and device == "cuda":
+            device = "cpu"
+            compute_type = "int8"
         self.model_path = model_ref
         logger.info(
             "loading faster-whisper model %s (device=%s compute_type=%s)",

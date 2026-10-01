@@ -97,7 +97,43 @@ def _accel_devices() -> list[str]:
         return []
 
 
+def _macos_cpu_info() -> dict[str, Any]:
+    model = "Apple Silicon"
+    sysctl = util.which("sysctl")
+    if sysctl:
+        try:
+            proc = subprocess.run([sysctl, "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=2)
+            out = proc.stdout.strip()
+            if out:
+                model = out
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return {"model": model, "cores": os.cpu_count() or 8}
+
+
+def _macos_ram_gb() -> float:
+    sysctl = util.which("sysctl")
+    if sysctl:
+        try:
+            proc = subprocess.run([sysctl, "-n", "hw.memsize"], capture_output=True, text=True, timeout=2)
+            return round(int(proc.stdout.strip()) / (1024 ** 3), 1)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+    return 16.0
+
+
 def probe_hardware() -> dict[str, Any]:
+    from utter import platform
+    if platform.is_macos():
+        ram = _macos_ram_gb()
+        return {
+            "cpu": _macos_cpu_info(),
+            "ram_gb": ram,
+            "gpus": [{"name": "Apple Silicon (Metal)", "vendor": "apple", "vram_gb": ram}],
+            "vulkan": False,
+            "accel_devices": [],
+            "session": "aqua",
+        }
     gpus = _nvidia_gpus()
     if not gpus:
         gpus = _lspci_gpus()
@@ -123,6 +159,43 @@ def _has_vendor(hw: dict[str, Any], vendor: str) -> bool:
 
 
 def suggest(hw: dict[str, Any]) -> dict[str, Any]:
+    if hw.get("session") == "aqua" or any(g.get("vendor") == "apple" for g in hw.get("gpus", [])):
+        ram = hw.get("ram_gb", 16.0)
+        llm_model = "qwen2.5:7b" if ram >= 32 else "qwen2.5:3b"
+        vision_model = "llama3.2-vision:11b" if ram >= 16 else "qwen2.5-vl:7b"
+        return {
+            "stt": {
+                "backend": "apple_speech",
+                "model": "on-device",
+                "device": "metal",
+                "est_vram_gb": 0.5,
+                "reason": "Apple Speech.framework on-device (Metal accelerated; whisper.cpp fallback)",
+            },
+            "decision_llm": {
+                "model": llm_model,
+                "provider": "ollama",
+                "device": "metal",
+                "est_vram_gb": 4.5 if ram >= 32 else 2.5,
+                "reason": f"Ollama Metal runtime on Apple Silicon ({ram:.0f} GB unified memory)",
+            },
+            "planner_llm": {
+                "model": llm_model,
+                "provider": "ollama",
+                "device": "metal",
+                "est_vram_gb": 4.5 if ram >= 32 else 2.5,
+                "reason": f"Ollama Metal runtime on Apple Silicon ({ram:.0f} GB unified memory)",
+            },
+            "vision": {
+                "model": vision_model,
+                "provider": "ollama",
+                "device": "metal",
+                "est_vram_gb": 8.0 if "11b" in vision_model else 4.0,
+                "reason": "Ollama Metal vision model",
+            },
+            "zero_model_mode": True,
+            "reason": f"{hw['cpu']['model']} / {ram:.0f} GB Unified Memory (Metal)",
+        }
+
     vram = _max_vram(hw)
     nvidia = _has_vendor(hw, "nvidia")
     amd_intel = _has_vendor(hw, "amd") or _has_vendor(hw, "intel")
