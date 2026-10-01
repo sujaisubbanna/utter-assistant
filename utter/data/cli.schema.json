@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:utter:cli:v1",
+  "title": "Utter CLI response",
+  "description": "Stable JSON response contract for utter --json commands.",
+  "oneOf": [
+    { "$ref": "#/$defs/error" },
+    { "$ref": "#/$defs/assistant" },
+    { "$ref": "#/$defs/dictation" },
+    { "$ref": "#/$defs/listen" },
+    { "$ref": "#/$defs/speak" },
+    { "$ref": "#/$defs/transcribe" },
+    { "$ref": "#/$defs/capabilities" },
+    { "$ref": "#/$defs/schemaCommand" },
+    { "$ref": "#/$defs/apps" },
+    { "$ref": "#/$defs/actions" },
+    { "$ref": "#/$defs/profiles" },
+    { "$ref": "#/$defs/status" },
+    { "$ref": "#/$defs/doctor" },
+    { "$ref": "#/$defs/version" },
+    { "$ref": "#/$defs/settings" },
+    { "$ref": "#/$defs/commands" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "properties": {
+        "schema": { "const": "utter.cli/v1" },
+        "ok": { "type": "boolean" },
+        "command": { "type": "string" }
+      },
+      "required": ["schema", "ok", "command"],
+      "additionalProperties": true
+    },
+    "error": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "properties": {
+            "ok": { "const": false },
+            "command": { "enum": ["usage", "assistant", "dictation", "listen", "speak", "transcribe", "capabilities", "schema", "apps list", "actions list", "profiles", "status", "doctor", "version", "settings list", "settings get", "settings set", "commands list", "commands set", "commands remove"] },
+            "error": { "$ref": "#/$defs/errorObject" },
+            "data": { "type": "object" }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "errorObject": {
+      "type": "object",
+      "properties": {
+        "code": { "enum": ["E_USAGE", "E_ACTION_FAILED", "E_BLOCKED", "E_BACKEND_UNAVAILABLE", "E_RUNNER_UNAVAILABLE", "E_NOT_FOUND", "E_NO_ACTION", "E_INVALID_SETTING", "E_INVALID_COMMAND"] },
+        "message": { "type": "string" }
+      },
+      "required": ["code", "message"],
+      "additionalProperties": false
+    },
+    "success": {
+      "type": "object",
+      "properties": {
+        "schema": { "const": "utter.cli/v1" },
+        "ok": { "const": true },
+        "command": { "type": "string" },
+        "data": { "type": ["object", "array"] }
+      },
+      "required": ["schema", "ok", "command", "data"],
+      "additionalProperties": false
+    },
+    "assistant": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "assistant" }, "data": { "type": "object", "properties": { "accepted": { "type": "boolean" }, "dry_run": { "type": "boolean" } }, "required": ["accepted"], "additionalProperties": false } } }] },
+    "dictation": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "dictation" }, "data": { "type": "object", "properties": { "typed": { "type": "boolean" }, "characters": { "type": "integer", "minimum": 0 }, "dry_run": { "type": "boolean" } }, "required": ["typed", "characters"], "additionalProperties": false } } }] },
+    "listen": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "listen" }, "data": { "type": "object", "properties": { "text": { "type": "string" }, "accepted": { "type": "boolean" } }, "required": ["text"], "additionalProperties": false } } }] },
+    "speak": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "speak" }, "data": { "type": "object", "properties": { "spoken": { "type": "boolean" }, "dry_run": { "type": "boolean" }, "engine": { "type": "string" } }, "required": ["spoken", "engine"], "additionalProperties": false } } }] },
+    "transcribe": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "transcribe" }, "data": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"], "additionalProperties": false } } }] },
+    "capabilities": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "capabilities" }, "data": { "type": "object", "properties": { "backends": { "type": "object", "additionalProperties": { "type": "boolean" } }, "tts": { "type": ["string", "null"] }, "gpu": { "$ref": "#/$defs/gpu" }, "models": { "type": "array", "items": { "type": "string" } }, "runner_connected": { "type": "boolean" } }, "required": ["backends", "tts", "gpu", "models", "runner_connected"], "additionalProperties": false } } }] },
+    "gpu": { "type": "object", "properties": { "available": { "type": "boolean" }, "name": { "type": ["string", "null"] }, "runtime": { "enum": ["cuda", "rocm", "unknown", null] } }, "required": ["available", "name", "runtime"], "additionalProperties": false },
+    "schemaCommand": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "schema" }, "data": { "type": "object", "properties": { "schema": { "const": "utter.cli/v1" }, "commands": { "type": "object", "additionalProperties": { "type": "object" } }, "exit_codes": { "type": "object", "additionalProperties": { "type": "integer" } }, "error_codes": { "type": "object", "additionalProperties": { "type": "integer" } }, "json_schema": { "type": "object" } }, "required": ["schema", "commands", "exit_codes", "error_codes", "json_schema"], "additionalProperties": false } } }] },
+    "apps": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "apps list" }, "data": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "aliases": { "type": "array", "items": { "type": "string" } } }, "required": ["id", "name", "aliases"], "additionalProperties": false } } } }] },
+    "actions": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "actions list" }, "data": { "type": "object", "properties": { "app": { "type": ["string", "null"] }, "actions": { "type": "array", "items": { "type": "string" } } }, "required": ["app", "actions"], "additionalProperties": false } } }] },
+    "profiles": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "profiles" }, "data": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string" } }, "required": ["id", "name", "kind"], "additionalProperties": false } } } }] },
+    "status": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "status" }, "data": { "type": "object", "properties": { "plugins": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "epoch": { "type": "integer" }, "status": { "type": "string" } }, "required": ["id", "kind", "epoch", "status"], "additionalProperties": true } } }, "required": ["plugins"], "additionalProperties": true } } }] },
+    "doctor": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "doctor" }, "data": { "type": "object", "properties": { "ok": { "type": "boolean" }, "runner": { "type": "object", "properties": { "protocol": { "type": "string" }, "abi": { "type": "integer" }, "version": { "type": "string" } }, "required": ["protocol", "abi", "version"], "additionalProperties": true }, "plugins": { "type": "array", "items": { "type": "object" } }, "drift": { "type": "array" }, "deps": { "type": "object", "additionalProperties": { "type": "boolean" } }, "connected": { "type": "boolean" }, "error": { "type": "string" } }, "required": ["ok", "runner", "plugins", "drift", "deps", "connected"], "additionalProperties": true } } }] },
+    "version": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "version" }, "data": { "type": "object", "properties": { "version": { "type": "string" } }, "required": ["version"], "additionalProperties": false } } }] },
+    "settings": {
+      "allOf": [
+        { "$ref": "#/$defs/success" },
+        {
+          "properties": {
+            "command": { "enum": ["settings list", "settings get", "settings set"] },
+            "data": {
+              "oneOf": [
+                { "type": "object", "properties": { "path": { "type": "string" }, "settings": { "type": "object" } }, "required": ["path", "settings"], "additionalProperties": false },
+                { "type": "object", "properties": { "key": { "type": "string" }, "value": {}, "path": { "type": "string" } }, "required": ["key", "value", "path"], "additionalProperties": false },
+                { "type": "object", "properties": { "key": { "type": "string" }, "value": {}, "written": { "type": "boolean" }, "path": { "type": "string" } }, "required": ["key", "value", "written", "path"], "additionalProperties": false }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "commands": {
+      "allOf": [
+        { "$ref": "#/$defs/success" },
+        {
+          "properties": {
+            "command": { "enum": ["commands list", "commands set", "commands remove"] },
+            "data": {
+              "oneOf": [
+                { "type": "array", "items": { "type": "object", "properties": { "app": { "type": "string" }, "phrase": { "type": "string" }, "chord": { "type": "string" }, "kind": { "enum": ["custom", "shortcut"] } }, "required": ["app", "phrase", "chord", "kind"], "additionalProperties": false } },
+                { "type": "object", "properties": { "app": { "type": "string" }, "phrase": { "type": "string" }, "chord": { "type": ["string", "null"] }, "written": { "type": "boolean" }, "path": { "type": "string" } }, "required": ["app", "phrase", "chord", "written", "path"], "additionalProperties": false }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

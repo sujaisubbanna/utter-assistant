@@ -49,6 +49,7 @@ class AppProfile:
     new_window: Optional[list[str] | str] = None
     search_url: Optional[str] = None  # contains "{q}"
     shortcuts: dict[str, str] = field(default_factory=dict)
+    commands: dict[str, str] = field(default_factory=dict)
     app_ids: list[str] = field(default_factory=list)
     mime_types: list[str] = field(default_factory=list)
     kind: str = "other"
@@ -92,6 +93,10 @@ def _merge_entry(base: dict, override: dict) -> dict:
             merged_sc = dict(out.get("shortcuts") or {})
             merged_sc.update(value or {})
             out["shortcuts"] = merged_sc
+        elif key == "commands":
+            merged_commands = dict(out.get("commands") or {})
+            merged_commands.update(value or {})
+            out["commands"] = merged_commands
         else:
             out[key] = value
     return out

@@ -116,7 +116,7 @@ Under the hood, a tiny **runner** supervises swappable **plugins** (speech, deci
 
 ### Agent CLI
 
-`utter` is the desktop-action CLI; `python -m assistant` is the management CLI. Agents can discover the full command and error contract with `utter schema --json`.
+`utter` drives desktop actions and manages settings and per-app custom voice commands; `python -m assistant` manages the runner, models, recommendations, and installation. Agents can discover the formal JSON Schema and command contract with `utter schema --json`.
 
 ```bash
 utter capabilities --json
