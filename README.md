@@ -18,6 +18,8 @@
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f1f1f)
 ![Languages: English · Español](https://img.shields.io/badge/UI-English%20·%20Español-6b6b70)
 
+<a href="https://www.producthunt.com/products/utter-offline-personal-assistant?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-utter-offline-personal-assistant" target="_blank" rel="noopener noreferrer"><img alt="Utter — Offline personal assistant - Hold a key, say it — your desktop does it. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1266975&theme=dark" /></a>
+
 **Documentation: [sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)**
 
 </div>
