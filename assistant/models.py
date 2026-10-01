@@ -179,68 +179,84 @@ def terminate_active_child() -> None:
             pass
 
 
-def _download_curl(url: str, partial: Path, total: Optional[int], progress: Progress,
-                   retries: int, stall_timeout: float) -> Path:
+# A download strategy performs one attempt and returns True when the blob is
+# complete; raising _AttemptFailed signals a retryable failure. Retry/backoff is
+# shared by _download_with_retries so both transports behave identically.
+DownloadStrategy = Callable[[str, Path, Optional[int], Progress, float], bool]
+
+
+class _AttemptFailed(Exception):
+    """One download attempt failed; the shared loop decides whether to retry."""
+
+
+def _attempt_curl(url: str, partial: Path, total: Optional[int], progress: Progress,
+                  stall_timeout: float) -> bool:
     global _ACTIVE_CHILD
+    cmd = ["curl", "-L", "--fail", "--silent", "--show-error", "-C", "-",
+           "-o", str(partial), url]
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    _ACTIVE_CHILD = proc
+    last_size = partial.stat().st_size if partial.exists() else 0
+    last_change = time.monotonic()
+    try:
+        while proc.poll() is None:
+            time.sleep(0.2)
+            size = partial.stat().st_size if partial.exists() else 0
+            if size != last_size:
+                last_size = size
+                last_change = time.monotonic()
+                progress(size, total)
+            elif time.monotonic() - last_change > stall_timeout:
+                proc.kill()
+                break
+        rc = proc.wait()
+    finally:
+        _ACTIVE_CHILD = None
+    if rc == 0:
+        return True
+    raise _AttemptFailed(url)
+
+
+def _attempt_urllib(url: str, partial: Path, total: Optional[int], progress: Progress,
+                    stall_timeout: float) -> bool:
+    existing = partial.stat().st_size if partial.exists() else 0
+    req = urllib.request.Request(url)
+    if existing:
+        req.add_header("Range", f"bytes={existing}-")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            if existing and getattr(resp, "status", 200) != 206:
+                existing = 0  # server ignored Range -> restart
+            mode = "ab" if existing else "wb"
+            downloaded = existing
+            with open(partial, mode) as fh:
+                while True:
+                    chunk = resp.read(_CHUNK)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    downloaded += len(chunk)
+                    progress(downloaded, total)
+        return True
+    except (urllib.error.URLError, OSError) as exc:
+        raise _AttemptFailed(exc) from exc
+
+
+def _download_with_retries(strategy: DownloadStrategy, url: str, partial: Path,
+                           total: Optional[int], progress: Progress, retries: int,
+                           stall_timeout: float) -> Path:
+    last: object = url
     for attempt in range(1, retries + 1):
         if total and partial.exists() and partial.stat().st_size >= total:
             return partial
-        cmd = ["curl", "-L", "--fail", "--silent", "--show-error", "-C", "-",
-               "-o", str(partial), url]
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        _ACTIVE_CHILD = proc
-        last_size = partial.stat().st_size if partial.exists() else 0
-        last_change = time.monotonic()
         try:
-            while proc.poll() is None:
-                time.sleep(0.2)
-                size = partial.stat().st_size if partial.exists() else 0
-                if size != last_size:
-                    last_size = size
-                    last_change = time.monotonic()
-                    progress(size, total)
-                elif time.monotonic() - last_change > stall_timeout:
-                    proc.kill()
-                    break
-            rc = proc.wait()
-        finally:
-            _ACTIVE_CHILD = None
-        if rc == 0:
-            return partial
+            if strategy(url, partial, total, progress, stall_timeout):
+                return partial
+        except _AttemptFailed as exc:
+            last = exc.args[0] if exc.args else url
         if attempt < retries:
             time.sleep(min(2 ** attempt, 5))
-    raise RuntimeError(f"download failed after {retries} attempts: {url}")
-
-
-def _download_urllib(url: str, partial: Path, total: Optional[int], progress: Progress,
-                     retries: int, stall_timeout: float) -> Path:
-    for attempt in range(1, retries + 1):
-        existing = partial.stat().st_size if partial.exists() else 0
-        if total and existing >= total:
-            return partial
-        req = urllib.request.Request(url)
-        if existing:
-            req.add_header("Range", f"bytes={existing}-")
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                if existing and getattr(resp, "status", 200) != 206:
-                    existing = 0  # server ignored Range -> restart
-                mode = "ab" if existing else "wb"
-                downloaded = existing
-                with open(partial, mode) as fh:
-                    while True:
-                        chunk = resp.read(_CHUNK)
-                        if not chunk:
-                            break
-                        fh.write(chunk)
-                        downloaded += len(chunk)
-                        progress(downloaded, total)
-            return partial
-        except (urllib.error.URLError, OSError) as exc:
-            if attempt >= retries:
-                raise RuntimeError(f"download failed after {retries} attempts: {exc}") from exc
-            time.sleep(min(2 ** attempt, 5))
-    return partial
+    raise RuntimeError(f"download failed after {retries} attempts: {last}")
 
 
 def _download(src: Source, blobs: Path, progress: Progress, retries: int,
@@ -249,9 +265,9 @@ def _download(src: Source, blobs: Path, progress: Progress, retries: int,
         partial = blobs / f"sha256-{src.sha256}.partial"
     else:
         partial = blobs / f"{src.host}_{src.ns}_{src.name}_{src.tag}.partial"
-    if util.which("curl"):
-        return _download_curl(src.url, partial, src.size, progress, retries, stall_timeout)
-    return _download_urllib(src.url, partial, src.size, progress, retries, stall_timeout)
+    strategy = _attempt_curl if util.which("curl") else _attempt_urllib
+    return _download_with_retries(strategy, src.url, partial, src.size, progress,
+                                  retries, stall_timeout)
 
 
 # --------------------------------------------------------------------------- #
@@ -323,6 +339,50 @@ def _gc_blobs(root: Path) -> list[str]:
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
+def _plan(src: Source, root: Path) -> None:
+    """Resolve remote metadata (size/sha, HF fallback) and preflight disk space."""
+    size, sha, _etag = head(src.url)
+    if size is None and src.host == "huggingface.co" and not src.explicit_file:
+        for candidate in _HF_FALLBACK_FILES:
+            url = f"https://huggingface.co/{src.ns}/{src.name}/resolve/main/{candidate}"
+            size, sha, _etag = head(url)
+            if size is not None:
+                src.url, src.filename = url, candidate
+                break
+    if size is None:
+        raise RuntimeError(f"could not resolve {src.url} (HEAD failed)")
+    src.size, src.sha256 = size, sha
+    free = shutil.disk_usage(root).free
+    if size and free < size * 1.05:
+        raise RuntimeError(
+            f"not enough disk space: need {util.human_bytes(size)}, "
+            f"free {util.human_bytes(free)}"
+        )
+
+
+def _transfer(src: Source, blobs: Path, progress: Progress, retries: int,
+              stall_timeout: float) -> tuple[Path, str]:
+    """Download to a partial path and verify its sha256, returning (partial, digest)."""
+    partial = _download(src, blobs, progress, retries, stall_timeout)
+    digest = _sha256_file(partial)
+    if src.sha256 and digest != src.sha256:
+        try:
+            partial.unlink()
+        except OSError:
+            pass
+        raise RuntimeError(f"sha256 mismatch: expected {src.sha256}, got {digest}")
+    return partial, digest
+
+
+def _materialize(root: Path, src: Source, partial: Path, digest: str,
+                 blobs: Path) -> tuple[Path, Path]:
+    """Move the verified partial to its content-addressed blob and write the manifest."""
+    final = blobs / f"sha256-{digest}"
+    os.replace(partial, final)
+    manifest = _write_manifest(root, src, final, digest)
+    return final, manifest
+
+
 def pull(source: str, *, tag: str = "latest", json_progress: bool = False,
          retries: int = 3, stall_timeout: float = 20.0, quiet: bool = False) -> dict:
     src = resolve_source(source, tag)
@@ -355,43 +415,10 @@ def pull(source: str, *, tag: str = "latest", json_progress: bool = False,
             if not final.exists():
                 shutil.copyfile(local, final)
             manifest = _write_manifest(root, src, final, digest)
-            result = {"name": src.name, "tag": src.tag, "sha256": digest,
-                      "bytes": final.stat().st_size, "path": str(final),
-                      "manifest": str(manifest), "source": src.url}
-            if json_progress:
-                util.ndjson({"event": "done", **result})
-            return result
-
-        size, sha, _etag = head(src.url)
-        if size is None and src.host == "huggingface.co" and not src.explicit_file:
-            for candidate in _HF_FALLBACK_FILES:
-                url = f"https://huggingface.co/{src.ns}/{src.name}/resolve/main/{candidate}"
-                size, sha, _etag = head(url)
-                if size is not None:
-                    src.url, src.filename = url, candidate
-                    break
-        if size is None:
-            raise RuntimeError(f"could not resolve {src.url} (HEAD failed)")
-        src.size, src.sha256 = size, sha
-
-        free = shutil.disk_usage(root).free
-        if size and free < size * 1.05:
-            raise RuntimeError(
-                f"not enough disk space: need {util.human_bytes(size)}, "
-                f"free {util.human_bytes(free)}"
-            )
-
-        partial = _download(src, blobs, progress, retries, stall_timeout)
-        digest = _sha256_file(partial)
-        if src.sha256 and digest != src.sha256:
-            try:
-                partial.unlink()
-            except OSError:
-                pass
-            raise RuntimeError(f"sha256 mismatch: expected {src.sha256}, got {digest}")
-        final = blobs / f"sha256-{digest}"
-        os.replace(partial, final)
-        manifest = _write_manifest(root, src, final, digest)
+        else:
+            _plan(src, root)
+            partial, digest = _transfer(src, blobs, progress, retries, stall_timeout)
+            final, manifest = _materialize(root, src, partial, digest, blobs)
         result = {"name": src.name, "tag": src.tag, "sha256": digest,
                   "bytes": final.stat().st_size, "path": str(final),
                   "manifest": str(manifest), "source": src.url}
