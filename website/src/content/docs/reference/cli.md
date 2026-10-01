@@ -99,3 +99,14 @@ installs reversible and that `doctor` compares against the running system.
 | `UTTER_SOUNDS` | `0` disables the UI sounds |
 | `UTTER_OSD` | `0` disables the on-screen display |
 | `XDG_RUNTIME_DIR` | where the runner socket, plugin sockets and OSD state live |
+# Utter command line
+
+The `utter` executable drives desktop actions and speech. The separate `python -m assistant` command manages models, runner health, recommendations, and install state. See the [agent CLI reference](../../../../docs/CLI.md) for command details, JSON contract, and exit codes.
+
+```sh
+utter schema --json
+utter assistant "open youtube" --dry-run --json
+utter dictation "hello" --dry-run --json
+```
+
+JSON uses the stable `utter.cli/v1` envelope. `utter --text TEXT` remains supported for compatibility.

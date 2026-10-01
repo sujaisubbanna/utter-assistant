@@ -26,6 +26,9 @@ export XDG_RUNTIME_DIR="$RUNTMP"
 
 rc=0
 
+echo "== agent CLI contract =="
+"$PY" tests/test_cli.py || rc=1
+
 echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/voice/test_hotkey_rescan.py || rc=1
 "$PY" tests/voice/test_clipboard_nontext.py || rc=1
