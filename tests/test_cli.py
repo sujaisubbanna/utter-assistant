@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -80,7 +81,32 @@ class CliContractTests(unittest.TestCase):
             self.assertEqual((code, err), (0, ""))
             outputs.append(json.loads(raw))
         self.assertEqual(outputs[0], outputs[1])
-        self.assertEqual(outputs[0]["data"], {"accepted": True, "dry_run": True})
+        self.assertTrue(outputs[0]["data"]["accepted"])
+        self.assertTrue(outputs[0]["data"]["dry_run"])
+        self.assertTrue(outputs[0]["data"]["plan"]["steps"])
+
+    def _run_real_preview(self, args):
+        repo = pathlib.Path(__file__).resolve().parents[1]
+        return subprocess.run([sys.executable, "-X", "faulthandler", "-m", "utter.cli", *args],
+                              cwd=repo, capture_output=True, text=True, timeout=6)
+
+    def test_real_process_dry_run_flags_before_subcommand(self):
+        proc = self._run_real_preview(["--dry-run", "assistant", "open youtube", "--json"])
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        obj = json.loads(proc.stdout)
+        self.assertEqual(obj["schema"], "utter.cli/v1")
+        self.assertTrue(obj["data"]["accepted"])
+        self.assertTrue(obj["data"]["dry_run"])
+        self.assertTrue(obj["data"]["plan"]["steps"])
+
+    def test_real_process_dry_run_flags_after_subcommand(self):
+        proc = self._run_real_preview(["assistant", "open youtube", "--dry-run", "--json"])
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        obj = json.loads(proc.stdout)
+        self.assertEqual(obj["schema"], "utter.cli/v1")
+        self.assertTrue(obj["data"]["accepted"])
+        self.assertTrue(obj["data"]["dry_run"])
+        self.assertTrue(obj["data"]["plan"]["steps"])
 
     def test_missing_confirmation_is_fast_without_tty_or_stdin_read(self):
         class NonTty:

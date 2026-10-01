@@ -111,4 +111,4 @@ utter settings set stt.device --value '"cuda"' --dry-run --json
 utter commands set firefox "toggle developer tools" ctrl+shift+i --dry-run --json
 ```
 
-JSON uses the stable `utter.cli/v1` envelope. The packaged Draft 2020-12 schema is `utter/data/cli.schema.json`. Settings and custom command writes require `--confirm`; preview them with `--dry-run`. `utter --text TEXT` remains supported for compatibility.
+JSON uses the stable `utter.cli/v1` envelope. The packaged Draft 2020-12 schema is `utter/data/cli.schema.json`. Assistant `--dry-run` returns its route plan from an isolated daemon process with a four second limit. Settings and custom command writes require `--confirm`; preview them with `--dry-run`. `utter --text TEXT` remains supported for compatibility.

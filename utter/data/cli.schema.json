@@ -51,7 +51,7 @@
     "errorObject": {
       "type": "object",
       "properties": {
-        "code": { "enum": ["E_USAGE", "E_ACTION_FAILED", "E_BLOCKED", "E_BACKEND_UNAVAILABLE", "E_RUNNER_UNAVAILABLE", "E_NOT_FOUND", "E_NO_ACTION", "E_INVALID_SETTING", "E_INVALID_COMMAND"] },
+        "code": { "enum": ["E_USAGE", "E_ACTION_FAILED", "E_BLOCKED", "E_BACKEND_UNAVAILABLE", "E_RUNNER_UNAVAILABLE", "E_NOT_FOUND", "E_NO_ACTION", "E_INVALID_SETTING", "E_INVALID_COMMAND", "E_PREVIEW_TIMEOUT"] },
         "message": { "type": "string" }
       },
       "required": ["code", "message"],
@@ -68,7 +68,7 @@
       "required": ["schema", "ok", "command", "data"],
       "additionalProperties": false
     },
-    "assistant": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "assistant" }, "data": { "type": "object", "properties": { "accepted": { "type": "boolean" }, "dry_run": { "type": "boolean" } }, "required": ["accepted"], "additionalProperties": false } } }] },
+    "assistant": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "assistant" }, "data": { "type": "object", "properties": { "accepted": { "type": "boolean" }, "dry_run": { "type": "boolean" }, "plan": { "type": ["object", "null"], "properties": { "utterance": { "type": "string" }, "source": { "type": "string" }, "confidence": { "type": "number" }, "needs_perception": { "type": "boolean" }, "steps": { "type": "array", "items": { "type": "object", "properties": { "action": { "type": "string" }, "tier": { "type": "string" }, "args": { "type": "object" }, "description": { "type": "string" } }, "required": ["action", "tier", "args", "description"], "additionalProperties": false } } }, "required": ["utterance", "source", "confidence", "needs_perception", "steps"], "additionalProperties": false } }, "required": ["accepted"], "additionalProperties": false } } }] },
     "dictation": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "dictation" }, "data": { "type": "object", "properties": { "typed": { "type": "boolean" }, "characters": { "type": "integer", "minimum": 0 }, "dry_run": { "type": "boolean" } }, "required": ["typed", "characters"], "additionalProperties": false } } }] },
     "listen": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "listen" }, "data": { "type": "object", "properties": { "text": { "type": "string" }, "accepted": { "type": "boolean" } }, "required": ["text"], "additionalProperties": false } } }] },
     "speak": { "allOf": [{ "$ref": "#/$defs/success" }, { "properties": { "command": { "const": "speak" }, "data": { "type": "object", "properties": { "spoken": { "type": "boolean" }, "dry_run": { "type": "boolean" }, "engine": { "type": "string" } }, "required": ["spoken", "engine"], "additionalProperties": false } } }] },
