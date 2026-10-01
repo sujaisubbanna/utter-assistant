@@ -44,6 +44,7 @@ Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and 
 | Editable per-app actions | More than 100 app profiles with their shortcuts. Change any key combination in the settings app. |
 | Safe by default | Terminal commands and raw input stay off until you enable them, and important actions ask first. |
 | Completely offline | Speech, AI models and screenshots never leave your machine. No account, no telemetry. |
+| Sleep when idle | Say "go to sleep", or let Utter idle, to free the GPU; hold a push-to-talk key to wake it. |
 | Headless CLI | Drive the same commands and settings from a terminal, script or agent, with JSON output. |
 
 ## Demo
