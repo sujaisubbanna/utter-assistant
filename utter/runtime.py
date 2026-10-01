@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -24,6 +23,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from utter import platform
+from utter.hardware import gpu_info, probe_macos_gpu
 
 # Default macOS endpoints and models for ready-made tools
 DEFAULT_MACOS_LLM_PROVIDER = "ollama"
@@ -39,38 +39,6 @@ VOCAMAC_BINARIES = (
     "/Applications/VocaMac.app/Contents/MacOS/VocaMac",
     "~/Applications/VocaMac.app/Contents/MacOS/VocaMac",
 )
-
-
-def probe_macos_gpu() -> dict[str, Any]:
-    """Report Apple Silicon Metal GPU and unified memory."""
-    name = "Apple Silicon (Metal)"
-    ram_gb = 16.0
-
-    # Probe brand string and memory via sysctl when available
-    sysctl = shutil.which("sysctl")
-    if sysctl:
-        try:
-            proc = subprocess.run([sysctl, "-n", "machdep.cpu.brand_string"],
-                                  capture_output=True, text=True, timeout=2)
-            brand = proc.stdout.strip()
-            if brand and "apple" in brand.lower():
-                name = f"{brand} (Metal)"
-        except (OSError, subprocess.SubprocessError):
-            pass
-        try:
-            proc_mem = subprocess.run([sysctl, "-n", "hw.memsize"],
-                                      capture_output=True, text=True, timeout=2)
-            mem_bytes = int(proc_mem.stdout.strip())
-            ram_gb = round(mem_bytes / (1024 ** 3), 1)
-        except (OSError, subprocess.SubprocessError, ValueError):
-            pass
-
-    return {
-        "available": True,
-        "name": name,
-        "runtime": "metal",
-        "unified_memory_gb": ram_gb,
-    }
 
 
 def probe_http_models(base_url: str, timeout: float = 0.5) -> tuple[bool, list[str], Optional[str]]:
@@ -160,142 +128,149 @@ def probe_runtime(cfg=None, platform_name: Optional[str] = None) -> dict[str, An
             cfg = Config()
 
     if plat == platform.MACOS:
-        gpu = probe_macos_gpu()
+        return _probe_runtime_macos(cfg)
+    return _probe_runtime_linux(cfg)
 
-        # LLM
-        mac_rt = getattr(cfg.macos, "runtime", None)
-        llm_provider = getattr(mac_rt, "llm_provider", getattr(cfg.macos, "llm_provider", DEFAULT_MACOS_LLM_PROVIDER))
-        llm_base = getattr(mac_rt, "llm_base_url", getattr(cfg.macos, "llm_base_url", DEFAULT_MACOS_LLM_URL))
-        llm_model = getattr(mac_rt, "llm_model", getattr(cfg.macos, "llm_model", DEFAULT_MACOS_LLM_MODEL))
 
-        ollama_info = probe_ollama(llm_base)
-        llm_avail = False
-        llm_models = ollama_info["models"]
+def _probe_runtime_macos(cfg) -> dict[str, Any]:
+    """macOS (Metal-native) runtime report: Ollama LLM/Vision, Apple Speech, say."""
+    gpu = probe_macos_gpu()
 
-        if ollama_info["running"]:
-            # Check model presence (exact match or tag match e.g. "qwen2.5:3b" vs "qwen2.5:3b-instruct")
-            target_stem = llm_model.split(":")[0].lower()
-            model_found = any(m.lower() == llm_model.lower() or m.lower().startswith(target_stem) for m in llm_models)
-            if model_found or not llm_models:
-                llm_status = "ready"
-                llm_avail = True
-                llm_msg = f"Ollama running on Metal ({len(llm_models)} model(s) available)"
-            else:
-                llm_status = "model_missing"
-                llm_avail = False
-                llm_msg = f"Ollama running on Metal, but model '{llm_model}' not pulled (run 'ollama pull {llm_model}')"
+    # LLM
+    mac_rt = getattr(cfg.macos, "runtime", None)
+    llm_provider = getattr(mac_rt, "llm_provider", getattr(cfg.macos, "llm_provider", DEFAULT_MACOS_LLM_PROVIDER))
+    llm_base = getattr(mac_rt, "llm_base_url", getattr(cfg.macos, "llm_base_url", DEFAULT_MACOS_LLM_URL))
+    llm_model = getattr(mac_rt, "llm_model", getattr(cfg.macos, "llm_model", DEFAULT_MACOS_LLM_MODEL))
+
+    ollama_info = probe_ollama(llm_base)
+    llm_avail = False
+    llm_models = ollama_info["models"]
+
+    if ollama_info["running"]:
+        # Check model presence (exact match or tag match e.g. "qwen2.5:3b" vs "qwen2.5:3b-instruct")
+        target_stem = llm_model.split(":")[0].lower()
+        model_found = any(m.lower() == llm_model.lower() or m.lower().startswith(target_stem) for m in llm_models)
+        if model_found or not llm_models:
+            llm_status = "ready"
+            llm_avail = True
+            llm_msg = f"Ollama running on Metal ({len(llm_models)} model(s) available)"
         else:
+            llm_status = "model_missing"
             llm_avail = False
-            if ollama_info["installed"]:
-                llm_status = "stopped"
-                llm_msg = f"Ollama is installed but not running at {llm_base} (start with 'brew services start ollama' or 'ollama serve')"
-            else:
-                llm_status = "not_installed"
-                llm_msg = "Ollama is not installed (install with 'brew install ollama')"
-
-        llm_role = {
-            "provider": llm_provider,
-            "endpoint": llm_base,
-            "model": llm_model,
-            "installed": ollama_info["installed"],
-            "running": ollama_info["running"],
-            "available": llm_avail,
-            "models": llm_models,
-            "status": llm_status,
-            "message": llm_msg,
-        }
-
-        # Vision
-        vis_provider = getattr(mac_rt, "vision_provider", getattr(cfg.macos, "vision_provider", DEFAULT_MACOS_VISION_PROVIDER))
-        vis_base = getattr(mac_rt, "vision_base_url", getattr(cfg.macos, "vision_base_url", DEFAULT_MACOS_VISION_URL))
-        vis_model = getattr(mac_rt, "vision_model", getattr(cfg.macos, "vision_model", DEFAULT_MACOS_VISION_MODEL))
-
-        vis_avail = False
-        if ollama_info["running"]:
-            v_stem = vis_model.split(":")[0].lower()
-            vis_found = any(m.lower() == vis_model.lower() or m.lower().startswith(v_stem) for m in llm_models)
-            if vis_found or not llm_models:
-                vis_status = "ready"
-                vis_avail = True
-                vis_msg = f"VLM server running on Metal, model '{vis_model}' ready"
-            else:
-                vis_status = "model_missing"
-                vis_avail = False
-                vis_msg = f"VLM server running, but vision model '{vis_model}' not pulled (run 'ollama pull {vis_model}')"
+            llm_msg = f"Ollama running on Metal, but model '{llm_model}' not pulled (run 'ollama pull {llm_model}')"
+    else:
+        llm_avail = False
+        if ollama_info["installed"]:
+            llm_status = "stopped"
+            llm_msg = f"Ollama is installed but not running at {llm_base} (start with 'brew services start ollama' or 'ollama serve')"
         else:
+            llm_status = "not_installed"
+            llm_msg = "Ollama is not installed (install with 'brew install ollama')"
+
+    llm_role = {
+        "provider": llm_provider,
+        "endpoint": llm_base,
+        "model": llm_model,
+        "installed": ollama_info["installed"],
+        "running": ollama_info["running"],
+        "available": llm_avail,
+        "models": llm_models,
+        "status": llm_status,
+        "message": llm_msg,
+    }
+
+    # Vision
+    vis_provider = getattr(mac_rt, "vision_provider", getattr(cfg.macos, "vision_provider", DEFAULT_MACOS_VISION_PROVIDER))
+    vis_base = getattr(mac_rt, "vision_base_url", getattr(cfg.macos, "vision_base_url", DEFAULT_MACOS_VISION_URL))
+    vis_model = getattr(mac_rt, "vision_model", getattr(cfg.macos, "vision_model", DEFAULT_MACOS_VISION_MODEL))
+
+    vis_avail = False
+    if ollama_info["running"]:
+        v_stem = vis_model.split(":")[0].lower()
+        vis_found = any(m.lower() == vis_model.lower() or m.lower().startswith(v_stem) for m in llm_models)
+        if vis_found or not llm_models:
+            vis_status = "ready"
+            vis_avail = True
+            vis_msg = f"VLM server running on Metal, model '{vis_model}' ready"
+        else:
+            vis_status = "model_missing"
             vis_avail = False
-            vis_status = ollama_info["status"]
-            vis_msg = llm_msg
+            vis_msg = f"VLM server running, but vision model '{vis_model}' not pulled (run 'ollama pull {vis_model}')"
+    else:
+        vis_avail = False
+        vis_status = ollama_info["status"]
+        vis_msg = llm_msg
 
-        vision_role = {
-            "provider": vis_provider,
-            "endpoint": vis_base,
-            "model": vis_model,
-            "installed": ollama_info["installed"],
-            "running": ollama_info["running"],
-            "available": vis_avail,
-            "models": llm_models,
-            "status": vis_status,
-            "message": vis_msg,
-        }
+    vision_role = {
+        "provider": vis_provider,
+        "endpoint": vis_base,
+        "model": vis_model,
+        "installed": ollama_info["installed"],
+        "running": ollama_info["running"],
+        "available": vis_avail,
+        "models": llm_models,
+        "status": vis_status,
+        "message": vis_msg,
+    }
 
-        # STT
-        stt_primary = getattr(cfg.macos, "stt_backend", "apple_speech")
-        stt_fallback = getattr(cfg.macos, "stt_fallback", "whisper_cpp")
-        apple_avail = platform.has_module("Speech") and platform.has_module("Foundation")
-        whisper_avail = platform.has_module("pywhispercpp") or bool(shutil.which("whisper-cli"))
-        vocamac_info = probe_vocamac()
+    # STT
+    stt_primary = getattr(cfg.macos, "stt_backend", "apple_speech")
+    stt_fallback = getattr(cfg.macos, "stt_fallback", "whisper_cpp")
+    apple_avail = platform.has_module("Speech") and platform.has_module("Foundation")
+    whisper_avail = platform.has_module("pywhispercpp") or bool(shutil.which("whisper-cli"))
+    vocamac_info = probe_vocamac()
 
-        stt_avail = apple_avail or whisper_avail or vocamac_info["installed"]
-        if apple_avail:
-            stt_status = "ready"
-            stt_msg = "Apple Speech.framework on-device active"
-        elif whisper_avail:
-            stt_status = "ready"
-            stt_msg = "whisper.cpp (Metal) active (Apple Speech unavailable)"
-        elif vocamac_info["installed"]:
-            stt_status = "ready"
-            stt_msg = "VocaMac file transcription CLI available"
-        else:
-            stt_status = "unavailable"
-            stt_msg = "No STT backend available (requires Speech.framework, pywhispercpp, or VocaMac)"
+    stt_avail = apple_avail or whisper_avail or vocamac_info["installed"]
+    if apple_avail:
+        stt_status = "ready"
+        stt_msg = "Apple Speech.framework on-device active"
+    elif whisper_avail:
+        stt_status = "ready"
+        stt_msg = "whisper.cpp (Metal) active (Apple Speech unavailable)"
+    elif vocamac_info["installed"]:
+        stt_status = "ready"
+        stt_msg = "VocaMac file transcription CLI available"
+    else:
+        stt_status = "unavailable"
+        stt_msg = "No STT backend available (requires Speech.framework, pywhispercpp, or VocaMac)"
 
-        stt_role = {
-            "primary": stt_primary,
-            "fallback": stt_fallback,
-            "apple_speech_available": apple_avail,
-            "whisper_cpp_available": whisper_avail,
-            "vocamac_installed": vocamac_info["installed"],
-            "available": stt_avail,
-            "status": stt_status,
-            "message": stt_msg,
-        }
+    stt_role = {
+        "primary": stt_primary,
+        "fallback": stt_fallback,
+        "apple_speech_available": apple_avail,
+        "whisper_cpp_available": whisper_avail,
+        "vocamac_installed": vocamac_info["installed"],
+        "available": stt_avail,
+        "status": stt_status,
+        "message": stt_msg,
+    }
 
-        # TTS
-        tts_engine = getattr(cfg.macos, "tts_backend", "say")
-        say_path = shutil.which("say")
-        tts_avail = bool(say_path) or tts_engine == "avspeech"
-        tts_role = {
-            "engine": tts_engine,
-            "path": say_path,
-            "available": tts_avail,
-            "status": "ready" if tts_avail else "unavailable",
-            "message": "macOS system say command" if say_path else "say command not found",
-        }
+    # TTS
+    tts_engine = getattr(cfg.macos, "tts_backend", "say")
+    say_path = shutil.which("say")
+    tts_avail = bool(say_path) or tts_engine == "avspeech"
+    tts_role = {
+        "engine": tts_engine,
+        "path": say_path,
+        "available": tts_avail,
+        "status": "ready" if tts_avail else "unavailable",
+        "message": "macOS system say command" if say_path else "say command not found",
+    }
 
-        return {
-            "platform": "darwin",
-            "device": "metal",
-            "gpu": gpu,
-            "llm": llm_role,
-            "vision": vision_role,
-            "stt": stt_role,
-            "tts": tts_role,
-        }
+    return {
+        "platform": "darwin",
+        "device": "metal",
+        "gpu": gpu,
+        "llm": llm_role,
+        "vision": vision_role,
+        "stt": stt_role,
+        "tts": tts_role,
+    }
 
-    # Linux runtime
-    from utter.cli import _gpu_info
-    gpu = _gpu_info()
+
+def _probe_runtime_linux(cfg) -> dict[str, Any]:
+    """Linux runtime report: CUDA/ROCm GPU, vLLM LLM/Vision, faster-whisper, espeak-ng."""
+    gpu = gpu_info()
     tts_engine = shutil.which("espeak-ng") or shutil.which("espeak")
     return {
         "platform": "linux",
