@@ -111,6 +111,22 @@ config at your own OpenAI-compatible server, then use **Test endpoint** on the L
 decision head **fails open to rules** on any error, so a missing server degrades gracefully rather
 than breaking commands.
 
+## The first command after a break is slow, or the overlay says "Asleep"
+
+**Symptom:** after a while without using Utter, the first push-to-talk shows *Asleep · hold a
+key to wake*, and the first fuzzy or "click ..." command takes longer than usual.
+
+**Cause:** Utter went to sleep by itself. After `[sleep] idle_minutes` (15 by default) without a
+push-to-talk key or a spoken command it stops the model services and unloads speech, exactly as
+if you had said the sleep phrase. The key press you just made woke it: speech is already back,
+and the decision-head and vision servers are restarting in the background, which takes a few
+seconds.
+
+**Fix:** nothing is wrong; wait a moment and try again. If you would rather Utter stayed awake,
+turn off **Sleep when idle** on the General page, or raise the time. The log line
+`idle: no Utter activity for 15 min, going to sleep` in `journalctl --user -u utter-bridge`
+confirms an automatic sleep.
+
 ## `assistant` or `utter-gui`: command not found
 
 The installer puts binaries under `$PREFIX/bin`, `~/.local/bin` by default:

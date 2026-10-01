@@ -1,6 +1,6 @@
 [project]
 name = "utter"
-version = "0.2.0"
+version = "0.2.1"
 description = "Context-aware, local, always-on voice->desktop-action sidecar. Rules first, vision last."
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"

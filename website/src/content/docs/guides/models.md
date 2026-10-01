@@ -129,6 +129,9 @@ your data leaves the computer.
 ## Sleep mode and models
 
 Saying your sleep phrase stops the model services listed in `[sleep] services` and unloads the
-speech model, freeing the GPU for something else. Holding a push-to-talk key wakes everything:
-speech comes back first, and the bigger models reload in the background. See
-[Getting started](/getting-started/#5-sleep-mode).
+speech model, freeing the GPU for something else. Utter also does this by itself after
+`[sleep] idle_minutes` (15 by default) without a push-to-talk key or a spoken command; typing
+and clicking in other apps do not count. Holding a push-to-talk key wakes everything: speech
+comes back first, and the bigger models reload in the background. See
+[Getting started](/getting-started/#5-sleep-mode) and the `[sleep]` keys in
+[Configuration](/guides/configuration/#sleep).
