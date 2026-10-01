@@ -1,0 +1,164 @@
+/* Utter docs theme: one accent (the wordmark yellow), neutral greys,
+   generous whitespace and Inter for text. Dark is the default Starlight
+   palette; light is overridden below. The theme follows the system
+   preference unless the visitor picks one in the header. */
+@import '@fontsource-variable/inter';
+
+:root {
+  /* dark */
+  --sl-color-accent-low: #3b2e00;
+  --sl-color-accent: #d9a514;
+  --sl-color-accent-high: #f7dd8a;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #ececec;
+  --sl-color-gray-2: #c2c2c0;
+  --sl-color-gray-3: #8b8b89;
+  --sl-color-gray-4: #585856;
+  --sl-color-gray-5: #383836;
+  --sl-color-gray-6: #262624;
+  --sl-color-black: #161616;
+
+  --sl-font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    sans-serif;
+  --sl-font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Consolas,
+    monospace;
+
+  /* roomier content */
+  --sl-content-width: 46rem;
+  --sl-text-h1: 2.5rem;
+  --sl-text-h2: 1.6rem;
+  --sl-text-h3: 1.25rem;
+  --sl-line-height: 1.7;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #fdf1c4;
+  --sl-color-accent: #8a6400;
+  --sl-color-accent-high: #3f2e00;
+  --sl-color-white: #1a1a1a;
+  --sl-color-gray-1: #2a2a28;
+  --sl-color-gray-2: #434341;
+  --sl-color-gray-3: #6d6d6b;
+  --sl-color-gray-4: #a3a3a1;
+  --sl-color-gray-5: #d5d5d2;
+  --sl-color-gray-6: #ebebe8;
+  --sl-color-gray-7: #f3f3f1;
+  --sl-color-black: #ffffff;
+}
+
+/* Typography */
+body {
+  font-feature-settings: 'cv11', 'ss01', 'calt';
+  -webkit-font-smoothing: antialiased;
+}
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+h1[data-page-title] {
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+.sl-markdown-content h2 {
+  margin-top: 2.5em;
+}
+.sl-markdown-content :is(p, li) {
+  text-wrap: pretty;
+}
+.sl-markdown-content code:not(:where(pre *)) {
+  border-radius: 0.3rem;
+  padding: 0.12em 0.35em;
+}
+.sl-markdown-content table {
+  font-size: var(--sl-text-sm);
+}
+
+/* Logo sizing in the header */
+.site-title img {
+  height: 2rem;
+}
+
+/* Primary buttons use the accent with dark text, matching the settings app. */
+.sl-link-button.primary {
+  background: #f2c230;
+  border-color: #f2c230;
+  color: #1a1400;
+  font-weight: 600;
+}
+.sl-link-button.primary:hover {
+  background: #f7c948;
+  border-color: #f7c948;
+}
+:root[data-theme='light'] .sl-link-button.primary {
+  background: #f2c230;
+  color: #1a1400;
+}
+
+/* Hero: calmer than the default gradient; mark sits at a readable size. */
+.hero {
+  padding-block: 2rem 1rem;
+}
+.hero img {
+  width: 11rem;
+  max-height: 11rem;
+}
+.hero .tagline {
+  color: var(--sl-color-gray-2);
+  max-width: 38ch;
+}
+.hero h1 {
+  letter-spacing: -0.03em;
+}
+
+/* Home page helpers (used by index.mdx) */
+.install-box {
+  margin: 2.5rem auto 0;
+  max-width: 50rem;
+}
+.install-box pre {
+  font-size: 0.9rem;
+}
+.install-box .expressive-code {
+  margin: 0;
+}
+.utter-strip {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin-top: 2.5rem;
+  text-align: left;
+}
+.utter-strip > div {
+  margin: 0;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+  background: var(--sl-color-bg);
+}
+.utter-strip strong {
+  display: block;
+  font-size: var(--sl-text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sl-color-accent-high);
+  margin-bottom: 0.3rem;
+}
+:root[data-theme='dark'] .utter-strip strong {
+  color: var(--sl-color-accent);
+}
+.utter-strip p {
+  margin: 0;
+  color: var(--sl-color-gray-2);
+  font-size: var(--sl-text-sm);
+  line-height: 1.5;
+}
+.screens {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  margin-top: 2rem;
+}
+.screens img {
+  margin: 0;
+  border-radius: 0.75rem;
+  border: 1px solid var(--sl-color-gray-5);
+}

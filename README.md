@@ -17,6 +17,8 @@
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f1f1f)
 ![Languages: English · Español](https://img.shields.io/badge/UI-English%20·%20Español-6b6b70)
 
+**📖 Documentation: [sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)**
+
 </div>
 
 ---
@@ -209,6 +211,11 @@ page, and pick a recommended model on the **Models** page.
 - [ ] **More text-to-speech voices**: support for other TTS engines beyond eSpeak, Speech Dispatcher and Piper
 
 ## 📚 Documentation
+
+The full documentation lives at **[sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)**
+(introduction, install, configuration, apps, models, plugins, trust & safety, troubleshooting).
+It is built from `website/` with Astro Starlight; the Markdown sources below remain the
+in-repo reference.
 
 | Doc | What's inside |
 |---|---|

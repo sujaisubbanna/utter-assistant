@@ -1,12 +1,15 @@
 name: pages
 
-# Publish the hosted installer so users can run:
+# Publish the documentation site (website/) to GitHub Pages together with the
+# hosted installer, so both of these keep working:
+#   https://sujaisubbanna.github.io/utter-assistant/            (docs)
 #   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
 on:
   push:
     branches: [main]
     paths:
       - "install.sh"
+      - "website/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -23,61 +26,53 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: website
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        # The version comes from the "packageManager" field in website/package.json.
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
       - name: Configure Pages
+        id: pages
         uses: actions/configure-pages@v5
         with:
           # Create the Pages site if it does not exist yet (idempotent).
           enablement: true
 
-      - name: Assemble site
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Add the hosted installer
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p _site
-          cp install.sh _site/install.sh
-          chmod +x _site/install.sh
-          cat > _site/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>utter — install</title>
-            <style>
-              body { font: 16px/1.6 system-ui, sans-serif; max-width: 46rem;
-                     margin: 4rem auto; padding: 0 1rem; color: #1a1a1a; }
-              code, pre { background: #f4f4f4; border-radius: 6px; }
-              code { padding: .15em .35em; }
-              pre { padding: 1rem; overflow-x: auto; }
-              h1 { margin-bottom: .2rem; }
-              .muted { color: #666; }
-            </style>
-          </head>
-          <body>
-            <h1>utter</h1>
-            <p class="muted">Local, context-aware voice → desktop-action assistant.</p>
-            <h2>Install</h2>
-            <pre><code>curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash</code></pre>
-            <p>Prefer a native package (deb/rpm) with sudo?</p>
-            <pre><code>curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --package</code></pre>
-            <p>Uninstall:</p>
-            <pre><code>curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --uninstall</code></pre>
-            <p class="muted">See <a href="https://github.com/sujaisubbanna/utter-assistant">the repository</a>
-               for docs and releases.</p>
-          </body>
-          </html>
-          HTML
+          # Keep install.sh at the site root, unchanged, so the README one-liner
+          # (…/utter-assistant/install.sh) keeps resolving exactly as before.
+          cp ../install.sh dist/install.sh
+          chmod +x dist/install.sh
+          cmp ../install.sh dist/install.sh
           echo "--- site ---"
-          ls -la _site
+          ls -la dist
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: website/dist
 
   deploy:
     needs: build
