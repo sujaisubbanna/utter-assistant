@@ -98,8 +98,8 @@ The nine steps, in order:
    plus a `.desktop` entry; if `$PREFIX/bin` is not on `PATH` and Noctalia is
    present, an optional `~/.local/bin/utter-gui` symlink is created so the
    widget's left-click finds it.
-6. **STT backend** (vocalinux bridge) — detects an existing `vocalinux` or a
-   whisper backend; if none, advises how to add one. Advisory only.
+6. **STT backend** — detects a whisper backend; if none, advises how to add one.
+   Advisory only.
 7. **Perception** (vision server deps) — detects a UI-TARS/vLLM/transformers
    stack; advises how to serve it. Advisory only.
 8. **Noctalia widget** — optional. If Noctalia is **not** detected, prints a

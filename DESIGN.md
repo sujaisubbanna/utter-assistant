@@ -1,8 +1,8 @@
 # utter — design
 
 A local, always-on **voice → desktop-action** sidecar. Context-aware first; **vision is the last resort**.
-Vocalinux stays untouched as the dictation app; utter is a separate daemon with its own hotkey
-(and an optional bridge that reuses vocalinux's mic/STT for lowest latency).
+Utter is standalone: its own evdev hotkey and local whisper STT. (The old optional vocalinux
+bridge was removed; the mentions below are historical.)
 
 ## Tiers (cheapest that can satisfy the intent wins)
 
@@ -42,7 +42,6 @@ utter/
   router/planner.py            tiny-LLM fallback -> Plan
   voice/hotkey.py              evdev push-to-talk global hotkey
   voice/stt.py                 faster-whisper / whisper.cpp transcription
-  voice/vocalinux_bridge.py    optional: reuse vocalinux transcript (monkeypatch launcher)
   daemon.py                    ties it together; systemd user service
   profiles/*.yaml              per-app rules
   data/apps.json               generated catalog of installed apps

@@ -3,15 +3,16 @@
 Modular, open-source, plug-and-play local assistant: a tiny **runner** plus swappable
 **plugins** (any language). Linux/Wayland first — **niri** and **KDE Plasma (KWin)** are
 first-class, other compositors get partial support; **macOS is experimental**. Name: **utter**.
-License: **Apache-2.0** (runner + plugin SDK). Vocalinux: **keep the bridge** (hardened).
+License: **Apache-2.0** (runner + plugin SDK). Vocalinux bridge: **removed** (Utter uses
+whisper.cpp / faster-whisper everywhere; see §6).
 
 **Cost boundaries:** runner is small/fixed; **models/STT RAM+VRAM are the user's choice** —
 we *recommend* a profile from specs (§10) and never bundle models.
 
 **Footprint reality:** models own ~8.9 GB RSS / ~42 GB VRAM here; the Python daemon is
-~50 MB standalone / ~272 MB inside vocalinux. **Justify the Rust runner by determinism,
+~50 MB standalone. **Justify the Rust runner by determinism,
 robustness and packaging (single binary vs venv) — not memory or latency** (IPC is sub-ms;
-inference dominates). Unaffected: whisper RSS, vocalinux, vLLM, GUI baseline.
+inference dominates). Unaffected: whisper RSS, vLLM, GUI baseline.
 
 > v2 incorporates an independent @oracle review. The most important change: **build the
 > trust/policy layer and one end-to-end vertical slice first; defer the Rust port, WASM,
@@ -129,7 +130,11 @@ config_schema="schema.json"
 
 ---
 
-## 6. vocalinux integration (user choice: keep the bridge — hardened)
+## 6. vocalinux integration (historical — removed)
+
+> **Removed (2026-10).** The Vocalinux bridge was deleted: Utter is self-sufficient with
+> its own evdev push-to-talk, PipeWire capture and whisper.cpp / faster-whisper STT.
+> The notes below are kept only as history and are **out of scope** for the current code.
 
 - Keep **A** (thin Python shim: `socket`+`json`, patches `inject_text`, forwards text+mode to
   the runner) — **but**: pinned vocalinux version range, `inspect.signature` validation +
@@ -288,7 +293,7 @@ Cut from v1: WASM/Extism, OCI, MCP adapter, deep GTK features, default latency b
 
 - Registry now vs later (plan: static index/custom repos now; OCI/MCP later).
 - First plugin SDKs: Python + Rust (TypeScript next).
-- Licensing gate for the vocalinux bridge before OSS release.
+- ~~Licensing gate for the vocalinux bridge before OSS release.~~ **Removed** with the bridge.
 - Decide when (if) to port the Python core to Rust — after profiling shows a real bottleneck.
 
 ## 13. Risks

@@ -57,7 +57,7 @@ utter commands remove firefox "toggle developer tools" --confirm --json
 
 The canonical JSON Schema is packaged at `utter/data/cli.schema.json` and returned under `data.json_schema` by `utter schema --json`. Validate responses with any Draft 2020-12 JSON Schema validator.
 
-The old `utter --text TEXT` and `python -m utter.daemon` service/bridge interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `macos-permissions`, `models`, `install-state`).
+The old `utter --text TEXT` and `python -m utter.daemon` service interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `macos-permissions`, `models`, `install-state`).
 
 ## Exit and error contract
 

@@ -188,49 +188,44 @@ probes = probes_for_services(["utter-vision", "utter-planner", "mystery"], cfg)
 check("probes: vision + planner mapped, unknown skipped", len(probes) == 2)
 check("probes: empty services => none", probes_for_services([], cfg) == [])
 
-# -- bridge: wake triggers loading, sleep does not ---------------------------
-from utter.voice import vocalinux_bridge as bridge  # noqa: E402
+# -- native path: a voice lane drives loading/ready around a wake ------------
+# The OSD emitter is driven directly by the voice lane now that the vocalinux
+# bridge is gone. Use a stub lane that mirrors the wake -> loading -> ready
+# sequence and assert the emitter's contract without importing any bridge.
+import importlib.util  # noqa: E402
 
+check("bridge module removed",
+      importlib.util.find_spec("utter.voice.vocalinux_bridge") is None)
 
-class StubWatcher:
-    def __init__(self) -> None:
-        self.begins = 0
-        self.cancels = 0
+with tempfile.TemporaryDirectory() as tmp:
+    em = make_emitter(tmp)
+    probe = FlagProbe(ready=False)
 
-    def begin(self, *a, **k) -> None:
-        self.begins += 1
+    class StubLane:
+        """Minimal native-lane stub: show loading on wake, clear when ready."""
 
-    def cancel(self) -> None:
-        self.cancels += 1
+        def __init__(self, emitter, ready_probe):
+            self.em = emitter
+            self.probe = ready_probe
+            self.watcher = ModelLoadingWatcher(
+                emitter, [ready_probe], timeout_s=30.0, interval_s=0.5, clock=FakeClock()
+            )
 
+        def wake(self) -> None:
+            self.watcher.begin(background=False)
 
-saved = dict(bridge._state)
-try:
-    stub = StubWatcher()
-    bridge._state["osd"] = SimpleNamespace(enabled=True)
-    bridge._state["model_loading"] = stub
-    bridge._on_sleep_state(False)   # wake
-    check("bridge: wake begins loading", stub.begins == 1)
-    bridge._on_sleep_state(True)    # sleep
-    check("bridge: sleep does not begin loading", stub.begins == 1)
+        def ready_tick(self) -> bool:
+            return self.watcher.tick()
 
-    bridge._state["osd"] = SimpleNamespace(enabled=False)
-    bridge._on_sleep_state(False)
-    check("bridge: disabled OSD does not begin loading", stub.begins == 1)
-
-    bridge._state["osd"] = SimpleNamespace(enabled=True)
-    bridge._state["model_loading"] = None
-    bridge._on_sleep_state(False)
-    check("bridge: no watcher is a no-op", True)
-
-    # Re-init cancels the previous watcher and skips work when no services.
-    bridge._state["model_loading"] = stub
-    bridge._init_model_loading(SimpleNamespace(sleep=SimpleNamespace(services=[])))
-    check("bridge: re-init cancels the previous watcher", stub.cancels == 1)
-    check("bridge: no services => no watcher", bridge._state["model_loading"] is None)
-finally:
-    bridge._state.clear()
-    bridge._state.update(saved)
+    lane = StubLane(em, probe)
+    lane.wake()
+    check("native lane: wake shows loading", read(em.path)["state"] == "loading")
+    check("native lane: not ready keeps loading",
+          lane.ready_tick() is False and read(em.path)["state"] == "loading")
+    probe.ready = True
+    check("native lane: ready finishes the watcher", lane.ready_tick() is True)
+    check("native lane: ready clears to idle", read(em.path)["state"] == "idle")
+    em.close()
 
 # -- config: the bounded timeout is exposed and defaults sanely --------------
 from utter.config import load_config  # noqa: E402

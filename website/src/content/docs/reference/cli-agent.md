@@ -109,5 +109,5 @@ provenance rules in [Trust & safety](/guides/trust-and-safety/) still apply.
   `data.plan` contains the selected route and prepared arguments, and a timeout returns
   `E_PREVIEW_TIMEOUT` rather than waiting indefinitely.
 - `utter listen` and `utter transcribe` need the optional sounddevice/NumPy/STT runtime.
-- The older `utter --text TEXT` and `python -m utter.daemon` service/bridge interfaces remain
+- The older `utter --text TEXT` and `python -m utter.daemon` service interfaces remain
   available.

@@ -18,8 +18,8 @@ in `utter/macos/` is imported and every existing code path is unchanged.
 
 | Concern | Linux (unchanged) | macOS backend |
 |---|---|---|
-| Push-to-talk | evdev / keyd / vocalinux bridge | Quartz `CGEventTap` via PyObjC (`utter/macos/hotkey.py`), `pynput` fallback |
-| Speech-to-text | faster-whisper / whisper.cpp / vocalinux | Apple `Speech.framework` (`SFSpeechRecognizer`, on-device) → local **whisper.cpp** fallback; optional **VocaMac** CLI backend |
+| Push-to-talk | evdev / keyd | Quartz `CGEventTap` via PyObjC (`utter/macos/hotkey.py`), `pynput` fallback |
+| Speech-to-text | faster-whisper / whisper.cpp | Apple `Speech.framework` (`SFSpeechRecognizer`, on-device) → local **whisper.cpp** fallback; optional **VocaMac** CLI backend |
 | Spoken replies | plugin lane | `say` (default) or `AVSpeechSynthesizer` |
 | Decision router / LLM | vLLM (`http://127.0.0.1:8001/v1`) | **Ollama** (`http://127.0.0.1:11434/v1`, Metal) default; LM Studio / llama.cpp |
 | Vision / Grounding | UI-TARS (`http://127.0.0.1:8000/v1`) | **Ollama** VLM (`llama3.2-vision:11b`, Metal) default; LM Studio |
@@ -41,20 +41,20 @@ re-exports `utter.context.niri` on Linux and `utter.macos.desktop` on macOS.
 
 ### Why not "voca" on macOS?
 
-The owner's brief mentioned "voca macOS". **Voca** is VocaHQ, the organisation
-behind [vocalinux](https://github.com/VocaHQ/vocalinux), the Linux dictation
-tool Utter already piggybacks on through `utter/voice/vocalinux_bridge.py`. Its
-macOS sibling is [VocaMac](https://github.com/VocaHQ/vocamac): a Swift menu-bar
-app (macOS 14+, Apple Silicon only, AGPL-3.0, `brew install --cask vocamac`)
-with WhisperKit / Parakeet / Apple Speech engines.
+The owner's brief mentioned "voca macOS". **Voca** is VocaHQ's speech
+tooling: a Linux dictation app plus the macOS
+[VocaMac](https://github.com/VocaHQ/vocamac) menu-bar app. Utter is standalone
+and does **not** integrate with either: its Linux voice path uses whisper.cpp or
+faster-whisper directly, and its macOS path uses Apple's own Speech framework.
+VocaMac is a Swift menu-bar app (macOS 14+, Apple Silicon only, AGPL-3.0,
+`brew install --cask vocamac`) with WhisperKit / Parakeet / Apple Speech engines.
 
 It is a fine dictation app, but it is **not usable as Utter's voice engine**:
 
 - there is no `voca` / `voca-cli` package; VocaMac is a GUI app whose only
   headless mode is `VocaMac --transcribe-file <path> --json`;
 - it exposes **no socket, API or IPC** to consume live transcripts, and it is
-  compiled Swift, so the monkeypatch trick the Linux bridge uses on vocalinux's
-  Python `inject_text` is impossible;
+  compiled Swift, so it cannot be driven from Python;
 - it is Apple Silicon only.
 
 So the macOS port uses **macOS-native voice**: `Speech.framework` as the primary
@@ -352,7 +352,6 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 
 **Linux-only (no macOS equivalent yet)**
 
-- the vocalinux bridge (`general.trigger = "bridge"` falls back to the native loop)
 - niri compositor actions (`niri` rules such as "focus workspace 2") and
   workspace-aware window focusing (macOS activates the owning app instead)
 - AT-SPI accessibility tree dumps and element clicks (`a11y` is `None` on macOS,

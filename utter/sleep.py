@@ -333,7 +333,8 @@ class IdleWatcher:
 
 
 _controller: Optional[SleepController] = None
-_controller_lock = threading.Lock()
+# Reentrant: idle() calls get() while holding this lock (same thread).
+_controller_lock = threading.RLock()
 _idle: Optional[IdleWatcher] = None
 
 

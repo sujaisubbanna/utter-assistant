@@ -19,7 +19,7 @@ class HotkeyConfig:
 
 @dataclass
 class PTTConfig:
-    # Both keys are evdev key names, handled by utter (not vocalinux's parser).
+    # Both keys are evdev key names, handled by utter's own listener.
     #   dictation -> transcript is typed;  assistant -> transcript is executed.
     # (keyd maps physical Right Alt -> Insert on this machine.)
     dictation_key: str = "KEY_F13"
@@ -180,7 +180,7 @@ class KwinConfig:
 
 @dataclass
 class GeneralConfig:
-    trigger: str = "bridge"
+    trigger: str = "hotkey"
     # Compositor backend: "auto" (detect niri / KDE Plasma), "niri" or "kwin".
     compositor: str = "auto"
 

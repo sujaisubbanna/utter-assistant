@@ -39,7 +39,7 @@ Defaults are those shipped in `config.default.toml`.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `trigger` | `hotkey` | `hotkey` runs Utter's own evdev push-to-talk listener; `bridge` reuses vocalinux's recognition |
+| `trigger` | `hotkey` | `hotkey` runs Utter's own evdev push-to-talk listener |
 
 ### `[hotkey]`
 
@@ -136,14 +136,10 @@ See [Noctalia widget and OSD](/guides/noctalia/).
 
 ## Hotkeys and push-to-talk
 
-There are **two trigger models**:
-
-- **Standalone evdev push-to-talk** (`trigger = "hotkey"`). The daemon runs its own key
-  listener and transcribes with the configured speech backend.
-- **vocalinux bridge** (`trigger = "bridge"` or `--bridge`). The daemon hooks vocalinux's single
-  text-injection point and drives vocalinux's own recognition from **two** dedicated keys:
-  the **dictation key** types text normally, the **assistant key** routes the text to Utter and
-  **never** types it.
+Utter runs its own **standalone evdev push-to-talk**. The daemon runs its own key
+listener and transcribes with the configured speech backend. The two dedicated
+`[ptt]` keys are handled by the same listener: the **dictation key** types text
+normally, and the **assistant key** routes the text to Utter and **never** types it.
 
 Keys are evdev names (`KEY_F13`, `KEY_INSERT`, `KEY_RIGHTCTRL`, ...). The listener only needs
 your user to be in the `input` group. It does **not** grab the device, so the key keeps working
@@ -189,19 +185,12 @@ Three backends are supported:
 - **`whisper_cpp`**, via `pywhispercpp`. No GPU required; the model stays resident.
 - **`faster_whisper`**, an optional dependency with GPU support through `device` and
   `compute_type`. Falls back to CPU / int8 if the requested device fails.
-- **`none`**, transcription disabled (for example when the vocalinux bridge supplies the text).
+- **`none`**, transcription disabled.
 
 Model lookup for whisper.cpp checks, in order: an explicit path or `$UTTER_WHISPER_MODEL`,
-`$UTTER_MODELS_DIR`, `<repo>/models/whisper`, `~/.local/share/vocalinux/models/whispercpp`,
-then `~/.cache/whisper`. The default whisper.cpp filename is `ggml-small.en.bin`. If no local
-file exists and the configured name is a valid whisper.cpp model, `pywhispercpp` downloads it.
-
-### vocalinux bridge
-
-Enable with `trigger = "bridge"` in `[general]`, or run `python -m utter.daemon --bridge`. The
-bridge never types assistant utterances; it routes them to Utter. The launcher script
-`scripts/utter-vocalinux.sh` is meant to replace vocalinux's own autostart entry and contains
-hard-coded reference paths you should edit for your checkout.
+`$UTTER_MODELS_DIR`, `<repo>/models/whisper`, then `~/.cache/whisper`. The default whisper.cpp
+filename is `ggml-small.en.bin`. If no local file exists and the configured name is a valid
+whisper.cpp model, `pywhispercpp` downloads it.
 
 ## The decision head and the planner
 

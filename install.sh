@@ -545,7 +545,6 @@ found_config() {
 
 found_stt() {
     local parts=()
-    command -v vocalinux >/dev/null 2>&1 && parts+=("vocalinux:$(command -v vocalinux)")
     command -v whisper-cli >/dev/null 2>&1 && parts+=("whisper-cli")
     command -v whisper-cpp >/dev/null 2>&1 && parts+=("whisper-cpp")
     command -v whisper >/dev/null 2>&1 && parts+=("whisper")
@@ -617,7 +616,7 @@ COMP_LABELS=(
     "systemd user units"
     "Models"
     "GUI"
-    "STT backend (vocalinux bridge)"
+    "STT backend"
     "Perception (vision server deps)"
     "Noctalia widget (optional)"
     "Config"
@@ -628,7 +627,7 @@ COMP_WHAT=(
     "utter-runner.service user unit (+ optional enable & start)"
     "recommended STT / decision-head / vision models (always the user's choice)"
     "Tauri settings window (AppImage to \$PREFIX/bin, .desktop entry)"
-    "speech-to-text backend (reuse an existing vocalinux install or a whisper backend)"
+    "speech-to-text backend (faster-whisper or a whisper.cpp build)"
     "vision grounding server deps (UI-TARS via vLLM / transformers)"
     "optional bar widget, attention panel and OSD for the Noctalia shell"
     "~/.config/utter/config.toml from the shipped default"
@@ -1786,14 +1785,9 @@ DESKTOP
 exec_stt() {
     section "STT backend"
     found_stt
-    if command -v vocalinux >/dev/null 2>&1; then
-        say "  vocalinux found — the bridge can reuse it (set trigger = \"bridge\" in config.toml)"
-    else
-        say "  To enable voice, install one of:"
-        say "    - vocalinux, then use the bridge (trigger = \"bridge\")"
-        say "    - python3 -m pip install --user faster-whisper (local whisper)"
-        say "    - a whisper.cpp build (whisper-cli) and set stt.backend = \"whisper_cpp\""
-    fi
+    say "  To enable voice, install one of:"
+    say "    - python3 -m pip install --user faster-whisper (local whisper)"
+    say "    - a whisper.cpp build (whisper-cli) and set stt.backend = \"whisper_cpp\""
     reset_record
     record_component stt "STT backend" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
 }

@@ -3,7 +3,7 @@
 Backends (selected by ``config.STTConfig.backend``):
     "whisper_cpp"    pywhispercpp (no GPU required; model stays resident)
     "faster_whisper" optional, only if the package is importable
-    "none"           transcription disabled (e.g. vocalinux bridge supplies text)
+    "none"           transcription disabled
     "apple_speech"   macOS only: Speech.framework via PyObjC (utter.macos.speech)
     "vocamac"        macOS only: an installed VocaMac.app's file-transcription CLI
 
@@ -45,7 +45,6 @@ SAMPLE_RATE = 16000
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_MODEL_DIRS = [
     _REPO_ROOT / "models" / "whisper",
-    Path.home() / ".local" / "share" / "vocalinux" / "models" / "whispercpp",
     Path.home() / ".cache" / "whisper",
 ]
 _DEFAULT_WHISPERCPP_NAME = "ggml-small.en.bin"

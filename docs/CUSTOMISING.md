@@ -9,7 +9,7 @@ throughout; anything not shipped in this repo is called out explicitly.
 1. [Config files & precedence](#1-config-files--precedence)
 2. [Config sections](#2-config-sections)
 3. [Hotkeys & push-to-talk](#3-hotkeys--push-to-talk)
-4. [STT backends & the vocalinux bridge](#4-stt-backends--the-vocalinux-bridge)
+4. [STT backends](#4-stt-backends)
 5. [LLM / decision head](#5-llm--decision-head)
 6. [Vision](#6-vision)
 7. [Audio](#7-audio)
@@ -55,9 +55,9 @@ Defaults below are from `config.default.toml` (shipped) and the dataclasses in
 
 | Key | Default (shipped) | Meaning |
 |---|---|---|
-| `trigger` | `hotkey` | `hotkey` = own evdev PTT; `bridge` = reuse vocalinux recognition |
+| `trigger` | `hotkey` | `hotkey` = Utter's own evdev push-to-talk |
 
-(The in-code default is `bridge`; `config.default.toml` sets `hotkey`.)
+`trigger` is retained for config compatibility; `hotkey` is the only supported value.
 
 ### `[hotkey]`
 
@@ -127,17 +127,14 @@ The defaults assume a common `keyd` remap (see [§3](#3-hotkeys--push-to-talk)).
 
 ## 3. Hotkeys & push-to-talk
 
-There are **two models**:
+Utter runs its own **standalone evdev PTT**: the daemon's `voice/hotkey.py` listener
+watches `hotkey.key`, and `voice/stt.py` transcribes the captured audio
+(`run_hotkey`, `daemon.py`). The two dedicated `[ptt]` keys are also handled by
+utter's own listener:
 
-- **Standalone evdev PTT** (`trigger = "hotkey"`): the daemon runs its own
-  `voice/hotkey.py` listener on `hotkey.key` and transcribes with the configured STT
-  backend (`run_hotkey`, `daemon.py`).
-- **vocalinux bridge** (`trigger = "bridge"` or `--bridge`): the daemon monkeypatches
-  vocalinux's single injection choke point and drives vocalinux's own recognition
-  from **two** dedicated keys (`voice/vocalinux_bridge.py`):
-  - **dictation** (`ptt.dictation_key`) → text is typed normally;
-  - **assistant** (`ptt.assistant_key`) → text is routed to utter and **never
-    typed**.
+- **dictation** (`ptt.dictation_key`) → text is typed normally;
+- **assistant** (`ptt.assistant_key`) → text is routed to utter and **never
+  typed**.
 
 Keys are evdev names (`KEY_F13`, `KEY_INSERT`, `KEY_RIGHTCTRL`, …), resolved by
 `resolve_keycode` (`voice/hotkey.py`). The listener needs only membership in the `input` group; it
@@ -180,21 +177,20 @@ Then align `[ptt]` with the remapped names. The shipped defaults
 
 ---
 
-## 4. STT backends & the vocalinux bridge
+## 4. STT backends
 
 `utter/voice/stt.py` supports (`stt.py`):
 
 - **`whisper_cpp`** — via `pywhispercpp`; no GPU required; model stays resident.
 - **`faster_whisper`** — optional dependency; GPU via `device`/`compute_type`.
-- **`none`** — transcription disabled (e.g. the vocalinux bridge supplies text).
+- **`none`** — transcription disabled.
 
 Model lookup for whisper.cpp (`_candidate_model_paths`, `stt.py`) checks, in order:
 
 1. an explicit path / `$UTTER_WHISPER_MODEL`;
 2. `$UTTER_MODELS_DIR` (prepended);
 3. `<repo>/models/whisper`;
-4. `~/.local/share/vocalinux/models/whispercpp`;
-5. `~/.cache/whisper`.
+4. `~/.cache/whisper`.
 
 The default whisper.cpp filename is `ggml-small.en.bin`
 (`_DEFAULT_WHISPERCPP_NAME`, `stt.py`). If no local file exists and the configured name is a valid whisper.cpp
@@ -202,19 +198,6 @@ model, `pywhispercpp` will download it (`_resolve_whispercpp_model`, `stt.py`).
 
 faster-whisper falls back to CPU/int8 if the requested device fails
 (`Transcriber`, `stt.py`).
-
-### vocalinux bridge
-
-- Module: `utter/voice/vocalinux_bridge.py`.
-- Enable with `trigger = "bridge"` in `[general]`, or run
-  `python -m utter.daemon --bridge`.
-- The bridge is installed by `daemon.run_bridge()` (`daemon.py`) and launched
-  in practice via `scripts/utter-vocalinux.sh`, which sets `PYTHONPATH` to the
-  repo and execs `python -m utter.daemon --bridge --config <repo>/config.default.toml`.
-  That script is intended to replace the stock vocalinux launcher/autostart entry, and
-  has hard-coded reference paths (edit them for your checkout).
-- The bridge never types assistant utterances: it routes them to
-  `Utter.handle_utterance` (wired in `run_bridge`, `daemon.py`).
 
 ---
 

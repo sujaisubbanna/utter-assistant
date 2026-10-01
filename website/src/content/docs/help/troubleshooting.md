@@ -93,9 +93,9 @@ assistant models list
 ```
 
 For whisper.cpp, Utter looks in `$UTTER_WHISPER_MODEL`, `$UTTER_MODELS_DIR`,
-`<repo>/models/whisper`, `~/.local/share/vocalinux/models/whispercpp` and `~/.cache/whisper`,
-and `pywhispercpp` will download a known model name on first use. The **decision** and
-**vision** models are optional; without them Utter still handles every rule-matched command.
+`<repo>/models/whisper` and `~/.cache/whisper`, and `pywhispercpp` will download a known model
+name on first use. The **decision** and **vision** models are optional; without them Utter still
+handles every rule-matched command.
 See [Models](/guides/models/).
 
 ## The decision head or vision never responds
@@ -124,7 +124,7 @@ seconds.
 
 **Fix:** nothing is wrong; wait a moment and try again. If you would rather Utter stayed awake,
 turn off **Sleep when idle** on the General page, or raise the time. The log line
-`idle: no Utter activity for 15 min, going to sleep` in `journalctl --user -u utter-bridge`
+`idle: no Utter activity for 15 min, going to sleep` in `journalctl --user -u utter.service`
 confirms an automatic sleep.
 
 ## `assistant` or `utter-gui`: command not found

@@ -67,7 +67,7 @@ the unit runs through `scripts/utter-wayland-ready.sh`, which discovers `WAYLAND
 | Unit | Purpose |
 |---|---|
 | `utter-runner` | the modular runner (plugin supervisor), installed by the installer |
-| `utter-bridge` | legacy: vocalinux + voice → action, if you use the Python assistant directly |
+| `utter-bridge` | legacy Python assistant (voice→action), for older installs |
 | `utter-vision` | vLLM UI-TARS grounding server (`:8000`) |
 | `utter-planner` | vLLM planner (`:8001`) |
 | `utter-audio-defaults` | keeps the chosen output and denoised input pinned |
