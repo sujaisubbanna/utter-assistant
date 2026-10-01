@@ -18,8 +18,9 @@ pub fn ensure(state: &AppState) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    if state.default_config.exists() {
-        fs::copy(&state.default_config, path)?;
+    let default_config = state.default_config();
+    if default_config.exists() {
+        fs::copy(&default_config, path)?;
     } else {
         fs::write(path, "# utter configuration (created by utter-gui)\n")?;
     }

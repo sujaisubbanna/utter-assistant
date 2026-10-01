@@ -33,6 +33,19 @@ export interface PermissionItem {
   settings_url: string;
 }
 
+export interface InstallStatus {
+  supported: boolean;
+  bundled: boolean;
+  bundled_version?: string | null;
+  installed: boolean;
+  installed_version?: string | null;
+  update_available: boolean;
+  agents_installed: boolean;
+  python: string;
+  repo: string;
+  runtime_dir: string;
+}
+
 export interface PermissionReport {
   ok?: boolean;
   error?: string;

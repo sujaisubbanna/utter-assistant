@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "resources/runtime.tar.gz": "runtime.tar.gz",
+      "resources/runtime.version": "runtime.version"
+    }
+  }
+}

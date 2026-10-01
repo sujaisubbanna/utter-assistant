@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon, type IconName } from "../components/icons";
 import { PageBody, PageHeader, PageNote } from "../components/PageHeader";
@@ -12,10 +12,11 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { useTauriEvent } from "../lib/events";
 import { usePoll } from "../lib/hooks";
 import { displayMacKey } from "../lib/keys";
 import { usePlatform } from "../lib/platform";
-import type { PermissionItem, PermissionReport, UnitStatus } from "../lib/types";
+import type { InstallStatus, PermissionItem, PermissionReport, UnitStatus } from "../lib/types";
 
 /**
  * macOS onboarding, in the spirit of Raycast's first run: one screen that
@@ -164,11 +165,77 @@ function AgentRow({ unit, status, onStart, busy }: { unit: string; status?: Unit
   );
 }
 
+function RuntimeRow({
+  install,
+  installing,
+  progress,
+  error,
+  onInstall,
+}: {
+  install: InstallStatus | null;
+  installing: boolean;
+  progress: string | null;
+  error: string | null;
+  onInstall: () => void;
+}) {
+  const { t } = useI18n();
+  if (!install) {
+    return <Row leading={<Tile icon="box" />} title={t("setup.runtime.title")} description={t("general.services.checking")} />;
+  }
+  const version = install.installed_version ?? "";
+  let tone: "ok" | "warn" | "muted" | "danger" = "muted";
+  let description: string;
+  if (installing) {
+    description = progress ?? t("setup.runtime.installing");
+    tone = "warn";
+  } else if (error) {
+    description = t("setup.runtime.failed", { error });
+    tone = "danger";
+  } else if (install.installed && install.update_available) {
+    description = t("setup.runtime.updateAvailable", { current: version, next: install.bundled_version ?? "" });
+    tone = "warn";
+  } else if (install.installed) {
+    description = t("setup.runtime.installed", { version, dir: install.runtime_dir });
+    tone = "ok";
+  } else if (install.bundled) {
+    description = t("setup.runtime.notInstalled");
+    tone = "warn";
+  } else {
+    description = t("setup.runtime.notBundled", { repo: install.repo });
+  }
+  const label = install.installed
+    ? install.update_available
+      ? t("setup.runtime.update")
+      : t("setup.runtime.reinstall")
+    : t("setup.runtime.install");
+  return (
+    <Row leading={<Tile icon="box" tone={tone} />} title={t("setup.runtime.title")} description={description}>
+      {install.installed && !installing && <Badge tone="ok" dot>{t("setup.status.installed")}</Badge>}
+      {install.bundled && (
+        <Button
+          size="sm"
+          variant={install.installed && !install.update_available ? "secondary" : "primary"}
+          icon="download"
+          loading={installing}
+          onClick={onInstall}
+        >
+          {label}
+        </Button>
+      )}
+    </Row>
+  );
+}
+
 export function SetupPage() {
   const { t } = useI18n();
   const toast = useToast();
   const { isMac, ready } = usePlatform();
-  const { get } = useConfig();
+  const { get, reload: reloadConfig } = useConfig();
+  const [install, setInstall] = useState<InstallStatus | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
+  const [installProgress, setInstallProgress] = useState<string | null>(null);
+  const autoInstalled = useRef(false);
   const [report, setReport] = useState<PermissionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requesting, setRequesting] = useState<string | null>(null);
@@ -178,6 +245,43 @@ export function SetupPage() {
   useEffect(() => {
     markSetupSeen();
   }, []);
+
+  useTauriEvent<{ stage: string; message: string }>(
+    "setup://progress",
+    (payload) => setInstallProgress(payload.message),
+    installing,
+  );
+
+  const runInstall = useCallback(async () => {
+    setInstalling(true);
+    setInstallError(null);
+    setInstallProgress(null);
+    try {
+      const next = await api.macosInstall();
+      setInstall(next);
+      await reloadConfig();
+      toast(t("setup.runtime.done"), "ok");
+    } catch (err) {
+      setInstallError(String(err));
+    } finally {
+      setInstalling(false);
+    }
+  }, [reloadConfig, toast, t]);
+
+  // Drag-and-drop install: the first visit unpacks the bundled runtime on its own.
+  useEffect(() => {
+    if (!isMac) return;
+    api
+      .macosInstallStatus()
+      .then((status) => {
+        setInstall(status);
+        if (status.bundled && (!status.installed || status.update_available) && !autoInstalled.current) {
+          autoInstalled.current = true;
+          void runInstall();
+        }
+      })
+      .catch((err) => setInstallError(String(err)));
+  }, [isMac, runInstall]);
 
   const refresh = useCallback(async () => {
     if (!isMac) return;
@@ -201,12 +305,12 @@ export function SetupPage() {
   }, [isMac, t]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (!installing) void refresh();
+  }, [refresh, installing]);
 
   // Live re-check while the user flips switches in System Settings.
   const allGranted = Boolean(report?.all_granted);
-  usePoll(() => refresh(), allGranted ? 15000 : 3000, isMac);
+  usePoll(() => refresh(), allGranted ? 15000 : 3000, isMac && !installing);
 
   const request = async (id: string) => {
     setRequesting(id);
@@ -300,8 +404,18 @@ export function SetupPage() {
           </div>
         </section>
 
+        <Section title={t("setup.runtime.sectionTitle")} description={t("setup.runtime.sectionDescription")}>
+          <RuntimeRow
+            install={install}
+            installing={installing}
+            progress={installProgress}
+            error={installError}
+            onInstall={() => void runInstall()}
+          />
+        </Section>
+
         <Section title={t("setup.permissions.title")} description={t("setup.permissions.description")}>
-          {!report && !error ? (
+          {installing || (!report && !error) ? (
             <SkeletonRows count={5} />
           ) : error && !report ? (
             <Row leading={<Tile icon="alert" tone="warn" />} title={t("setup.permissions.unavailable")} description={error}>

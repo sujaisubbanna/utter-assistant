@@ -255,13 +255,33 @@ jobs:
             echo "::warning::gui-tauri/ is not present in this checkout; skipping GUI bundles."
           fi
 
+      - name: Assemble the bundled Python runtime (inside utter.app)
+        if: steps.gui.outputs.present == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/build-macos-runtime.sh
+          scripts/build-macos-runtime.sh --version "${{ steps.ver.outputs.version }}"
+
       - name: Install GUI dependencies
         if: steps.gui.outputs.present == 'true'
         working-directory: gui-tauri
         run: pnpm install --frozen-lockfile
 
-      - name: Build GUI bundles (app, dmg) — unsigned
+      - name: Build GUI bundles (app, dmg) — signed + notarized when the Apple secrets exist
         if: steps.gui.outputs.present == 'true'
+        # Code signing + notarization happen automatically once these repository
+        # secrets exist (Apple Developer account needed). Empty values are
+        # ignored by the Tauri CLI, so the build stays unsigned without them —
+        # and Gatekeeper then reports the downloaded app as "damaged" until
+        # `xattr -cr /Applications/utter.app` is run once.
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         working-directory: gui-tauri
         run: pnpm dlx @tauri-apps/cli build --bundles app,dmg --target aarch64-apple-darwin
 

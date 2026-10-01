@@ -12,3 +12,4 @@ tests/conformance/generated/
 dist/
 gui-tauri/node_modules/
 gui-tauri/src-tauri/target/
+gui-tauri/src-tauri/resources/

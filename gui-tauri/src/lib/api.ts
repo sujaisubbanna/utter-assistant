@@ -10,6 +10,7 @@ import type {
   DoctorReport,
   ModelEntry,
   Palette,
+  InstallStatus,
   PermissionReport,
   PlatformInfo,
   ProfileList,
@@ -74,6 +75,10 @@ export const api = {
   macosRequestPermission: (name: string) =>
     invoke<PermissionReport>("macos_request_permission", { name }),
   openSettingsPane: (pane: string) => invoke<void>("open_settings_pane", { pane }),
+  // macOS drag-and-drop install: unpack the bundled runtime + launchd agents.
+  macosInstallStatus: () => invoke<InstallStatus>("macos_install_status"),
+  macosInstall: () => invoke<InstallStatus>("macos_install"),
+  macosReinstallAgents: () => invoke<InstallStatus>("macos_reinstall_agents"),
 
   getThemePalette: () => invoke<Palette>("get_theme_palette"),
   exportBundle: (dest?: string) =>

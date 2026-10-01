@@ -5,6 +5,7 @@
 
 mod commands;
 mod config;
+mod macos_setup;
 mod process;
 mod profiles;
 mod state;
@@ -30,6 +31,18 @@ fn locate_repo() -> PathBuf {
             return repo.to_path_buf();
         }
     }
+    // Packaged builds: where the installers put the core. A .app launched from
+    // Finder inherits no shell environment, so these are checked by path.
+    let home = home_dir();
+    for candidate in [
+        data_home().join("utter"),                              // Linux: $PREFIX/share/utter
+        home.join("Library/Application Support/utter/core"),    // macOS: macos/setup.sh symlink
+        home.join("utter-assistant"),
+    ] {
+        if candidate.join("assistant").is_dir() {
+            return candidate;
+        }
+    }
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
@@ -42,6 +55,7 @@ fn locate_python(repo: &Path) -> String {
     }
     for candidate in [
         repo.join(".venv-agent/bin/python"),
+        repo.join(".venv-macos/bin/python"),
         repo.join(".venv/bin/python"),
     ] {
         if candidate.exists() {
@@ -85,15 +99,17 @@ fn theme_path() -> PathBuf {
 }
 
 pub fn run() {
-    let repo = locate_repo();
-    let python = locate_python(&repo);
-    let state = AppState::new(
-        repo.clone(),
-        python,
-        config_path(),
-        repo.join("config.default.toml"),
-        theme_path(),
-    );
+    let mut repo = locate_repo();
+    let mut python = locate_python(&repo);
+    // macOS drag-and-drop install: prefer the runtime the app unpacked itself,
+    // unless the developer pointed UTTER_REPO somewhere explicitly.
+    if std::env::var("UTTER_REPO").is_err() {
+        if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
+            repo = core;
+            python = runtime_python;
+        }
+    }
+    let state = AppState::new(repo, python, config_path(), theme_path());
     // Make sure a config exists before the UI starts editing it.
     let _ = config::ensure(&state);
 
@@ -134,6 +150,9 @@ pub fn run() {
             commands::open_settings_pane,
             commands::macos_permissions,
             commands::macos_request_permission,
+            macos_setup::macos_install_status,
+            macos_setup::macos_install,
+            macos_setup::macos_reinstall_agents,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
