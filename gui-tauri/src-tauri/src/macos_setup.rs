@@ -404,7 +404,26 @@ pub fn supervise_python(mode: &str, repo: &Path, python: &str) -> i32 {
             let config = std::env::var("UTTER_CONFIG")
                 .ok()
                 .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| repo.join("runner/config.example.toml").to_string_lossy().into_owned());
+                .or_else(|| {
+                    // Prefer the production M3 config (real `plugins/utter_py`),
+                    // not the echo test plugins in runner/config.example.toml.
+                    // Fall back to the example only if the M3 config is absent,
+                    // matching scripts/utter-wayland-ready.sh.
+                    let m3 = repo.join("config.m3.toml");
+                    if m3.is_file() {
+                        return Some(m3.to_string_lossy().into_owned());
+                    }
+                    let example = repo.join("runner/config.example.toml");
+                    if example.is_file() {
+                        eprintln!(
+                            "utter: {} not found; falling back to example runner config",
+                            m3.display()
+                        );
+                        return Some(example.to_string_lossy().into_owned());
+                    }
+                    None
+                })
+                .unwrap_or_else(|| repo.join("config.m3.toml").to_string_lossy().into_owned());
             vec!["-m".into(), "runner".into(), "--config".into(), config]
         }
         other => {

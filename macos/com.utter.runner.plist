@@ -23,7 +23,7 @@
     <string>-m</string>
     <string>runner</string>
     <string>--config</string>
-    <string>@REPO@/runner/config.example.toml</string>
+    <string>@REPO@/config.m3.toml</string>
   </array>
   <key>WorkingDirectory</key>
   <string>@REPO@</string>
