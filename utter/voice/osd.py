@@ -9,7 +9,7 @@ Frozen contract (written atomically to ``$XDG_RUNTIME_DIR/utter/osd.json``)::
      "activated":null,"ts":1234567890}
 
 * ``state``     : ``idle`` | ``listening`` | ``loading`` | ``final``
-* ``level``     : audio level 0.0-1.0 (vocalinux reports 0-100; normalised here)
+* ``level``     : audio level 0.0-1.0 (raw 0-100 input is normalised here)
 * ``text``      : best-effort partial transcript while listening / final text;
                   a short status line while ``loading`` (empty is allowed)
 * ``activated`` : ``True``/``False`` once a command was decided, else ``null``
@@ -79,7 +79,7 @@ def _normalise_level(value) -> float:
         level = float(value)
     except (TypeError, ValueError):
         return 0.0
-    if level > 1.0:  # vocalinux's register_audio_level_callback reports 0-100
+    if level > 1.0:  # tolerate sources that report a 0-100 scale
         level = level / 100.0
     return max(0.0, min(1.0, level))
 

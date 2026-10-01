@@ -7,7 +7,7 @@ import { DesktopColoursRow } from "../components/DesktopColours";
 import { PageBody, PageHeader, PageNote } from "../components/PageHeader";
 import { ThemeControl } from "../components/ThemeControl";
 import { Badge } from "../components/ui/Badge";
-import { Button, LinkButton } from "../components/ui/Button";
+import { Button } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
 import { Menu } from "../components/ui/Menu";
 import { Row, Tile } from "../components/ui/Row";
@@ -21,7 +21,6 @@ import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
 import { usePoll } from "../lib/hooks";
-import { LINKS } from "../lib/links";
 import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
 import { useRunnerStatus } from "../lib/status";
 import type { UnitStatus } from "../lib/types";
@@ -187,9 +186,6 @@ export function GeneralPage() {
             />
           </Row>
           <Row leading={<Tile icon="mic" />} title={t("general.trigger.label")} description={t("general.trigger.hint")}>
-            {trigger === "bridge" && (
-              <LinkButton href={LINKS.vocalinux}>{t("general.trigger.getVocalinux")}</LinkButton>
-            )}
             <Select
               className="w-56"
               ariaLabel={t("general.trigger.label")}

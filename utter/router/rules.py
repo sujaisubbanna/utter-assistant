@@ -254,7 +254,7 @@ _SHORTCUT_PHRASES = {
 
 def is_command_like(text: str) -> bool:
     """Instant (no model) test for whether an utterance should be treated as a
-    command instead of dictated text. Used by the prefix-free voice bridge."""
+    command instead of dictated text. Used by the prefix-free voice lane."""
     t = normalize(text or "")
     if not t:
         return False

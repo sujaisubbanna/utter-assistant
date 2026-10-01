@@ -41,7 +41,7 @@ Package removals are **printed**, never performed automatically.
 | Unit | Purpose |
 |---|---|
 | `utter-runner` | the modular runner (plugin supervisor) — installed by this installer |
-| `utter-bridge` | legacy: vocalinux + voice→action (if you use the Python assistant today) |
+| `utter-bridge` | legacy Python assistant (voice→action), for older installs |
 | `utter-vision` | vLLM UI-TARS grounding server (`:8000`) |
 | `utter-planner` | vLLM planner (`:8001`) |
 | `utter-audio-defaults` | keeps TV output / RNNoise input pinned |

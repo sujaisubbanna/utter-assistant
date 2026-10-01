@@ -51,12 +51,11 @@ ollama pull llama3.2-vision:11b
 
 Utter probes the local runtime before requests and reports status in `utter doctor` and `utter capabilities`. If Ollama is stopped or a model is missing, Utter returns a clean, structured status rather than hanging or crashing.
 
-**Why not Voca?** VocaHQ makes [vocalinux](https://github.com/VocaHQ/vocalinux), which Utter
-bridges on Linux, and [VocaMac](https://github.com/VocaHQ/vocamac) for macOS. VocaMac is a
-compiled Swift menu-bar app with no socket or API for live transcripts, so it cannot be
-bridged the way vocalinux is. Utter therefore uses Apple's own speech recognition with a
-whisper.cpp fallback. If you prefer VocaMac's models, `stt_backend = "vocamac"` drives its
-file-transcription CLI (untested).
+**Why not Voca?** VocaHQ's macOS app is
+[VocaMac](https://github.com/VocaHQ/vocamac): a compiled Swift menu-bar app with no socket or
+API for live transcripts, so it cannot be driven from Python. Utter is standalone and therefore
+uses Apple's own speech recognition with a whisper.cpp fallback. If you prefer VocaMac's models,
+`stt_backend = "vocamac"` drives its file-transcription CLI (untested).
 
 ## Install: drag and drop
 
@@ -137,7 +136,7 @@ Linux ignores this section entirely. On macOS, `[router]` and `[vision]` automat
   clipboard, spoken replies, notifications, screenshots for the vision tier with Retina geometry handling,
   the plugin runner socket with peer credentials (`LOCAL_PEERCRED` / `LOCAL_PEERPID` and `proc_pidpath`),
   Homebrew formulas (`Formula/utter.rb` and `Casks/utter.rb`).
-- **Linux-only:** the vocalinux bridge, niri compositor actions and workspace-aware
+- **Linux-only:** niri compositor actions and workspace-aware
   focusing, AT-SPI accessibility clicks (macOS goes straight to vision), MPRIS media keys,
   the Noctalia widget and OSD, the sandbox wrapper, the Linux installer wizard, and the settings
   app's service controls (they call `systemctl`).

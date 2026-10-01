@@ -86,7 +86,6 @@ utter/
   router/planner.py            tiny-LLM fallback -> Plan
   voice/hotkey.py              evdev push-to-talk global hotkey
   voice/stt.py                 faster-whisper / whisper.cpp transcription
-  voice/vocalinux_bridge.py    optional: reuse vocalinux's transcript
   daemon.py                    ties it together
   profiles/*.yaml              per-app rules
 ```

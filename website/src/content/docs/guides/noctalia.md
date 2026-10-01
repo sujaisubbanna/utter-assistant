@@ -53,7 +53,7 @@ stream_interval_ms = 700
 window_s = 6
 ```
 
-If a whisper model is present in the bridge environment, windowed decoding uses a second resident
+If a whisper model is available on the host, windowed decoding uses a second resident
 model. Set `stream = false` to avoid that cost.
 
 ### How it works
@@ -85,7 +85,7 @@ The OSD text is, by design, visible on your screen. The state file lives `0700` 
 
 ## Components in the repository
 
-- **Emitter**: `utter/voice/osd.py`, wired into the vocalinux bridge for the assistant
-  press, release and transcript paths. Loading it requires a restart of the bridge service.
+- **Emitter**: `utter/voice/osd.py`. It writes the state file for a voice lane to drive and is
+  a strict no-op when disabled.
 - **Panel**: the Noctalia plugin under `plugins/ui/noctalia/` and the widget package under
   `widgets/noctalia/` (bar widget, attention panel, OSD and their pollers).

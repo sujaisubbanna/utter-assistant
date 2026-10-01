@@ -14,11 +14,6 @@ export const SERVICES: ServiceDef[] = [
     descKey: "general.serviceNames.runnerDesc",
   },
   {
-    unit: "utter-bridge",
-    labelKey: "general.serviceNames.bridge",
-    descKey: "general.serviceNames.bridgeDesc",
-  },
-  {
     unit: "utter-vision",
     labelKey: "general.serviceNames.vision",
     descKey: "general.serviceNames.visionDesc",
@@ -47,7 +42,6 @@ export interface OptionDef {
 
 export const TRIGGERS: OptionDef[] = [
   { value: "hotkey", labelKey: "general.trigger.hotkey" },
-  { value: "bridge", labelKey: "general.trigger.bridge", link: "vocalinux" },
 ];
 
 export const STT_BACKENDS: OptionDef[] = [
@@ -56,7 +50,7 @@ export const STT_BACKENDS: OptionDef[] = [
   { value: "vosk", label: "Vosk", link: "vosk" },
   { value: "parakeet", label: "Parakeet", link: "parakeet" },
   { value: "remote", labelKey: "voice.stt.remote" },
-  { value: "none", labelKey: "voice.stt.none", link: "vocalinux" },
+  { value: "none", labelKey: "voice.stt.none" },
 ];
 
 export const STT_DEVICES = ["cuda", "cpu", "auto", "int8"];

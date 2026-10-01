@@ -271,7 +271,7 @@ def _cmd_capabilities(args) -> int:
     from utter import platform, runtime
     deps = probe_deps()
     gpu = _gpu_info()
-    model_dirs = [Path(os.environ.get("UTTER_MODELS_DIR", "~/.local/share/utter/models")).expanduser(), Path("~/.local/share/vocalinux/models/whispercpp").expanduser(), Path("models")]
+    model_dirs = [Path(os.environ.get("UTTER_MODELS_DIR", "~/.local/share/utter/models")).expanduser(), Path("models")]
     models = sorted({p.name for d in model_dirs if d.is_dir() for p in d.iterdir() if p.is_file() and not p.name.startswith(".")})
     try:
         from assistant.runner_client import RunnerClient
@@ -557,7 +557,6 @@ def build_parser():
     p.add_argument("--assistant", dest="legacy_assistant", metavar="TEXT")
     p.add_argument("--dictation", dest="legacy_dictation", metavar="TEXT")
     p.add_argument("--text", dest="legacy_text", help=argparse.SUPPRESS)
-    p.add_argument("--bridge", action="store_true")
     sub = p.add_subparsers(dest="command")
     for name, help_text in (("assistant", "Run a spoken-style command"), ("dictation", "Type into the focused field"), ("speak", "Speak text")):
         q = sub.add_parser(name, help=help_text, parents=[shared]); q.add_argument("text")
@@ -604,9 +603,9 @@ def main(argv=None):
         return _dispatch(args)
     if args.legacy_text is not None:
         from .daemon import main as daemon_main
-        return daemon_main(["--text", args.legacy_text] + (["--dry-run"] if args.dry_run else []) + (["--bridge"] if args.bridge else []) + (["--config", args.config] if args.config else []))
+        return daemon_main(["--text", args.legacy_text] + (["--dry-run"] if args.dry_run else []) + (["--config", args.config] if args.config else []))
     from .daemon import main as daemon_main
-    return daemon_main((["--bridge"] if args.bridge else []) + (["--config", args.config] if args.config else []) + (["--log-level", args.log_level] if args.log_level else []))
+    return daemon_main((["--config", args.config] if args.config else []) + (["--log-level", args.log_level] if args.log_level else []))
 
 
 if __name__ == "__main__":

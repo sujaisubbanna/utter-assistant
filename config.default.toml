@@ -3,7 +3,6 @@
 [general]
 # How the daemon is triggered.
 #   hotkey  = own global push-to-talk via evdev
-#   bridge  = reuse vocalinux recognition (lowest latency, no duplicate STT)
 trigger = "hotkey"
 # Which compositor backend drives window/workspace actions and screenshots.
 #   auto = detect (niri -> niri backend, KDE Plasma -> KWin backend)
@@ -15,8 +14,7 @@ compositor = "auto"
 key = "KEY_RIGHTCTRL"
 
 [ptt]
-# Two dedicated push-to-talk keys, both driven by utter's raw evdev listener
-# (so vocalinux's own shortcut should be set to an unused combo).
+# Two dedicated push-to-talk keys, both driven by utter's raw evdev listener.
 #   dictation = transcript is typed into the focused field.
 #   assistant = transcript is run as a screen action (no prefix needed).
 # NOTE: this machine's keyd maps physical Right Alt -> Insert, so the assistant
@@ -30,7 +28,7 @@ channels = 1
 device = ""          # empty = default input
 
 [stt]
-# local whisper backend: "faster_whisper" | "whisper_cpp" | "none" (when bridge supplies text)
+# local whisper backend: "faster_whisper" | "whisper_cpp" | "none" (transcription disabled)
 backend = "faster_whisper"
 model = "distil-small.en"
 device = "cuda"          # Linux-only: CUDA/NVIDIA (ignored on macOS)

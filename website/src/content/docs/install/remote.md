@@ -92,8 +92,8 @@ The nine steps, in order:
 5. **GUI.** The Tauri settings app. AppImage (no sudo) to `$PREFIX/bin/utter-gui` plus a
    `.desktop` entry. If `$PREFIX/bin` is not on `PATH` and Noctalia is present, an optional
    `~/.local/bin/utter-gui` symlink is created so the widget's left-click finds it.
-6. **STT backend.** Detects an existing `vocalinux` or whisper backend; if none, advises how to
-   add one. Advisory only.
+6. **STT backend.** Detects a whisper backend; if none, advises how to add one.
+   Advisory only.
 7. **Perception.** Detects a UI-TARS / vLLM / transformers stack; advises how to serve it.
    Advisory only.
 8. **Noctalia widget.** Optional. If Noctalia is **not** detected, prints a one-line hint and

@@ -3,7 +3,6 @@
 Modes:
   python -m utter.daemon                  # voice (hotkey PTT) service
   python -m utter.daemon --text "open youtube"   # one-shot, no voice (test)
-  python -m utter.daemon --bridge         # reuse vocalinux recognition
 
 Routing is tiered: deterministic rules (T0/T2) -> tiny LLM -> perception
 (accessibility T1, then vision T3).
@@ -32,14 +31,6 @@ def _setup_logging(level: str = "INFO") -> None:
 
 
 log = logging.getLogger("utter")
-
-
-def _assistant_context() -> bool:
-    try:
-        from .voice import vocalinux_bridge
-        return vocalinux_bridge.in_assistant_context()
-    except Exception:
-        return False
 
 
 def _play(name: str) -> None:
@@ -170,15 +161,11 @@ class Utter:
         self.last_plan = plan
         if plan is None:
             log.warning("no plan for %r", utterance)
-            if _assistant_context():
-                _play("not_detected")
             return False
         if self.dry_run:
             for s in plan.steps:
                 log.info("DRY-RUN %s tier=%s args=%s", s.action.value, s.tier.value, s.args)
             return True
-        if _assistant_context():
-            _play("detected")
         results = self.executor.execute_plan(plan)
         ok = all(r.ok for r in results)
         log.info("handled %r in %.0fms ok=%s", utterance, (time.perf_counter() - t0) * 1000, ok)
@@ -240,7 +227,7 @@ class Utter:
         hotkey.listen(record_start, record_stop, key_name=self.cfg.hotkey.key)
 
     def run_macos(self) -> None:
-        """macOS voice loop: two push-to-talk keys, native STT, no vocalinux.
+        """macOS voice loop: two push-to-talk keys and native STT.
 
         * ``[macos] dictation_key`` -> the transcript is typed into the focused
           field (Quartz/AppleScript injection).
@@ -338,33 +325,11 @@ class Utter:
         idle.start()
         mac_hotkey.listen_many(keys, backend=mc.hotkey_backend)
 
-    def run_bridge(self) -> None:
-        from .voice import vocalinux_bridge
-        # Two dedicated push-to-talk keys, both driven by utter's evdev
-        # listener: dictation types text; assistant runs a screen action.
-        vocalinux_bridge.install(
-            self.handle_utterance,
-            dictation_key=self.cfg.ptt.dictation_key,
-            assistant_key=self.cfg.ptt.assistant_key,
-            cfg=self.cfg,
-        )
-        log.info("vocalinux bridge installed (dictation=%s, assistant=%s)",
-                 self.cfg.ptt.dictation_key, self.cfg.ptt.assistant_key)
-        from . import sleep as _sleep
-        _sleep.idle(self.cfg).start()
-        saved = sys.argv
-        sys.argv = [saved[0]]
-        try:
-            vocalinux_bridge.run()
-        finally:
-            sys.argv = saved
-
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(prog="utter")
     ap.add_argument("--text", help="run a single text command and exit (no voice)")
     ap.add_argument("--dry-run", action="store_true", help="route only; do not execute")
-    ap.add_argument("--bridge", action="store_true", help="reuse vocalinux recognition")
     ap.add_argument("--config", help="path to config.toml")
     ap.add_argument("--log-level", default=None)
     ap.add_argument("--json-plan", action="store_true", help=argparse.SUPPRESS)
@@ -408,11 +373,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     from . import platform
     if platform.is_macos():
-        if args.bridge or app.cfg.general.trigger == "bridge":
-            log.info("vocalinux bridge is Linux-only; using the native macOS voice loop")
         app.run_macos()
-    elif args.bridge or app.cfg.general.trigger == "bridge":
-        app.run_bridge()
     else:
         app.run_hotkey()
     return 0
