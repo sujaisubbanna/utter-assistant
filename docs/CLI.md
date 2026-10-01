@@ -2,6 +2,8 @@
 
 `utter` drives desktop actions. `assistant` (invoked as `python -m assistant`) manages the runner, models, diagnostics, and installation state. They are separate entry points.
 
+This is the headless path: no microphone or voice is needed. The same router, safety policy and desktop actions used by voice are available from a terminal, script or agent, with stable JSON output.
+
 ## Quickstart
 
 ```sh
@@ -55,7 +57,7 @@ utter commands remove firefox "toggle developer tools" --confirm --json
 
 The canonical JSON Schema is packaged at `utter/data/cli.schema.json` and returned under `data.json_schema` by `utter schema --json`. Validate responses with any Draft 2020-12 JSON Schema validator.
 
-The old `utter --text TEXT` and `python -m utter.daemon` service/bridge interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `models`, `install-state`).
+The old `utter --text TEXT` and `python -m utter.daemon` service/bridge interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `macos-permissions`, `models`, `install-state`).
 
 ## Exit and error contract
 
