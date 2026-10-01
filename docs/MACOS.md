@@ -91,32 +91,71 @@ the daemon** (`.venv-macos/bin/python`, or your terminal app when testing) under
 Without Input Monitoring `CGEventTapCreate` returns `NULL` and the daemon logs a
 clear error; without Accessibility typed text silently goes nowhere.
 
-## Setup
+## Install: drag and drop
+
+1. Download `utter-gui_<ver>_aarch64.dmg` from the release page (Apple Silicon).
+2. Drag **utter** to Applications. The app is **not code-signed or notarised**,
+   so the first launch is right-click → *Open* (or
+   `xattr -dr com.apple.quarantine /Applications/utter.app`).
+3. Open it. The **Set up** page installs the rest by itself:
+   - it unpacks the Python runtime and the assistant that ship inside the app
+     (`Contents/Resources/runtime.tar.gz`, ~150 MB: a relocatable CPython from
+     python-build-standalone with numpy, sounddevice, PyObjC and pywhispercpp)
+     into `~/Library/Application Support/utter/runtime/`;
+   - it writes and starts the two launchd agents (`com.utter.runner`,
+     `com.utter.assistant`) in `~/Library/LaunchAgents/`;
+   - it then walks the permissions (next section). Nothing to type.
+
+No Homebrew, no Python install, no terminal. Updating is the same: drop the new
+app in, open it, and Set up offers **Update** when the bundled runtime is newer
+than the installed one. To remove everything: delete the app,
+`~/Library/Application Support/utter`, `~/Library/LaunchAgents/com.utter.*.plist`
+and `~/.config/utter`.
+
+Where things end up:
+
+| What | Where |
+|---|---|
+| Python runtime + core | `~/Library/Application Support/utter/runtime/{python,core}` |
+| launchd agents | `~/Library/LaunchAgents/com.utter.{runner,assistant}.plist` |
+| logs | `~/Library/Logs/utter/{runner,utter}.log` |
+| config | `~/.config/utter/config.toml` (same file as Linux) |
+| permission status | `~/Library/Application Support/utter/permissions.json` |
+
+### From a source checkout (developers)
 
 ```bash
 git clone https://github.com/sujaisubbanna/utter-assistant.git
 cd utter-assistant
-macos/setup.sh              # .venv-macos + pip install -e '.[macos]' + launchd agent
+macos/setup.sh              # .venv-macos + pip install -e '.[macos]' + launchd agents
 macos/setup.sh --no-agent   # just the virtualenv and ~/.config/utter/config.toml
 
-# try it
 .venv-macos/bin/python -m utter.daemon --text "open youtube" --dry-run
 .venv-macos/bin/python -m utter.daemon            # hold Right ⌘ and speak
-macos/setup.sh --uninstall                        # removes only the launchd agent
+macos/setup.sh --uninstall                        # removes only the launchd agents
 ```
 
-`install.sh` (the Linux wizard) refuses to run on macOS and points here.
+A GUI built from source has no bundled runtime; it finds the checkout through
+`UTTER_REPO`, `~/Library/Application Support/utter/core` (a symlink
+`macos/setup.sh` creates) or `~/utter-assistant`. `install.sh` (the Linux
+wizard) refuses to run on macOS and points here.
 
-The settings app ships as `utter-gui_<ver>_aarch64.dmg` on the release page. It
-is **not code-signed or notarised**: on first launch right-click → *Open*, or
-run `xattr -dr com.apple.quarantine /Applications/utter.app`. Its service page
-still talks to `systemctl` and will show the services as unavailable on macOS;
-use `launchctl` (see the plist header) until that page grows a launchd backend.
+### How the bundle is built
+
+`scripts/build-macos-runtime.sh` (run by CI on `macos-14`) downloads the
+`install_only_stripped` CPython 3.12 from astral-sh/python-build-standalone,
+copies the core (`utter/`, `runner/`, `assistant/`, `plugins/`, `protocol/`,
+`macos/`, configs), `pip install`s the wheels, verifies the imports, and writes
+`gui-tauri/src-tauri/resources/runtime.tar.gz` + `runtime.version`.
+`tauri.macos.conf.json` adds both as bundle resources, so Linux builds are not
+affected. `gui-tauri/src-tauri/src/macos_setup.rs` does the unpack/agents on
+the user's Mac.
 
 ## First run: the Set up page
 
 On a Mac the settings app opens on **Set up** the first time (and keeps it in the
-sidebar). It is modelled on how Raycast onboards: one screen that lists every
+sidebar). Its first row installs the bundled runtime and agents (see above);
+the rest is permissions. It is modelled on how Raycast onboards: one screen that lists every
 permission, says why it is needed, has a **Grant access** button that triggers
 the system prompt, an **Open System Settings** button that deep-links to the
 exact pane (`x-apple.systempreferences:com.apple.preference.security?Privacy_…`),

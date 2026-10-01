@@ -264,8 +264,8 @@ pub fn app_info(state: State<AppState>) -> AppInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         tauri: tauri::VERSION.to_string(),
         protocol: "1.0".to_string(),
-        repo: state.repo.to_string_lossy().into_owned(),
-        python: state.python.clone(),
+        repo: state.repo().to_string_lossy().into_owned(),
+        python: state.python(),
         config_path: state.config_path.to_string_lossy().into_owned(),
         theme_path: state.theme_path.to_string_lossy().into_owned(),
         runner_sock,
@@ -671,11 +671,11 @@ fn user_profiles_dir(state: &AppState) -> PathBuf {
 }
 
 fn profile_python(state: &AppState, script: &str) -> Cmd {
-    let repo = state.repo.to_string_lossy().into_owned();
-    Cmd::new(&state.python)
+    let repo = state.repo();
+    Cmd::new(state.python())
         .args(["-c", script])
-        .cwd(&state.repo)
-        .env("PYTHONPATH", repo)
+        .cwd(&repo)
+        .env("PYTHONPATH", repo.to_string_lossy().into_owned())
 }
 
 /// Every app profile as the assistant's loader sees it, plus any user override.
@@ -977,8 +977,8 @@ pub async fn export_bundle(
     state: State<'_, AppState>,
     dest: Option<String>,
 ) -> Result<BundleResult, String> {
-    let python = state.python.clone();
-    let repo = state.repo.clone();
+    let python = state.python();
+    let repo = state.repo();
     let config_text = config::read_text(&state);
     let target = dest
         .filter(|value| !value.trim().is_empty())

@@ -5,6 +5,7 @@
 
 mod commands;
 mod config;
+mod macos_setup;
 mod process;
 mod profiles;
 mod state;
@@ -98,15 +99,17 @@ fn theme_path() -> PathBuf {
 }
 
 pub fn run() {
-    let repo = locate_repo();
-    let python = locate_python(&repo);
-    let state = AppState::new(
-        repo.clone(),
-        python,
-        config_path(),
-        repo.join("config.default.toml"),
-        theme_path(),
-    );
+    let mut repo = locate_repo();
+    let mut python = locate_python(&repo);
+    // macOS drag-and-drop install: prefer the runtime the app unpacked itself,
+    // unless the developer pointed UTTER_REPO somewhere explicitly.
+    if std::env::var("UTTER_REPO").is_err() {
+        if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
+            repo = core;
+            python = runtime_python;
+        }
+    }
+    let state = AppState::new(repo, python, config_path(), theme_path());
     // Make sure a config exists before the UI starts editing it.
     let _ = config::ensure(&state);
 
@@ -147,6 +150,9 @@ pub fn run() {
             commands::open_settings_pane,
             commands::macos_permissions,
             commands::macos_request_permission,
+            macos_setup::macos_install_status,
+            macos_setup::macos_install,
+            macos_setup::macos_reinstall_agents,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

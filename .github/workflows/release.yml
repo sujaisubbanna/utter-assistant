@@ -255,6 +255,14 @@ jobs:
             echo "::warning::gui-tauri/ is not present in this checkout; skipping GUI bundles."
           fi
 
+      - name: Assemble the bundled Python runtime (inside utter.app)
+        if: steps.gui.outputs.present == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/build-macos-runtime.sh
+          scripts/build-macos-runtime.sh --version "${{ steps.ver.outputs.version }}"
+
       - name: Install GUI dependencies
         if: steps.gui.outputs.present == 'true'
         working-directory: gui-tauri

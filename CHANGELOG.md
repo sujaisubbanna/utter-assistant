@@ -19,6 +19,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Release workflow: a `build-macos` job on `macos-14` that builds the macOS core tarball and
   an **unsigned** `.app`/`.dmg` of the settings app and attaches them to the release
   (`sha256sums-macos.txt`). The Linux job is unchanged.
+- macOS drag-and-drop install: `utter.app` ships a relocatable Python 3.12 runtime plus the
+  assistant core (`scripts/build-macos-runtime.sh`, `tauri.macos.conf.json`), and the Set up
+  page unpacks it into `~/Library/Application Support/utter/runtime`, installs and starts the
+  launchd agents, and offers Update when a newer app is opened. No terminal needed.
 - Settings app on macOS: a **Set up** onboarding page (Raycast-style) that lists the
   Microphone, Speech Recognition, Input Monitoring, Accessibility and Screen Recording
   permissions with live status, a Grant button that triggers the system prompt from the

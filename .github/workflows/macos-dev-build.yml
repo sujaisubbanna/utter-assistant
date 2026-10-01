@@ -72,6 +72,13 @@ jobs:
           UTTER_PY="$(command -v python3)" scripts/build-core-tarball.sh --version "$VERSION" --out dist
           echo "version=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Assemble the bundled Python runtime (inside utter.app)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/build-macos-runtime.sh
+          scripts/build-macos-runtime.sh --version "${version}"
+
       - name: Install GUI dependencies
         working-directory: gui-tauri
         run: pnpm install --frozen-lockfile

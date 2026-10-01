@@ -33,20 +33,19 @@ bridged the way vocalinux is. Utter therefore uses Apple's own speech recognitio
 whisper.cpp fallback. If you prefer VocaMac's models, `stt_backend = "vocamac"` drives its
 file-transcription CLI (untested).
 
-## Install
+## Install: drag and drop
 
-```bash
-git clone https://github.com/sujaisubbanna/utter-assistant.git
-cd utter-assistant
-macos/setup.sh                 # .venv-macos, pip install -e '.[macos]', launchd agent
-.venv-macos/bin/python -m utter.daemon --text "open youtube" --dry-run
-```
+1. Download `utter-gui_<ver>_aarch64.dmg` from the release page and drag **utter** to
+   Applications. First launch: right-click → *Open* (the app is unsigned).
+2. Open it. The **Set up** page unpacks the Python runtime and the assistant that ship inside
+   the app into `~/Library/Application Support/utter/`, starts the two launchd agents and
+   then walks you through the permissions. No Homebrew, no Python, no terminal.
 
-You need Python 3.12+ and `brew install portaudio`. Then grant the daemon's python binary
-these permissions under *System Settings → Privacy & Security*: **Microphone**, **Speech
-Recognition**, **Input Monitoring**, **Accessibility** and **Screen Recording**.
+Updates work the same way: drop in the new app and Set up offers **Update**.
 
-The Linux installer (`install.sh`) refuses to run on macOS and points you here.
+Developers can run from a checkout instead: `macos/setup.sh` creates `.venv-macos`,
+installs the `[macos]` extras and the launchd agents. The Linux installer (`install.sh`)
+refuses to run on macOS and points you here.
 
 ## First run: the Set up page
 
