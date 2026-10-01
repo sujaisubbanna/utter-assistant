@@ -70,7 +70,7 @@ Defaults below are from `config.default.toml` (shipped) and the dataclasses in
 | `dictation_key` | `KEY_F13` | held → transcript is **typed** |
 | `assistant_key` | `KEY_INSERT` | held → transcript is **executed** as a command |
 
-The defaults assume this machine's `keyd` remap (see [§3](#3-hotkeys--push-to-talk)).
+The defaults assume a common `keyd` remap (see [§3](#3-hotkeys--push-to-talk)).
 
 ### `[audio]`
 

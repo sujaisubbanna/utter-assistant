@@ -18,7 +18,7 @@ Routing order: `rules → llm planner → vision grounding`.
 
 ## Runtime split
 
-- **inference** (`models/`, `.venv`, RTX 3090 Ti `sm_86`): vLLM serving `UI-TARS-2B-SFT` on `:8000`.
+- **inference** (`models/`, `.venv`, a CUDA GPU): vLLM serving `UI-TARS-2B-SFT` on `:8000`.
   Client is HTTP-only, so it runs anywhere. Resize screenshots to **1344px wide** before sending.
 - **agent** (`.venv-agent`, Python 3.14 `--system-site-packages` for `gi`/AT-SPI): daemon, context,
   actions, router, voice. Runs on the 5090 or CPU (idle unless invoked).

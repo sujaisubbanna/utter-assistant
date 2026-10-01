@@ -56,7 +56,7 @@ class VisionConfig:
     base_url: str = "http://127.0.0.1:8000/v1"
     model: str = "uitars"
     target_width: int = 1344
-    cuda_visible_devices: str = "1"  # Linux default (RTX 3090 Ti; ignored on macOS)
+    cuda_visible_devices: str = "1"  # Linux default (ignored on macOS)
 
 
 @dataclass

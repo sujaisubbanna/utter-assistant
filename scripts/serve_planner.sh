@@ -2,7 +2,7 @@
 # Serve the small text planner LLM (Qwen3-4B-Instruct-2507, 4-bit) with vLLM's
 # OpenAI-compatible API.
 #
-#   GPU 1 (RTX 3090 Ti) is shared with the UI-TARS grounding server
+#   GPU 1 is shared with the UI-TARS grounding server
 #   (scripts/serve_vision.sh, port 8000). GPU 0 is left alone.
 #   Endpoint: http://127.0.0.1:8001/v1  (model name: qwen3-4b)
 #
@@ -28,7 +28,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Pin to the RTX 3090 Ti. Override the outer CUDA_VISIBLE_DEVICES entirely so a
+# Pin to GPU 1. Override the outer CUDA_VISIBLE_DEVICES entirely so a
 # globally-exported `0,1` cannot leak GPU 0 (5090) into this process.
 export CUDA_VISIBLE_DEVICES="${UTTER_CUDA_VISIBLE_DEVICES:-1}"
 export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
