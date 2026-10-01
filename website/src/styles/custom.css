@@ -120,6 +120,15 @@ h1[data-page-title] {
 .install-box .expressive-code {
   margin: 0;
 }
+.product-hunt {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+.product-hunt img {
+  height: 54px;
+}
+
 .utter-strip {
   display: grid;
   gap: 1rem;

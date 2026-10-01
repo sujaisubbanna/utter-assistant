@@ -1,0 +1,5 @@
+# Utter docs — https://sujaisubbanna.github.io/utter-assistant/
+User-agent: *
+Allow: /
+
+Sitemap: https://sujaisubbanna.github.io/utter-assistant/sitemap-index.xml
