@@ -8,6 +8,17 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **KDE Plasma (KWin) support.** A compositor abstraction (`utter/context/compositor.py`,
+  `utter/context/backends/{niri,kwin,fallback}.py`) detects the session (`XDG_CURRENT_DESKTOP`,
+  `KDE_FULL_SESSION`, `DESKTOP_SESSION`, `XDG_SESSION_DESKTOP`, `NIRI_SOCKET`) and picks a
+  backend; niri keeps its original code path. The KWin backend talks to Plasma over D-Bus with
+  argv lists (`org.kde.KWin`, `org.kde.KWin.VirtualDesktopManager`, `org.kde.kwin.Scripting`,
+  `org.kde.kglobalaccel`, `org.kde.klipper`), uses `kdotool` when present, Spectacle or the XDG
+  portal for screenshots and `ydotool` for typing. Missing capabilities return a structured
+  "unsupported" result instead of failing. New config: `[general] compositor = "auto"` and a
+  `[kwin]` section. The Troubleshooting page shows the detected compositor, the active backend
+  and which capabilities are available (en + es). Docs: `docs/PLASMA.md` and the "KDE Plasma"
+  guide on the site. Probe: `python -m utter.context.compositor`.
 - **Sleep when idle.** Utter now falls asleep by itself after `[sleep] idle_minutes`
   (default 15) without Utter activity: a push-to-talk key, a spoken command or a wake.
   Desktop input elsewhere does not count, and the timer waits while Utter is listening

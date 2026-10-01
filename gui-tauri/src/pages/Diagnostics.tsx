@@ -20,6 +20,21 @@ import type { DoctorReport } from "../lib/types";
 
 const MAX_LINES = 2000;
 
+/** Capability names reported by `doctor` -> `compositor.capabilities` (see utter/context/compositor.py). */
+const CAP_KEYS = {
+  focused_window: true,
+  list_windows: true,
+  activate: true,
+  close: true,
+  minimize: true,
+  maximize: true,
+  move_to_workspace: true,
+  switch_workspace: true,
+  screenshot: true,
+  compositor_action: true,
+} as const;
+type CapKey = keyof typeof CAP_KEYS;
+
 export function DiagnosticsPage() {
   const { t, tn } = useI18n();
   const toast = useToast();
@@ -30,6 +45,7 @@ export function DiagnosticsPage() {
   const [doctorLoading, setDoctorLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [hideUnavailable, setHideUnavailable] = useState(false);
   const tailId = useRef("");
   const viewRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +128,15 @@ export function DiagnosticsPage() {
   };
 
   const runner = report?.runner ?? {};
+  const compositor = report?.compositor;
+  const caps = compositor?.capabilities ?? {};
+  const capNames = Object.keys(caps);
+  const unavailableCount = capNames.filter((name) => !caps[name]).length;
+  const visibleCaps = hideUnavailable ? capNames.filter((name) => caps[name]) : capNames;
+  const backendLabel = (name?: string) => {
+    const key = (name ?? "unknown") as "niri" | "kwin" | "unknown";
+    return key === "niri" || key === "kwin" ? t(`diagnostics.desktop.names.${key}`) : t("diagnostics.desktop.names.unknown");
+  };
 
   return (
     <>
@@ -176,6 +201,84 @@ export function DiagnosticsPage() {
                   </pre>
                 </div>
               )}
+            </>
+          )}
+        </Section>
+
+        <Section
+          title={t("diagnostics.desktop.title")}
+          description={t("diagnostics.desktop.description")}
+          actions={
+            unavailableCount > 0 ? (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                {t("diagnostics.desktop.hideUnavailable")}
+                <Switch
+                  checked={hideUnavailable}
+                  onCheckedChange={setHideUnavailable}
+                  ariaLabel={t("diagnostics.desktop.hideUnavailable")}
+                />
+              </label>
+            ) : undefined
+          }
+        >
+          {report === null ? (
+            <SkeletonRows count={3} />
+          ) : (
+            <>
+              <Row
+                leading={<Tile icon="monitor" tone={compositor?.detected && compositor.detected !== "unknown" ? "ok" : "warn"} />}
+                title={t("diagnostics.desktop.detected")}
+                description={
+                  compositor?.detected && compositor.detected !== "unknown"
+                    ? (compositor.evidence ?? []).join(" · ") || compositor.desktop || undefined
+                    : t("diagnostics.desktop.unknownHint")
+                }
+              >
+                <Badge tone={compositor?.detected && compositor.detected !== "unknown" ? "ok" : "warn"} dot>
+                  {compositor?.detected && compositor.detected !== "unknown"
+                    ? `${backendLabel(compositor.detected)}${compositor.plasma_version ? ` ${compositor.plasma_version}` : ""}`
+                    : t("diagnostics.desktop.unknown")}
+                </Badge>
+              </Row>
+              <Row
+                leading={<Tile icon="window" tone={compositor?.available ? "ok" : "muted"} />}
+                title={t("diagnostics.desktop.backend")}
+                description={
+                  <span className="font-mono text-[11.5px]">
+                    {compositor?.requested && compositor.requested !== "auto"
+                      ? t("diagnostics.desktop.override")
+                      : compositor?.reason}
+                    {compositor?.session_type ? ` · ${t("diagnostics.desktop.session")}: ${compositor.session_type}` : ""}
+                  </span>
+                }
+              >
+                <Badge tone={compositor?.available ? "accent" : "muted"}>{backendLabel(compositor?.active)}</Badge>
+              </Row>
+              {visibleCaps.map((name) => {
+                const available = Boolean(caps[name]);
+                const label = name in (CAP_KEYS as Record<string, true>)
+                  ? t(`diagnostics.desktop.caps.${name as CapKey}`)
+                  : name;
+                return (
+                  <Row
+                    key={name}
+                    leading={
+                      <span className="flex w-7 justify-center">
+                        <StatusDot tone={available ? "ok" : "muted"} />
+                      </span>
+                    }
+                    title={label}
+                    className={cn(!available && "opacity-70")}
+                  >
+                    <span
+                      className="text-xs"
+                      style={{ color: available ? "var(--muted-foreground)" : "var(--warning)" }}
+                    >
+                      {available ? t("diagnostics.desktop.available") : t("diagnostics.desktop.unavailable")}
+                    </span>
+                  </Row>
+                );
+              })}
             </>
           )}
         </Section>

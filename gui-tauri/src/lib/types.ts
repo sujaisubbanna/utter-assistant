@@ -109,6 +109,22 @@ export interface RunnerInfo {
   version?: string;
 }
 
+export interface CompositorInfo {
+  platform?: string;
+  requested?: string;
+  detected?: string;
+  session_type?: string;
+  desktop?: string;
+  plasma_version?: string;
+  evidence?: string[];
+  active?: string;
+  reason?: string;
+  available?: boolean;
+  capabilities?: Record<string, boolean>;
+  tools?: Record<string, string | null>;
+  error?: string;
+}
+
 export interface DoctorReport {
   ok?: boolean;
   connected?: boolean;
@@ -117,6 +133,7 @@ export interface DoctorReport {
   plugins?: Plugin[];
   drift?: unknown[];
   deps?: Record<string, boolean>;
+  compositor?: CompositorInfo;
 }
 
 export interface StatusReport {

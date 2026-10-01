@@ -95,7 +95,25 @@ def _abs_factor() -> float:
                 return 1.0 / value
         except ValueError:
             pass
+    kwin = _kwin_abs_factor()
+    if kwin is not None:
+        return kwin
     return _DEFAULT_ABS_FACTOR
+
+
+def _kwin_abs_factor() -> float | None:
+    """``[kwin] pointer_abs_factor`` when the KWin backend is active, else None."""
+    try:
+        from utter.context import compositor
+
+        if compositor.active_name() != compositor.KWIN:
+            return None
+        from utter.context.backends import kwin
+
+        value = float(getattr(kwin.cfg(), "pointer_abs_factor", 1.0) or 1.0)
+        return value if value > 0 else 1.0
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _run(argv: list[str]) -> tuple[bool, str]:

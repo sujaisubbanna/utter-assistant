@@ -160,3 +160,6 @@ class ActionResult:
     tier: Tier
     detail: str = ""
     latency_ms: float = 0.0
+    # True when the active compositor backend has no such capability (never an
+    # error: the router may fall back to the next tier).
+    unsupported: bool = False

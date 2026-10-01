@@ -50,6 +50,10 @@ export const DEP_HELP: Record<string, { url?: string; fix?: string }> = {
     fix: "systemctl --user enable --now ydotool",
   },
   grim: { url: "https://gitlab.freedesktop.org/emersion/grim" },
+  // KDE Plasma (KWin backend)
+  dbus_cli: { url: "https://docs.gtk.org/gio/", fix: "sudo pacman -S glib2  # or: qt6-tools (qdbus6)" },
+  spectacle: { url: "https://apps.kde.org/spectacle/" },
+  kdotool: { url: "https://github.com/jinliu/kdotool" },
   wl_copy: { url: "https://github.com/bugaevc/wl-clipboard" },
   pw_play: { url: "https://pipewire.org/" },
   systemd_user: { fix: "systemctl --user daemon-reload" },

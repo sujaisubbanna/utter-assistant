@@ -5,6 +5,10 @@
 #   hotkey  = own global push-to-talk via evdev
 #   bridge  = reuse vocalinux recognition (lowest latency, no duplicate STT)
 trigger = "hotkey"
+# Which compositor backend drives window/workspace actions and screenshots.
+#   auto = detect (niri -> niri backend, KDE Plasma -> KWin backend)
+#   niri | kwin = force one. Anything else degrades to "unsupported" results.
+compositor = "auto"
 
 [hotkey]
 # evdev key name to hold for push-to-talk.
@@ -100,3 +104,16 @@ assistant_key = "right_command"  # transcript is run as a desktop action
 # Key presses and typed text: Quartz CGEventPost, AppleScript as fallback.
 injection = "quartz"             # quartz | applescript
 notifications = true             # macOS notification banners for replies/errors
+
+[kwin]
+# KDE Plasma (KWin) backend. Only used when [general] compositor resolves to "kwin".
+# Screenshot path: "auto" = spectacle, then the XDG screenshot portal, then grim.
+screenshot = "auto"
+# Clipboard read: "auto" = klipper over D-Bus, then wl-paste.
+clipboard = "auto"
+# Window queries/actions by id: kdotool when installed, else a tiny KWin script.
+use_kdotool = true
+use_scripts = true
+script_timeout_s = 3.0
+# ydotool absolute-pointer multiplier on KWin (override with UTTER_MOUSE_SCALE).
+pointer_abs_factor = 1.0

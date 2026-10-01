@@ -74,6 +74,46 @@ def _ydotool_env() -> dict:
     return env
 
 
+def prefers_ydotool() -> bool:
+    """True on KWin: it has no virtual-keyboard protocol for ``wtype``, so
+    ``ydotool`` (uinput) goes first and ``wtype`` is only a last resort."""
+    try:
+        from utter.context import compositor
+
+        return compositor.active_name() == compositor.KWIN
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _ydotool_key_result(tokens: list[str], t0: float) -> ActionResult:
+    try:
+        proc = _run(["ydotool", "key", *tokens], env=_ydotool_env())
+    except (OSError, subprocess.SubprocessError) as e:
+        return ActionResult(False, Action.KEY, Tier.KEYBOARD, f"ydotool failed ({e})",
+                            (time.perf_counter() - t0) * 1000)
+    ok = proc.returncode == 0
+    detail = "ydotool key" if ok else f"ydotool failed: {(proc.stderr or '').strip()}"
+    return ActionResult(ok, Action.KEY, Tier.KEYBOARD, detail, (time.perf_counter() - t0) * 1000)
+
+
+def _ydotool_type_result(text: str, t0: float) -> ActionResult:
+    try:
+        proc = subprocess.run(
+            ["ydotool", "type", "-f", "-"],
+            input=text,
+            capture_output=True,
+            text=True,
+            timeout=max(_TIMEOUT, 1.0 + len(text) * 0.02),
+            env=_ydotool_env(),
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return ActionResult(False, Action.TYPE_TEXT, Tier.KEYBOARD, f"ydotool failed ({e})",
+                            (time.perf_counter() - t0) * 1000)
+    ok = proc.returncode == 0
+    detail = f"ydotool type {len(text)} chars" if ok else f"ydotool failed: {(proc.stderr or '').strip()}"
+    return ActionResult(ok, Action.TYPE_TEXT, Tier.KEYBOARD, detail, (time.perf_counter() - t0) * 1000)
+
+
 def _normalize_key(key: str) -> str:
     k = key.strip()
     low = k.casefold()
@@ -148,6 +188,13 @@ def send_key(chord: str) -> ActionResult:
         mods.append(mapped)
 
     wtype_argv = _wtype_chord(mods, key)
+    if prefers_ydotool():
+        tokens = _ydotool_chord(mods, key)
+        if tokens is not None:
+            res = _ydotool_key_result(tokens, t0)
+            if res.ok:
+                return res
+            # ydotool missing/failed: wtype is still worth one try (X11 sessions, XWayland)
     try:
         proc = _run(wtype_argv)
         if proc.returncode == 0:
@@ -184,6 +231,10 @@ def type_text(text: str) -> ActionResult:
     t0 = time.perf_counter()
     if text is None:
         text = ""
+    if prefers_ydotool():
+        res = _ydotool_type_result(text, t0)
+        if res.ok:
+            return res
     try:
         proc = _run(["wtype", "--", text])
         if proc.returncode == 0:

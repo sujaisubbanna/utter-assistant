@@ -1,20 +1,20 @@
 {
-  "generated_at": "2026-09-30T22:51:13+0530",
-  "socket": "/tmp/tmp.AYYcz2P3RC/utter/runner.sock",
+  "generated_at": "2026-10-01T13:27:42+0530",
+  "socket": "/tmp/tmp.LLiqELNcW1/utter/runner.sock",
   "latency": {
     "n": 200,
-    "p50_ms": 0.024,
-    "p95_ms": 0.07,
-    "p99_ms": 0.131,
-    "max_ms": 0.429,
+    "p50_ms": 0.023,
+    "p95_ms": 0.066,
+    "p99_ms": 0.094,
+    "max_ms": 0.708,
     "min_ms": 0.021,
     "mean_ms": 0.033
   },
   "backpressure": {
     "runner_stream_subscribe": true,
     "stream_id": "stream-1",
-    "frames_received": 35201,
-    "seq_gaps": 145,
+    "frames_received": 36340,
+    "seq_gaps": 149,
     "drop_oldest_observed": true,
     "status_calls_while_streaming": 38,
     "runner_stayed_responsive": true
@@ -23,7 +23,7 @@
     "cancelled": true,
     "error_code": -32002,
     "detail": "cancelled",
-    "cancel_latency_ms": 1.601,
+    "cancel_latency_ms": 1.278,
     "idempotent": true,
     "peer_usable_after_cancel": true,
     "runner_cancel_idempotent": true
@@ -43,7 +43,7 @@
   },
   "crash_restart": {
     "epoch_before": 0,
-    "killed_pid": 1858118,
+    "killed_pid": 516669,
     "inflight_errored": true,
     "inflight_error_code": -32000,
     "inflight_error_message": "connection closed",
@@ -56,7 +56,7 @@
     "stream_id": "stream-2",
     "mode": "lossy",
     "frames_received": 92,
-    "seq_gaps": 22,
+    "seq_gaps": 23,
     "drop_oldest_observed": true,
     "status_calls_while_streaming": 23,
     "runner_stayed_responsive": true,
@@ -70,7 +70,7 @@
     "max_seq_after_pause": 64,
     "paused": true,
     "ack_ok": true,
-    "max_seq_after_ack": 403411,
+    "max_seq_after_ack": 409277,
     "resumed": true
   },
   "invoke": {

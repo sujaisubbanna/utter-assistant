@@ -199,19 +199,18 @@ class Executor:
         return ActionResult(res.ok, Action.TERMINAL, Tier.APP, f"opened terminal: {cmd}")
 
     def _do_niri(self, step: Step) -> ActionResult:
-        """Invoke a niri compositor action: `niri msg action <command> [args...]`."""
-        import subprocess
-        cmd = ["niri", "msg", "action", step.args["command"]]
-        cmd += [str(a) for a in step.args.get("args", [])]
-        try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        except Exception as e:  # noqa: BLE001
-            return ActionResult(False, step.action, Tier.APP, f"niri error: {e}")
-        ok = r.returncode == 0
-        detail = f"niri {step.args['command']}"
-        if not ok:
-            detail += f" failed: {r.stderr.strip()}"
-        return ActionResult(ok, step.action, Tier.APP, detail)
+        """Invoke a compositor action by its niri name.
+
+        On niri this runs `niri msg action <command> [args...]` exactly as
+        before; on KWin the name is mapped to a D-Bus call (kglobalaccel
+        shortcut / virtual-desktop call). A missing mapping yields a
+        structured ``unsupported`` result, never an exception.
+        """
+        from .context import compositor
+        out = compositor.active().run_action(step.args["command"], step.args.get("args", []))
+        res = ActionResult(out.ok, step.action, Tier.APP, out.detail)
+        res.unsupported = bool(out.unsupported)
+        return res
 
     def _do_media(self, step: Step) -> ActionResult:
         return _mpris(step.args.get("command", "play-pause"))
@@ -382,6 +381,13 @@ def _list_windows() -> list[dict]:
             return desktop.windows_as_dicts()
         except Exception:
             return []
+    try:
+        from .context import compositor
+        if compositor.active_name() != compositor.NIRI:
+            from .context import desktop
+            return desktop.windows_as_dicts()
+    except Exception:
+        return []
     try:
         raw = subprocess.run(["niri", "msg", "--json", "windows"],
                              capture_output=True, text=True, timeout=5).stdout
