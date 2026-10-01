@@ -5,7 +5,16 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.3] - 2026-10-01
+## [0.1.4] - 2026-10-01
+
+### Fixed
+- **`assistant` and `runner` are importable outside the repo root.** The distribution now
+  ships the `assistant`, `runner` and `plugins` packages (previously only `utter*`), so
+  `python -m assistant` and `python -m runner` work from any directory.
+- **Linux runner entrypoint uses `python3`.** `config.m3.toml` no longer depends on a bare
+  `python`, which a clean Ubuntu 24.04 does not provide.
+
+[0.1.3]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.3
 
 ### Added
 - **macOS Metal-native local runtime.** A platform-aware resolution layer (`utter/runtime.py`)
