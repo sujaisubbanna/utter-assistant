@@ -9,9 +9,9 @@ yet been run on real Apple hardware**: the code was written and unit-tested on L
 Apple frameworks stubbed out. Expect rough edges and please report what breaks.
 
 :::caution[Unsigned app]
-The macOS settings app on the release page (`utter-gui_<ver>_aarch64.dmg`) is **not
-code-signed or notarised**. On first launch right-click → *Open*, or run
-`xattr -dr com.apple.quarantine /Applications/utter.app`. Apple Silicon only.
+The macOS settings app on the release page (`utter-gui_<ver>_aarch64.dmg` for Apple Silicon, `utter-gui_<ver>_x86_64.dmg` for Intel) is **not
+code-signed or notarised** unless Apple Developer credentials are configured. On first launch right-click → *Open*, or run
+`xattr -cr /Applications/utter.app`.
 :::
 
 ## What it uses
@@ -19,12 +19,13 @@ code-signed or notarised**. On first launch right-click → *Open*, or run
 | Concern | macOS backend |
 |---|---|
 | Push-to-talk | Quartz `CGEventTap` (PyObjC), `pynput` fallback |
-| Speech-to-text | Apple `Speech.framework` on-device, then local **whisper.cpp** |
+| Speech-to-text | Apple `Speech.framework` on-device with pause chunking (> 50s), then local **whisper.cpp** fallback |
 | Spoken replies | `say` or `AVSpeechSynthesizer` |
 | Typing and key chords | Quartz `CGEventPost`, AppleScript fallback |
-| Focused app and window | `NSWorkspace` + Accessibility |
+| Focused app and window | `NSWorkspace` + Accessibility `kAXRaiseAction` for per-window raise |
 | Screenshots, clipboard, sounds | `screencapture`, `pbpaste`, `afplay` |
-| Background service | a launchd user agent |
+| Background service | launchd user agents (`com.utter.assistant`, `com.utter.runner`) |
+| Homebrew | `Formula/utter.rb` (CLI + service) and `Casks/utter.rb` (app) |
 
 **Why not Voca?** VocaHQ makes [vocalinux](https://github.com/VocaHQ/vocalinux), which Utter
 bridges on Linux, and [VocaMac](https://github.com/VocaHQ/vocamac) for macOS. VocaMac is a
@@ -35,13 +36,20 @@ file-transcription CLI (untested).
 
 ## Install: drag and drop
 
-1. Download `utter-gui_<ver>_aarch64.dmg` from the release page and drag **utter** to
-   Applications. First launch: right-click → *Open* (the app is unsigned).
+1. Download `utter-gui_<ver>_aarch64.dmg` (Apple Silicon) or `utter-gui_<ver>_x86_64.dmg` (Intel)
+   from the release page and drag **utter** to Applications. First launch: clear Gatekeeper once
+   via `xattr -cr /Applications/utter.app` (or right-click → *Open* on macOS < 15).
 2. Open it. The **Set up** page unpacks the Python runtime and the assistant that ship inside
    the app into `~/Library/Application Support/utter/`, starts the two launchd agents and
    then walks you through the permissions. No Homebrew, no Python, no terminal.
 
 Updates work the same way: drop in the new app and Set up offers **Update**.
+
+### Homebrew
+
+- Install CLI + launchd service: `brew install --build-from-source Formula/utter.rb`
+- Start background daemon: `brew services start utter`
+- Install GUI app: `brew install --cask Casks/utter.rb`
 
 Developers can run from a checkout instead: `macos/setup.sh` creates `.venv-macos`,
 installs the `[macos]` extras and the launchd agents. The Linux installer (`install.sh`)
@@ -90,15 +98,20 @@ Linux ignores this section entirely; the Linux sections are unchanged on macOS b
 
 ## What works, what is Linux-only
 
-- **Expected to work:** push-to-talk with two keys, native speech recognition with a
-  whisper.cpp fallback, dictation typing, app and URL launching, clipboard, spoken replies,
-  notifications, screenshots for the vision tier, the plugin runner socket.
+- **Verified by CI:** automated matrix packaging of both Apple Silicon (`aarch64`) and
+  Intel (`x86_64`) .dmg/.app bundles, fail-safe codesigning/notarization, platform detection tests.
+- **Implemented against documented APIs (untested on real hardware):** push-to-talk with two keys,
+  native speech recognition with pause-aware audio chunking (> 50s) and whisper.cpp runtime fallback,
+  dictation typing, app and URL launching, window focus with AX window raising (`kAXRaiseAction`),
+  clipboard, spoken replies, notifications, screenshots for the vision tier with Retina geometry handling,
+  the plugin runner socket with peer credentials (`LOCAL_PEERCRED` / `LOCAL_PEERPID` and `proc_pidpath`),
+  Homebrew formulas (`Formula/utter.rb` and `Casks/utter.rb`).
 - **Linux-only:** the vocalinux bridge, niri compositor actions and workspace-aware
   focusing, AT-SPI accessibility clicks (macOS goes straight to vision), MPRIS media keys,
-  the Noctalia widget and OSD, the sandbox wrapper, the installer wizard, and the settings
+  the Noctalia widget and OSD, the sandbox wrapper, the Linux installer wizard, and the settings
   app's service controls (they call `systemctl`).
-- **Known gaps:** Apple's one-shot recognition stops after about a minute of audio; focusing
-  raises the owning app rather than one specific window; no Intel build; no signed app.
+- **Needs real Mac hardware to confirm:** physical audio input, hardware key-tap edge detection,
+  actual AX synthetic keystrokes, and real Screen Recording permission capture.
 
 The complete matrix, with the per-module status, is in
 [`docs/MACOS.md`](https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/MACOS.md).

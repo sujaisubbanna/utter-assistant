@@ -71,6 +71,52 @@ def write_wav(pcm, path: str, sample_rate: int = SAMPLE_RATE) -> str:
     return path
 
 
+_MAX_CHUNK_SECONDS = 50.0
+_MIN_SPLIT_SECONDS = 25.0
+
+
+def split_audio_chunks(pcm, sample_rate: int = SAMPLE_RATE,
+                       max_duration_s: float = _MAX_CHUNK_SECONDS,
+                       min_duration_s: float = _MIN_SPLIT_SECONDS) -> list:
+    """Split audio into chunks <= max_duration_s, ideally at quiet speech pauses.
+
+    Apple's Speech framework one-shot recognition caps audio at ~1 minute. This
+    helper breaks longer audio into natural chunks by searching for low-energy
+    frames (speech pauses) near the chunk boundary.
+    """
+    import numpy as np
+
+    arr = np.asarray(pcm)
+    total_len = len(arr)
+    max_len = int(max_duration_s * sample_rate)
+    min_len = int(min_duration_s * sample_rate)
+    if total_len <= max_len:
+        return [arr]
+
+    chunks = []
+    idx = 0
+    frame_size = int(0.05 * sample_rate)  # 50ms frames for energy analysis
+    while idx < total_len:
+        remaining = total_len - idx
+        if remaining <= max_len:
+            chunks.append(arr[idx:])
+            break
+        search_start = idx + min_len
+        search_end = idx + max_len
+        best_split = search_end
+        if frame_size > 0 and (search_end - search_start) > frame_size:
+            window = arr[search_start:search_end]
+            n_frames = len(window) // frame_size
+            if n_frames > 0:
+                reshaped = window[:n_frames * frame_size].reshape(n_frames, frame_size)
+                energies = np.mean(reshaped ** 2, axis=1)
+                quietest_frame = int(np.argmin(energies))
+                best_split = search_start + (quietest_frame * frame_size)
+        chunks.append(arr[idx:best_split])
+        idx = best_split
+    return chunks
+
+
 class AppleSpeechRecognizer:
     """One-shot recogniser over Apple's Speech framework."""
 
@@ -156,17 +202,29 @@ class AppleSpeechRecognizer:
 
     # -- inference -----------------------------------------------------------
     def transcribe(self, pcm, sample_rate: int = SAMPLE_RATE) -> str:
-        """Transcribe float32 mono PCM; returns ``""`` for silence/no result."""
+        """Transcribe float32 mono PCM; handles audio > 1 min by chunking."""
         import numpy as np
 
         audio = np.asarray(pcm)
         if audio.size == 0:
             return ""
         self.load()
+        chunks = split_audio_chunks(audio, sample_rate=sample_rate)
+        if len(chunks) == 1:
+            return self._transcribe_single_chunk(chunks[0], sample_rate)
+
+        results = []
+        for chunk in chunks:
+            text = self._transcribe_single_chunk(chunk, sample_rate)
+            if text:
+                results.append(text)
+        return " ".join(results).strip()
+
+    def _transcribe_single_chunk(self, chunk, sample_rate: int) -> str:
         fd, tmp = tempfile.mkstemp(prefix="utter-speech-", suffix=".wav")
         os.close(fd)
         try:
-            write_wav(audio, tmp, sample_rate)
+            write_wav(chunk, tmp, sample_rate)
             return self._recognize_file(tmp)
         finally:
             try:
@@ -176,7 +234,27 @@ class AppleSpeechRecognizer:
 
     def transcribe_file(self, path: str) -> str:
         self.load()
-        return self._recognize_file(str(Path(path).expanduser()))
+        resolved = str(Path(path).expanduser())
+        try:
+            with wave.open(resolved, "rb") as wf:
+                sr = wf.getframerate()
+                n_frames = wf.getnframes()
+                duration = n_frames / float(sr) if sr > 0 else 0
+                if duration > _MAX_CHUNK_SECONDS:
+                    raw_bytes = wf.readframes(n_frames)
+                    width = wf.getsampwidth()
+                    channels = wf.getnchannels()
+                    import numpy as np
+                    if width == 2:
+                        data = np.frombuffer(raw_bytes, dtype="<i2")
+                    else:
+                        data = np.frombuffer(raw_bytes, dtype=np.uint8).astype(np.float32)
+                    if channels > 1:
+                        data = data.reshape(-1, channels).mean(axis=1)
+                    return self.transcribe(data, sample_rate=sr)
+        except Exception:
+            pass
+        return self._recognize_file(resolved)
 
     def _recognize_file(self, path: str) -> str:
         import Foundation  # type: ignore[import-not-found]
@@ -212,5 +290,5 @@ class AppleSpeechRecognizer:
         return (out["text"] or "").strip()
 
 
-__all__ = ["AppleSpeechRecognizer", "framework_importable", "write_wav",
+__all__ = ["AppleSpeechRecognizer", "framework_importable", "write_wav", "split_audio_chunks",
            "AUTH_AUTHORIZED", "AUTH_DENIED", "AUTH_NOT_DETERMINED", "AUTH_RESTRICTED"]

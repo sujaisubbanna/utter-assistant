@@ -363,7 +363,22 @@ class Transcriber:
         if self.backend == "faster_whisper":
             return self._transcribe_faster_whisper(audio)
         if self.backend == "apple_speech":
-            return _clean_text(self._model.transcribe(audio, SAMPLE_RATE))
+            try:
+                return _clean_text(self._model.transcribe(audio, SAMPLE_RATE))
+            except Exception as exc:
+                if self.fallbacks:
+                    logger.warning("apple_speech failed at runtime (%s); trying fallback %s",
+                                   exc, self.fallbacks[0])
+                    for fallback in list(self.fallbacks):
+                        try:
+                            self._model = self._load_one(fallback)
+                            self.backend = fallback
+                            self.fallbacks.remove(fallback)
+                            return self.transcribe(audio)
+                        except Exception as fb_exc:
+                            logger.warning("fallback %s failed: %s", fallback, fb_exc)
+                            continue
+                raise
         if self.backend == "vocamac":
             return self._transcribe_vocamac(audio)
         raise ValueError(f"unknown STT backend: {self.backend!r}")

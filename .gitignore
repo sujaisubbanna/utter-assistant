@@ -1,4 +1,5 @@
 .venv/
+.venv-agent
 .venv-agent/
 models/
 __pycache__/

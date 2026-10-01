@@ -186,16 +186,57 @@ def list_monitors() -> list[Monitor]:
     return monitors
 
 
+def ax_raise_window(pid: int, window_id: int, title: Optional[str] = None) -> bool:
+    """Raise a specific window of ``pid`` via Accessibility ``kAXRaiseAction``."""
+    try:
+        import ApplicationServices as AS  # type: ignore[import-not-found]
+    except ImportError:
+        return False
+    try:
+        app = AS.AXUIElementCreateApplication(int(pid))
+        if app is None:
+            return False
+        err, windows = AS.AXUIElementCopyAttributeValue(app, AS.kAXWindowsAttribute, None)
+        if err != 0 or not windows:
+            return False
+        target_win = None
+        for win in windows:
+            try:
+                err, num = AS._AXUIElementGetWindow(win, None)  # type: ignore[attr-defined]
+                if err == 0 and num and int(num) == int(window_id):
+                    target_win = win
+                    break
+            except Exception:  # noqa: BLE001
+                pass
+            if target_win is None and title:
+                try:
+                    err, w_title = AS.AXUIElementCopyAttributeValue(win, AS.kAXTitleAttribute, None)
+                    if err == 0 and w_title and str(w_title) == str(title):
+                        target_win = win
+                except Exception:  # noqa: BLE001
+                    pass
+        if target_win is not None:
+            action_err = AS.AXUIElementPerformAction(target_win, AS.kAXRaiseAction)
+            return action_err == 0
+        return False
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("ax_raise_window pid=%s wid=%s failed: %s", pid, window_id, exc)
+        return False
+
+
 def focus_window(window_id: int) -> bool:
-    """Activate the app owning ``window_id`` (per-window raise needs AX; best-effort)."""
+    """Activate the app owning ``window_id`` and raise the specific window via AX."""
     try:
         wid = int(window_id)
     except (TypeError, ValueError):
         return False
-    pid = next((w["pid"] for w in _raw_windows() if w["id"] == wid), None)
-    if pid is None:
+    target = next((w for w in _raw_windows() if w["id"] == wid), None)
+    if target is None:
         return False
-    return activate_pid(pid)
+    pid = int(target["pid"])
+    app_ok = activate_pid(pid)
+    ax_ok = ax_raise_window(pid, wid, title=target.get("title"))
+    return app_ok or ax_ok
 
 
 def activate_pid(pid: int) -> bool:
@@ -243,4 +284,4 @@ def build_context(with_a11y: bool = False) -> Context:
 
 __all__ = ["focused_window", "list_windows", "find_windows", "list_monitors", "focus_window",
            "focus_window_on_workspace", "activate_pid", "activate_app", "build_context",
-           "app_identifier", "ax_focused_window_title"]
+           "app_identifier", "ax_focused_window_title", "ax_raise_window"]

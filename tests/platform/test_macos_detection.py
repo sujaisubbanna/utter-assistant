@@ -346,5 +346,121 @@ from runner import socket as rsock  # noqa: E402
 check("runner: darwin peer creds fail closed", rsock._peer_creds_darwin(object()) is None)
 check("runner: linux peer-cred path still present", callable(rsock.SocketServer._peer_creds))
 
+# --------------------------------------------------------------------------- #
+# 10. hardened macOS features: audio chunking, STT fallback, AX raise, creds
+# --------------------------------------------------------------------------- #
+import struct  # noqa: E402
+import numpy as np  # noqa: E402
+from utter.macos import speech as mspeech  # noqa: E402
+from utter.macos import desktop as mdesk  # noqa: E402
+
+# 10.1 audio chunking for Apple speech (~1 min cap)
+short_pcm = np.zeros(16000 * 10, dtype=np.float32)
+short_chunks = mspeech.split_audio_chunks(short_pcm, sample_rate=16000, max_duration_s=50.0)
+check("audio chunking: short audio returns 1 chunk", len(short_chunks) == 1 and len(short_chunks[0]) == len(short_pcm))
+
+long_pcm = np.ones(16000 * 80, dtype=np.float32)
+long_pcm[16000 * 35: 16000 * 36] = 0.0  # pause at 35s
+long_chunks = mspeech.split_audio_chunks(long_pcm, sample_rate=16000, max_duration_s=50.0, min_duration_s=25.0)
+check("audio chunking: 80s audio splits into chunks <= 50s",
+      len(long_chunks) == 2 and all(len(c) <= 16000 * 50 for c in long_chunks))
+check("audio chunking: total samples preserved", sum(len(c) for c in long_chunks) == len(long_pcm))
+
+# 10.2 STT runtime fallback: apple_speech runtime failure falls back to whisper_cpp
+t_rt = stt.Transcriber(stt_cfg, backend="apple_speech", fallbacks=["whisper_cpp"])
+mock_apple = SimpleNamespace(transcribe=lambda audio, sr: (_ for _ in ()).throw(RuntimeError("Audio limit or permission revoked")))
+t_rt._model = mock_apple
+t_rt._load_whisper_cpp = lambda: SimpleNamespace(transcribe=lambda audio, **kw: [SimpleNamespace(text="hello fallback")])
+res = t_rt.transcribe(np.zeros(16000, dtype=np.float32))
+check("STT runtime fallback: apple_speech failure falls back to whisper_cpp",
+      res == "hello fallback" and t_rt.backend == "whisper_cpp")
+
+# 10.3 AX window raise (kAXRaiseAction)
+mock_as = SimpleNamespace(
+    AXUIElementCreateApplication=lambda pid: "mock_app",
+    AXUIElementCopyAttributeValue=lambda elem, attr, val: (0, ["mock_win1", "mock_win2"]) if attr == "AXWindows" else (0, "target title"),
+    _AXUIElementGetWindow=lambda win, val: (0, 101) if win == "mock_win1" else (0, 102),
+    AXUIElementPerformAction=lambda win, action: 0 if win == "mock_win2" and action == "AXRaise" else 1,
+    kAXWindowsAttribute="AXWindows",
+    kAXTitleAttribute="AXTitle",
+    kAXRaiseAction="AXRaise",
+)
+orig_as = sys.modules.get("ApplicationServices")
+sys.modules["ApplicationServices"] = mock_as
+try:
+    check("ax_raise_window succeeds on matching window id", mdesk.ax_raise_window(1234, 102) is True)
+    check("ax_raise_window returns False on nonexistent window id", mdesk.ax_raise_window(1234, 999) is False)
+finally:
+    if orig_as is None:
+        sys.modules.pop("ApplicationServices", None)
+    else:
+        sys.modules["ApplicationServices"] = orig_as
+
+# 10.4 Darwin peer creds unpacking + version check + pid check
+class MockDarwinSock:
+    def getsockopt(self, level, optname, buflen):
+        if optname == rsock._LOCAL_PEERCRED:
+            packed = struct.pack("IIh16I", 0, 501, 1, 20, *([0] * 15))
+            return packed + b"\x00" * (128 - len(packed))
+        if optname == rsock._LOCAL_PEERPID:
+            return struct.pack("i", 4321)
+        raise OSError("unknown opt")
+
+mock_sock = MockDarwinSock()
+creds = rsock._peer_creds_darwin(mock_sock)
+check("runner: darwin peer creds extracts pid, uid, gid", creds == (4321, 501, 20))
+
+class MockBadVersionSock(MockDarwinSock):
+    def getsockopt(self, level, optname, buflen):
+        if optname == rsock._LOCAL_PEERCRED:
+            packed = struct.pack("IIh16I", 999, 501, 1, 20, *([0] * 15))
+            return packed + b"\x00" * (128 - len(packed))
+        return super().getsockopt(level, optname, buflen)
+
+check("runner: darwin peer creds rejects bad struct version", rsock._peer_creds_darwin(MockBadVersionSock()) is None)
+
+class MockBadPidSock(MockDarwinSock):
+    def getsockopt(self, level, optname, buflen):
+        if optname == rsock._LOCAL_PEERPID:
+            return struct.pack("i", -1)
+        return super().getsockopt(level, optname, buflen)
+
+check("runner: darwin peer creds rejects invalid pid <= 0", rsock._peer_creds_darwin(MockBadPidSock()) is None)
+
+import ctypes  # noqa: E402
+class MockLibProc:
+    def proc_pidpath(self, pid, buf, buflen):
+        buf.value = b"/Applications/utter.app/Contents/MacOS/utter"
+        return len(buf.value)
+
+mock_libproc = MockLibProc()
+orig_cdll = ctypes.CDLL
+ctypes.CDLL = lambda name: mock_libproc
+try:
+    check("runner: _exe_darwin returns process executable path",
+          rsock._exe_darwin(4321) == "/Applications/utter.app/Contents/MacOS/utter")
+    check("runner: _exe_darwin rejects pid <= 0", rsock._exe_darwin(0) is None)
+finally:
+    ctypes.CDLL = orig_cdll
+
+# 10.5 screencapture error handling & Retina points
+orig_sp_run = subprocess.run
+def _fail_screencapture(cmd, check=True, timeout=15):
+    raise subprocess.CalledProcessError(1, cmd)
+
+subprocess.run = _fail_screencapture
+try:
+    mshot._displays = lambda: [mdesk.Rect(0, 0, 1000, 800)]
+    try:
+        mshot.capture_output(0)
+        check("screencapture failure raises", False)
+    except RuntimeError as exc:
+        check("screencapture failure mentions Screen Recording", "Screen Recording" in str(exc))
+finally:
+    subprocess.run = orig_sp_run
+    mshot._displays = lambda: []
+
+check("screenshot backing_scale_factor defaults to 1.0 without AppKit", mshot.backing_scale_factor() == 1.0)
+
 print("PASS" if ok else "FAIL")
 raise SystemExit(0 if ok else 1)

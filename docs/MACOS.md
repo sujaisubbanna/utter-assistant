@@ -64,8 +64,8 @@ file-transcription CLI as a batch STT engine if you prefer its models (untested)
 ## Requirements
 
 - macOS 12+ (Speech on-device recognition and `screencapture` are older than
-  that, but PyObjC 10 wheels target 12+). Apple Silicon or Intel: the Python
-  side is architecture-neutral; the **release `.dmg` is arm64 only**.
+  that, but PyObjC 10 wheels target 12+). Both Apple Silicon (`aarch64`) and
+  Intel (`x86_64`) Macs are supported; CI produces `.dmg` packages for both architectures.
 - Python 3.12+ (`brew install python@3.12`).
 - Python packages: `pip install -e '.[macos]'` installs `pyobjc-framework-Cocoa`,
   `-Quartz`, `-Speech`, `-AVFoundation`, `-ApplicationServices`, `sounddevice`,
@@ -93,7 +93,8 @@ clear error; without Accessibility typed text silently goes nowhere.
 
 ## Install: drag and drop
 
-1. Download `utter-gui_<ver>_aarch64.dmg` from the release page (Apple Silicon).
+1. Download `utter-gui_<ver>_aarch64.dmg` (Apple Silicon) or
+   `utter-gui_<ver>_x86_64.dmg` (Intel) from the release page.
 2. Drag **utter** to Applications. Until the release is signed (below), macOS
    reports the downloaded app as **"damaged"**: that is Gatekeeper refusing an
    unsigned, quarantined app, not a bad download. Clear the flag once:
@@ -124,6 +125,15 @@ Where things end up:
 | config | `~/.config/utter/config.toml` (same file as Linux) |
 | permission status | `~/Library/Application Support/utter/permissions.json` |
 
+### Homebrew (CLI + launchd or Cask)
+
+For terminal users and Homebrew taps, two formulas are provided in the repo:
+- `Formula/utter.rb`: builds and installs the Python assistant into Homebrew's
+  `libexec`, links `utter` and `utter-runner` into `$(brew --prefix)/bin`, and
+  provides launchd service management (`brew services start utter`).
+- `Casks/utter.rb`: downloads and installs `utter.app` from GitHub releases
+  (`brew install --cask utter`).
+
 ### From a source checkout (developers)
 
 ```bash
@@ -144,12 +154,14 @@ wizard) refuses to run on macOS and points here.
 
 ### Signing and notarization
 
-The workflows sign and notarize the app automatically when these repository
-secrets exist (an Apple Developer account is required): `APPLE_CERTIFICATE`
-(base64 `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`
-(`Developer ID Application: …`), `APPLE_ID`, `APPLE_PASSWORD` (app-specific
-password) and `APPLE_TEAM_ID`. The Tauri CLI reads them directly; without them
-the build is unsigned and users need the `xattr` step above.
+The CI workflows sign and notarize the app automatically when complete, valid
+Apple Developer credentials exist: `APPLE_CERTIFICATE` (base64 `.p12`),
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` (`Developer ID Application: …`),
+`APPLE_ID`, `APPLE_PASSWORD` (app-specific password) and `APPLE_TEAM_ID`.
+The workflow validates these credentials before building. If they are absent,
+empty, or malformed, the build is **fail-safe**: it automatically produces an
+unsigned `.app`/`.dmg` and clearly logs that it is unsigned. A missing or invalid
+secret never fails the build. Without notarization, users need the `xattr -cr` step above.
 
 ### How the bundle is built
 
@@ -244,6 +256,15 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
 
 ## Platform matrix
 
+**Verified by CI (automated packaging and platform tests)**
+
+- GitHub Actions matrix build producing both Apple Silicon (`aarch64`) and
+  Intel (`x86_64`) `.dmg` installers and `.app.tar.gz` bundles
+- Fail-safe signing: signed and notarized when Apple secrets exist, otherwise
+  producing unsigned bundles with clear diagnostic reporting
+- Platform detection and backend selection unit tests (`tests/platform/test_macos_detection.py`)
+- Python core tarball assembly and bundled runtime structure (`scripts/build-macos-runtime.sh`)
+
 **Works (by design, unit-tested on Linux, not yet run on a Mac)**
 
 - platform detection and backend selection (`tests/platform/test_macos_detection.py`)
@@ -252,26 +273,29 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
   `type_text` for dictation and the normal router for assistant commands
 - `open <url>`, `open -a <App>` / `open -b <bundle.id>` launching
 - `pbpaste` clipboard, `afplay` sounds, `say` replies, notification banners
+- speech pause-aware audio chunking (`split_audio_chunks`) for long audio (> 50s)
+- runtime fallback from `apple_speech` to `whisper_cpp` when speech recognition fails
 
 **Implemented against the documented APIs, untested on hardware**
 
 - `SFSpeechRecognizer` one-shot file recognition with `requiresOnDeviceRecognition`
+  and natural pause chunking for audio exceeding ~50 seconds
+- Window focus with specific window raising via Accessibility `kAXRaiseAction` (`ax_raise_window`)
 - Quartz `CGEventTap` press/release edge detection for modifier and regular keys
 - Quartz `CGEventPost` chords and Unicode typing; AppleScript fallback
 - Quartz mouse click / scroll events
 - `NSWorkspace` + `AXUIElement` focused window, `CGWindowListCopyWindowInfo` list,
   `NSScreen` monitors
-- `screencapture` + Retina point/pixel geometry handling in the vision tier
-- runner socket peer credentials via `LOCAL_PEERCRED` / `LOCAL_PEERPID` and
+- `screencapture` + Retina point/pixel geometry handling in the vision tier, with
+  backing scale factor adjustment and graceful permission error reporting
+- runner socket peer credentials via `LOCAL_PEERCRED` (128-byte buffer, version 0 validation) / `LOCAL_PEERPID` and
   `proc_pidpath` (replaces `SO_PEERCRED` + `/proc`)
-- the launchd agents and `macos/setup.sh`
+- the launchd agents and `macos/setup.sh` (idempotent, reversible)
 - the Set up page: permission probes (`AVCaptureDevice`, `SFSpeechRecognizer`,
   `IOHIDCheckAccess`, `AXIsProcessTrustedWithOptions`,
   `CGPreflightScreenCaptureAccess`), System Settings deep links, `launchctl`
-  status/start/stop mapping in the settings app
-- the unsigned `.app` / `.dmg` produced by the `build-macos` CI job (a tester build
-  without a release: `gh workflow run macos-dev-build.yml --ref <branch>`, then
-  download the run artifact)
+  status/start/stop mapping in the settings app, with one permission identity (`utter.app`)
+- Homebrew formulas (`Formula/utter.rb` for CLI/launchd service, `Casks/utter.rb` for .app)
 
 **Linux-only (no macOS equivalent yet)**
 
@@ -287,13 +311,11 @@ with a logged warning. whisper.cpp models are looked up exactly as on Linux
 - the Linux installer wizard and AppImage/deb/rpm packages
 - Matugen desktop colours and the Noctalia-specific rows in the settings app
 
-**Known gaps**
+**Remaining gaps / Needs real Mac testing**
 
-- Apple's one-shot recognition is capped at about one minute of audio.
-- Window focus by id activates the app; raising one specific window of a
-  multi-window app needs an AX `kAXRaiseAction` that is not wired yet.
-- Intel Macs: the Python side should work, but no x86_64 `.dmg` is built.
-- No Homebrew formula or signed app yet.
+- Physical hardware validation: real microphone audio capture, physical Quartz event tap listening,
+  real macOS Accessibility synthetic key typing, real Screen Recording capture.
+- Real Apple Developer code signing and Gatekeeper notarization testing with active Apple Developer credentials.
 
 ## Developing on Linux
 
