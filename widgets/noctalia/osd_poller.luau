@@ -45,7 +45,14 @@ local function osdPath()
 		runtimeDir = tostring(noctalia.getenv("XDG_RUNTIME_DIR") or "")
 	end
 	if runtimeDir == "" then
-		runtimeDir = "/run/user/1000"
+		local uid = ""
+		if type(noctalia.getenv) == "function" then
+			uid = tostring(noctalia.getenv("UID") or "")
+		end
+		if uid == "" then
+			return ""
+		end
+		runtimeDir = "/run/user/" .. uid
 	end
 	return runtimeDir .. "/utter/osd.json"
 end

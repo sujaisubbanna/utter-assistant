@@ -9,7 +9,7 @@ confirm_timeout_ms = 30000    # how long to wait for host.confirm
 handle_ttl = 300              # seconds before an unreferenced handle is GC'd
 lossy_queue = 256             # bounded frames per lossy stream (drop-oldest)
 credit_window = 64            # reliable-stream credit window
-# socket_path = "/run/user/1000/utter/runner.sock"   # default if unset
+# socket_path = "<XDG_RUNTIME_DIR>/utter/runner.sock"   # default if unset
 
 [socket]
 # M1 is default-deny: a client is accepted only if it matches `allow_binaries`

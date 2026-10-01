@@ -106,7 +106,7 @@ The defaults assume this machine's `keyd` remap (see [§3](#3-hotkeys--push-to-t
 | `base_url` | `http://127.0.0.1:8000/v1` | UI-TARS vLLM endpoint |
 | `model` | `uitars` | served model name |
 | `target_width` | `1344` | screenshot resize width (latency lever) |
-| `cuda_visible_devices` | `"1"` | GPU pin (RTX 3090 Ti) |
+| `cuda_visible_devices` | `""` | Optional GPU index for the vision model (empty = default) |
 
 ### `[actions]`
 

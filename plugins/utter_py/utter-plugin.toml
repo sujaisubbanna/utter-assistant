@@ -11,7 +11,7 @@ runtime = "subprocess"
 transport = "stdio"
 # Run from the plugin directory so `python -m plugin` resolves; the runner
 # prepends the repo root to PYTHONPATH so `import utter` works.
-entrypoint = ["python", "-m", "plugin"]
+entrypoint = ["python3", "-m", "plugin"]
 
 # Capabilities this plugin offers (versioned name@N).
 provides = [
