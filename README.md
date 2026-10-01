@@ -22,6 +22,10 @@
 
 **[Documentation](https://sujaisubbanna.github.io/utter-assistant/)** · [Install](#install) · [CLI](docs/CLI.md) · [Roadmap](#roadmap) · [Changelog](CHANGELOG.md)
 
+<img src="docs/media/settings-tour.gif" alt="A tour of the Utter settings app" width="820">
+<br>
+<sub><b>Tour of the settings app</b></sub>
+
 </div>
 
 ---
@@ -54,12 +58,6 @@ Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and 
   <br>
   <sub><b>Watch the demo</b> (47 s): “Open YouTube” → “Click the search box” → <i>dictate</i> “Rick Astley, never gonna give you up” → “Press enter” → “Click the first video”. No hands.</sub>
 </div>
-
-<details><summary>Tour of the settings app</summary>
-<div align="center">
-  <img src="docs/media/settings-tour.gif" alt="A tour of the Utter settings app" width="820">
-</div>
-</details>
 
 ## Quick start
 
