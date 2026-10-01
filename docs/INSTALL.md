@@ -96,7 +96,7 @@ NVIDIA GPU shared by both vLLM servers**. Per-component footprint:
 
 | Tier | What runs | GPU budget | Status |
 |---|---|---|---|
-| **24 GB** | Full stack: STT + 4B AWQ planner + 2B bf16 vision | Planner ~7.2 GB (0.30), vision for ~13 GB (0.55) | **Measured** — this is what the shipped defaults target |
+| **24 GB** | Full stack: STT + 4B AWQ planner + 2B bf16 vision | Planner ~7.2 GB (0.30), vision ~13 GB (0.55); together ~0.85 of the card | Fits the shipped defaults; the latency numbers below were measured with both models running on a 24 GB card |
 | **16 GB** | Same models, lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (keep the sum below ~0.9) | — | **Expected; untested** |
 | **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | — | **Expected; untested** |
 | **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | — | **Expected; untested** |
