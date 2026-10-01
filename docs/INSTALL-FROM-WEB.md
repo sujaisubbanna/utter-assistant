@@ -114,7 +114,7 @@ per-step progress and a final summary with next steps.
 | Variable | Default | Purpose |
 |---|---|---|
 | `UTTER_REPO` | `sujaisubbanna/utter-assistant` | GitHub `owner/name` to fetch releases from |
-| `UTTER_VERSION` | `latest` | release tag (e.g. `v0.1.0` or `0.1.0`) |
+| `UTTER_VERSION` | `latest` | release tag (e.g. `v0.2.0` or `0.1.0`) |
 | `UTTER_BASE_URL` | GitHub Releases | override the download base (e.g. `http://127.0.0.1:8000` for testing) |
 | `PREFIX` | `$HOME/.local` | install prefix |
 | `UTTER_PYTHON` | auto-detected | interpreter baked into the `assistant` wrapper |
@@ -126,7 +126,7 @@ Example — install a specific version into a custom prefix, non-interactively:
 
 ```bash
 curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh \
-  | UTTER_VERSION=v0.1.0 PREFIX="$HOME/opt/utter" bash -s -- --yes
+  | UTTER_VERSION=v0.2.0 PREFIX="$HOME/opt/utter" bash -s -- --yes
 ```
 
 ## What it installs
