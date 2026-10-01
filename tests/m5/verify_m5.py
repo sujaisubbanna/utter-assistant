@@ -145,8 +145,12 @@ def main(argv: list[str] | None = None) -> int:
         rdata = json.loads(rec.stdout)
         rep.check("recommend detects RAM", rdata["hardware"]["ram_gb"] > 0,
                   f"ram_gb={rdata['hardware']['ram_gb']}")
-        rep.check("recommend detects a GPU", len(rdata["hardware"]["gpus"]) >= 1,
-                  json.dumps(rdata["hardware"]["gpus"]))
+        # GPU presence is host-dependent: CI runners and CPU-only machines have
+        # none. Assert the report is well-formed, not that a GPU exists.
+        gpus = rdata["hardware"]["gpus"]
+        rep.check("recommend reports a well-formed GPU list",
+                  isinstance(gpus, list) and all(isinstance(g, dict) for g in gpus),
+                  json.dumps(gpus))
         rep.check("recommend has all profiles",
                   all(k in rdata["suggestions"] for k in
                       ("stt", "decision_llm", "planner_llm", "vision")),
