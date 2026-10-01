@@ -44,8 +44,8 @@
 - `doctor` compares **recorded vs actual** and reports drift; upgrades are explicit.
 
 ## 7. SDK versioning
-- Plugin SDKs (Python, Rust, then TypeScript) pin the **protocol major** and are generated
-  from `protocol/plugin.schema.json` + the capability registry where possible.
+- The protocol, manifest schema and capability registry are the compatibility contract for
+  plugin SDKs in any language. An SDK pins the **protocol major** it targets.
 - Breaking SDK changes follow the same N-2 rule as the protocol.
 
 ## 8. Doctor output (stable fields)

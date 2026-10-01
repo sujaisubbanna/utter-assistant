@@ -23,7 +23,7 @@ throughout; anything not shipped in this repo is called out explicitly.
 ## 1. Config files & precedence
 
 The legacy assistant reads TOML via `utter/config.py::load_config()`
-(`config.py:94-114`):
+(`config.py`):
 
 1. `~/.config/utter/config.toml` (honours `XDG_CONFIG_HOME`) — your override.
 2. Fallback: `<repo>/config.default.toml` when the user file does not exist.
@@ -33,9 +33,9 @@ mkdir -p ~/.config/utter
 cp config.default.toml ~/.config/utter/config.toml
 ```
 
-Top-level `[daemon] log_level` is read separately (`config.py:112-113`); all other
+Top-level `[daemon] log_level` is read separately (`load_config`, `config.py`); all other
 sections map onto dataclasses in `utter/config.py`. Unknown keys are ignored by
-`_merge` (`config.py:88-92`).
+`_merge` (`config.py`).
 
 Separately, the **modular runner** has its own TOML config
 (`runner/config.example.toml`, `config.m3.toml`) with `[[plugin]]` entries and
@@ -129,17 +129,17 @@ There are **two models**:
 
 - **Standalone evdev PTT** (`trigger = "hotkey"`): the daemon runs its own
   `voice/hotkey.py` listener on `hotkey.key` and transcribes with the configured STT
-  backend (`daemon.run_hotkey`, `daemon.py:154-194`).
+  backend (`run_hotkey`, `daemon.py`).
 - **vocalinux bridge** (`trigger = "bridge"` or `--bridge`): the daemon monkeypatches
   vocalinux's single injection choke point and drives vocalinux's own recognition
-  from **two** dedicated keys (`voice/vocalinux_bridge.py:1-13`):
+  from **two** dedicated keys (`voice/vocalinux_bridge.py`):
   - **dictation** (`ptt.dictation_key`) → text is typed normally;
   - **assistant** (`ptt.assistant_key`) → text is routed to utter and **never
     typed**.
 
 Keys are evdev names (`KEY_F13`, `KEY_INSERT`, `KEY_RIGHTCTRL`, …), resolved by
-`voice/hotkey.py:38-45`. The listener needs only membership in the `input` group; it
-does **not** `grab()` the device (`hotkey.py:1-11`).
+`resolve_keycode` (`voice/hotkey.py`). The listener needs only membership in the `input` group; it
+does **not** `grab()` the device (`hotkey.py`).
 
 ### keyd remap
 
@@ -180,13 +180,13 @@ Then align `[ptt]` with the remapped names. The shipped defaults
 
 ## 4. STT backends & the vocalinux bridge
 
-`utter/voice/stt.py` supports (`stt.py:1-14`):
+`utter/voice/stt.py` supports (`stt.py`):
 
 - **`whisper_cpp`** — via `pywhispercpp`; no GPU required; model stays resident.
 - **`faster_whisper`** — optional dependency; GPU via `device`/`compute_type`.
 - **`none`** — transcription disabled (e.g. the vocalinux bridge supplies text).
 
-Model lookup for whisper.cpp (`stt.py:39-45,75-109`) checks, in order:
+Model lookup for whisper.cpp (`_candidate_model_paths`, `stt.py`) checks, in order:
 
 1. an explicit path / `$UTTER_WHISPER_MODEL`;
 2. `$UTTER_MODELS_DIR` (prepended);
@@ -195,24 +195,24 @@ Model lookup for whisper.cpp (`stt.py:39-45,75-109`) checks, in order:
 5. `~/.cache/whisper`.
 
 The default whisper.cpp filename is `ggml-small.en.bin`
-(`stt.py:45`). If no local file exists and the configured name is a valid whisper.cpp
-model, `pywhispercpp` will download it (`stt.py:142-154`).
+(`_DEFAULT_WHISPERCPP_NAME`, `stt.py`). If no local file exists and the configured name is a valid whisper.cpp
+model, `pywhispercpp` will download it (`_resolve_whispercpp_model`, `stt.py`).
 
 faster-whisper falls back to CPU/int8 if the requested device fails
-(`stt.py:189-193`).
+(`Transcriber`, `stt.py`).
 
 ### vocalinux bridge
 
 - Module: `utter/voice/vocalinux_bridge.py`.
 - Enable with `trigger = "bridge"` in `[general]`, or run
   `python -m utter.daemon --bridge`.
-- The bridge is installed by `daemon.run_bridge()` (`daemon.py:196-212`) and launched
+- The bridge is installed by `daemon.run_bridge()` (`daemon.py`) and launched
   in practice via `scripts/utter-vocalinux.sh`, which sets `PYTHONPATH` to the
   repo and execs `python -m utter.daemon --bridge --config <repo>/config.default.toml`.
   That script is intended to replace the stock vocalinux launcher/autostart entry, and
   has hard-coded reference paths (edit them for your checkout).
 - The bridge never types assistant utterances: it routes them to
-  `Utter.handle_utterance` (`vocalinux_bridge.py:172-207`).
+  `Utter.handle_utterance` (wired in `run_bridge`, `daemon.py`).
 
 ---
 
@@ -221,10 +221,11 @@ faster-whisper falls back to CPU/int8 if the requested device fails
 Two things use the local planner endpoint on `:8001`:
 
 - **`router.decide`** — the constrained "Jev" decision head
-  (`utter/router/decide.py`). It asks the model to pick a letter over
+  (`utter/router/decide.py`, with the LLM transport in `utter/router/decide_llm.py`).
+  It asks the model to pick a letter over
   fully-resolved candidates; `[router] decide_threshold` gates the choice. It tries,
   in order, `structured_outputs.choice` (vLLM ≥ 0.6), the legacy `guided_choice`, then
-  a plain call (`decide.py:633-657`), and **fails open** to rules on any error.
+  a plain call (`_query`, `decide_llm.py`), and **fails open** to rules on any error.
 - **`router.planner`** — the free-form JSON fallback, used only when rules and the
   decision head both fail (`utter/router/planner.py`). Disable with
   `[router] llm_fallback = false`.
@@ -267,14 +268,14 @@ setsid bash -c 'scripts/serve_vision.sh > /tmp/vllm-serve.log 2>&1 &'
 Client side (`utter/vision/`):
 
 - `screenshot.py` captures with `grim` against niri and returns the logical
-  `Rect` (`screenshot.py:86-112`).
+  `Rect` (`capture`, `screenshot.py`).
 - `client.py::ground()` POSTs the resized screenshot (default width 1344, rounded to
   a multiple of 28 for Qwen2-VL) and parses UI-TARS 0–1000 normalized coordinates
-  into screen pixels (`client.py:99-135,182-247`).
+  into screen pixels (`prepare_image` / `ground`, `client.py`).
 - Env overrides: `UTTER_VISION_URL`, `UTTER_VISION_MODEL`,
-  `UTTER_VISION_TARGET_WIDTH`, `UTTER_VISION_TIMEOUT` (`client.py:70-97`).
+  `UTTER_VISION_TARGET_WIDTH`, `UTTER_VISION_TIMEOUT` (`client.py`).
 - Disable entirely with `[vision] enabled = false`; `click_element` then returns
-  "vision disabled" after the a11y attempt (`executor.py:277-279`).
+  "vision disabled" after the a11y attempt (`_do_click_element`, `executor.py`).
 
 ---
 
@@ -285,7 +286,7 @@ routing/sounds). It does **not** ship a PipeWire configuration; the reference se
 described here.
 
 - **Capture**: the daemon opens an input stream at `[audio] sample_rate`/`channels`
-  (`daemon.py:169-175`). Keep an RNNoise-denoised source as the default input for
+  (`run_hotkey`, `daemon.py`). Keep an RNNoise-denoised source as the default input for
   clean dictation.
 - **RNNoise source**: a filter-chain node conventionally configured under
   `~/.config/pipewire/pipewire.conf.d/` (not shipped in this repo). The reference
@@ -314,7 +315,7 @@ The script assumes those names; if you use different hardware, edit `SINK` / `SR
 
 `utter/sounds.py` synthesises three UI sounds on first use (stdlib only) into
 `<repo>/sounds/` and plays them non-blockingly with `pw-play` (fallback `paplay`,
-`sounds.py:74-79`):
+`_player`, `sounds.py`):
 
 | Name | When |
 |---|---|
@@ -322,7 +323,7 @@ The script assumes those names; if you use different hardware, edit `SINK` / `SR
 | `detected` | a command was understood |
 | `not_detected` | nothing matched |
 
-The recipes/tones are in `_RECIPES` (`sounds.py:24-28`); generated files are
+The recipes/tones are in `_RECIPES` (`sounds.py`); generated files are
 `sounds/start.wav`, `sounds/detected.wav`, `sounds/not_detected.wav`. Disable with:
 
 ```bash
@@ -330,7 +331,7 @@ export UTTER_SOUNDS=0
 ```
 
 Playback runs detached (`start_new_session=True`) so it never blocks the daemon
-(`sounds.py:92-101`).
+(`play`, `sounds.py`).
 
 ---
 
@@ -345,7 +346,7 @@ The **repo ships two unit files**:
 
 Both `PartOf=graphical-session.target` and `WantedBy=default.target`.
 
-> The M-notes in `AGENTS.md` also reference `utter-bridge`, `utter-vision`,
+> `AGENTS.md` also references `utter-bridge`, `utter-vision`,
 > `utter-planner` and `utter-audio-defaults` units. Those are **systemd user
 > units on the reference machine and are not stored in this repo**; here, the
 > vision/planner servers are started with `scripts/serve_*.sh` and the audio defaults
@@ -374,7 +375,7 @@ systemctl --user disable --now utter.service
 `ydotoold.service` runs `/usr/bin/ydotoold --socket-path=%t/.ydotool_socket
 --socket-perm=0600`; clients set `YDOTOOL_SOCKET=%t/.ydotool_socket`, which utter
 does automatically (`systemd/ydotoold.service:8-12`,
-`utter/actions/keyboard.py:56-61`).
+`_ydotool_env`, `utter/actions/keyboard.py`).
 
 ---
 
@@ -396,11 +397,11 @@ Read [`docs/TRUST.md`](TRUST.md) in full. For customisation the relevant points:
 
 - **Confirmation list**: `[actions] require_confirm` is a list of substrings; if any
   appears in a step's args, confirmation is requested
-  (`utter_py/plugin.py:138-147`). The default is
+  (`_needs_confirm`, `plugins/utter_py/plugin.py`). The default is
   `["send","submit","delete","purchase","pay","confirm order"]`.
 - **Dangerous ops are off by default in the runner**: `action.terminal` and
   `action.input` require an explicit opt-in and still require confirmation
-  (`runner/policy.py:71-79`). Enable in the *runner* config, not the legacy config:
+  (`runner/policy.py`). Enable in the *runner* config, not the legacy config:
 
   ```toml
   [policy]
@@ -413,5 +414,5 @@ Read [`docs/TRUST.md`](TRUST.md) in full. For customisation the relevant points:
   args — that is the `-32006` invariant enforced by the runner.
 - The legacy assistant's dry-run is controlled by `UTTER_DRY_RUN`: the
   `utter_py` plugin defaults it **on**, so only `UTTER_DRY_RUN=0` touches the
-  desktop (`plugins/utter_py/plugin.py:107-111`). Route-only testing without the
+  desktop (`_dry_run`, `plugins/utter_py/plugin.py`). Route-only testing without the
   plugin: `python -m utter.daemon --text "<cmd>" --dry-run`.

@@ -128,7 +128,7 @@ The assistant core is stdlib-only Python, so you can run it directly:
 # route a command without executing it (prints the plan)
 python3 -m utter.daemon --text "open youtube" --dry-run
 
-# the full verification: runner unit tests, socket e2e, conformance, measurement spike
+# the full verification: runner unit tests, socket e2e, conformance
 scripts/verify.sh
 ```
 

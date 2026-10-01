@@ -102,5 +102,5 @@ See [Architecture](/reference/architecture/) for the full picture and the
 Utter is young software built with the help of AI coding assistants and reviewed by a human.
 Read the code before trusting it with anything important, and please
 [report anything that looks wrong](https://github.com/sujaisubbanna/utter-assistant/issues).
-Linux x86_64 on Wayland is the only supported platform today. Windows and macOS are on the
-roadmap but not started.
+Linux x86_64 on Wayland is the primary supported platform. A macOS port is available but
+**experimental** (see [macOS](/guides/macos/)). Windows is not supported.

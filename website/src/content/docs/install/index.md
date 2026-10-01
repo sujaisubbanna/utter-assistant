@@ -78,7 +78,7 @@ The assistant core is stdlib-only Python; the settings app is Tauri v2 + React +
 ```bash
 # the assistant core, straight from the checkout
 python3 -m utter.daemon --text "open youtube" --dry-run
-scripts/verify.sh            # unit + e2e + conformance + spike
+scripts/verify.sh            # unit + e2e + conformance
 
 # the settings app
 cd gui-tauri

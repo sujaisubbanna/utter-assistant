@@ -14,8 +14,8 @@ Two things coexist in this repo right now:
 1. **The original Python assistant** (`utter/`) — production code, currently run by
    systemd user units (`utter-bridge`, `utter-vision`, `utter-planner`,
    `utter-audio-defaults`). It keeps working; do not regress it.
-2. **The new modular core** (`runner/`, `protocol/`, `plugins/`, `tests/`, `docs/`) — the
-   M0/M1 protocol + reference runner, with the real assistant being wrapped as a plugin (M3).
+2. **The modular core** (`runner/`, `protocol/`, `plugins/`, `tests/`, `docs/`) — the
+   protocol + reference runner, with the real assistant wrapped as `plugins/utter_py`.
 
 ## Repo map
 ```
@@ -23,14 +23,14 @@ protocol/   PROTOCOL.md, capabilities.json, plugin.schema.json   # frozen contra
 docs/       ARCHITECTURE.md, TRUST.md, COMPATIBILITY.md, PLUGINS.md, APPS.md, CUSTOMISING.md
 runner/     Python reference runner host (framing, rpc, plugins, streams, handles, policy, socket, security)
 plugins/    fake_py/ + fake_rs/ (conformance fakes), utter_py/ (the real assistant as a plugin)
-tests/      conformance/ (independent suite + report.json), m3/ (real-plugin verification)
-scripts/    verify.sh, m0_spike.py, zen_bidi.py, serve_*.sh, gen_*.py
+tests/      conformance/ (protocol suite), m3/ (real-plugin verification)
+scripts/    verify.sh, zen_bidi.py, serve_*.sh, gen_*.py
 utter/   the original Python assistant (router, executor, context, actions, vision, voice, profiles, data)
-PLAN.md     the architecture plan + milestone status
+PLAN.md     the architecture plan
 ```
 
 ## Contracts — read before changing anything
-- `protocol/PROTOCOL.md` — framing + handshake are **frozen**; M1 additions in §10–14.
+- `protocol/PROTOCOL.md` — framing + handshake are **frozen**; additions in §10–14.
 - `protocol/capabilities.json` — the single source of truth for capability strings.
 - `protocol/plugin.schema.json` — manifest schema.
 - `docs/TRUST.md` — provenance + policy rules (do not weaken).
@@ -38,10 +38,7 @@ PLAN.md     the architecture plan + milestone status
 
 ## Run & verify
 ```bash
-scripts/verify.sh          # runner unit + e2e + conformance + spike (use before declaring done)
-.venv-agent/bin/python -m runner._selftest
-.venv-agent/bin/python tests/conformance/run.py
-.venv-agent/bin/python scripts/m0_spike.py
+scripts/verify.sh          # full verification (use before declaring done)
 ```
 Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**` is
 **stdlib-only** (no third-party deps). Never use `shell=True`.
@@ -59,7 +56,7 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
 
 ## Task conventions
 - Work in **bounded lanes** with a single writer per file/dir; announce ownership.
-- Update `PLAN.md` milestone status when you finish a milestone.
+- Keep `PLAN.md` current when you complete planned work.
 - Prefer wrapping existing `utter/` code over rewriting; the Rust port is deferred until
   profiling justifies it (local RPC is already ~0.04 ms; inference dominates).
 - Keep the legacy assistant running: changes to `utter/**` must not break the systemd units.
@@ -84,11 +81,8 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
 - **Trust & permissions**: `docs/TRUST.md`; **versioning**: `docs/COMPATIBILITY.md`
 
 ## Current status
-- **M0 ✅** — framing/handshake, runner host, conformance (Python+Rust), spike, trust doc.
-- **M1 ✅** — streams + flow control, `runner.invoke`/`validate_plugin`, handles + `fd.pass`,
-  socket transport, default-deny, sandbox wrapper, `terminal` opt-in. (79/79 unit, 86/86 e2e,
-  60/60 conformance, RPC p50 ~0.04 ms.)
-- **M3 ✅** — the real assistant is wrapped as `plugins/utter_py`; `runner.command
-  "open youtube"` drives the real rules + Jev head + actions end-to-end (dry-run default;
-  `tests/m3/verify_m3.py` 20/20).
-- **Next** — installer, Tauri settings app (`gui-tauri/`) + Noctalia widget, model store.
+- **Runner** — frozen framing/handshake, streams + flow control, `runner.invoke` /
+  `validate_plugin`, handles + `fd.pass`, the socket transport with default-deny, and the
+  sandbox wrapper. `action.terminal` / `action.input` are opt-in and confirmed.
+- **Real assistant** — wrapped as `plugins/utter_py`; `runner.command "open youtube"` drives
+  the real rules, decision head and actions end-to-end (dry-run by default).

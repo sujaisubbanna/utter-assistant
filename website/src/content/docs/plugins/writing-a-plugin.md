@@ -162,9 +162,8 @@ example of both lossy (drop-oldest with `seq` gaps) and reliable (credit window)
 
 ## Testing with the conformance suite
 
-`tests/conformance/run.py` is an **independent** suite: its client framing lives in
-`tests/conformance/framing_client.py` and never imports the runner's framing code. It needs a
-Python interpreter with the repo on its path and a built Rust fake.
+`tests/conformance/run.py` exercises the protocol against the runner from a separate client.
+It needs a Python interpreter with the repo on its path and a built Rust fake.
 
 ```bash
 # build the Rust fake once
@@ -177,11 +176,11 @@ python3 tests/conformance/run.py
 It generates a runner config, starts `python -m runner --config <that file>` from the repository
 root, waits for `$XDG_RUNTIME_DIR/utter/runner.sock`, and asserts:
 
-- **M0**: handshake and negotiation, `provides ∩ requires`, unknown capability tolerated,
+- Handshake and negotiation, `provides ∩ requires`, unknown capability tolerated,
   missing requirement rejected fail-closed, the cross-language Rust fake, the
   `runner.command "open youtube"` vertical slice, and policy (`terminal` with `screen`
   provenance gives `-32006`; with `user` provenance it gives `-32003`).
-- **M1**: end-to-end lossy backpressure (drop-oldest, `seq` gaps, responsive sibling RPCs,
+- End-to-end lossy backpressure (drop-oldest, `seq` gaps, responsive sibling RPCs,
   idempotent `stream.stop`), reliable flow (pause at the credit window, resume on `stream.ack`),
   `runner.invoke` including `-32006`, `runner.validate_plugin`, handles and `fd.pass`
   (`-32007`, fd round trip), socket default-deny, and memfd.
@@ -191,19 +190,11 @@ root, waits for `$XDG_RUNTIME_DIR/utter/runner.sock`, and asserts:
 Exit codes: `0` all assertions passed (or only skips), `1` a check failed, `2` blocked (runner
 absent or not ready). Flags: `--keep`, `--timeout 30`.
 
-**Adding checks**: extend the `Report` harness with `rep.check(name, ok, detail)` or
-`rep.skip(name, reason)`, add a `check_*` function, and call it from `main()`. Keep the client
-independent of the runner's framing module.
-
-Run everything (runner unit tests, socket e2e, conformance and the measurement spike):
+Run the repository's full verification with:
 
 ```bash
 scripts/verify.sh
 ```
-
-The M3 real-plugin verification is separate: `python3 tests/m3/verify_m3.py` runs in dry-run
-mode by default and needs the runner and, for the decision-head path, the planner server on port
-8001.
 
 ## Checklist before you ship
 

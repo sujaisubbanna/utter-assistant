@@ -242,7 +242,7 @@ python3 -m utter.daemon --text "open youtube" --dry-run
 python3 tests/m3/verify_m3.py
 ```
 
-The M3 verification asserts the vertical slice through the runner in dry-run mode: "open
+The real-plugin verification asserts the vertical slice through the runner in dry-run mode: "open
 youtube" becomes `ensure_url` for YouTube, "pull up youtube" takes the decision-head path,
 "tile right" becomes the niri `move-column-right` action, and the policy checks (a `terminal`
 step with screen provenance is rejected; with user provenance it is refused because the op is
