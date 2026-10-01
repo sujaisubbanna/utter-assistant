@@ -249,7 +249,7 @@ against `sha256sums.txt` from the release.
 
 ### 3. Build from source
 
-The assistant core is stdlib-only Python; the settings app is Tauri v2 + React + Tailwind CSS v4.
+The runner core is stdlib-only Python; the assistant adds a few optional runtime deps (numpy, PyYAML, requests, evdev) and the settings app is Tauri v2 + React + Tailwind CSS v4.
 
 ```bash
 # the assistant core, straight from the checkout
