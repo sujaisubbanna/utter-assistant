@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-10-01
+## [0.1.1] - 2026-10-01
 
 ### Added
 - **Documentation site** built with Astro Starlight and published to GitHub Pages —
@@ -41,4 +41,4 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
-[0.2.0]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.2.0
+[0.1.1]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.1
