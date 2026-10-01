@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { api } from "./api";
+import { usePoll } from "./hooks";
 import type { StatusReport } from "./types";
 
 interface StatusApi {
@@ -43,9 +44,11 @@ export function RunnerStatusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void reload();
-    const id = window.setInterval(() => void reload(), 5000);
-    return () => window.clearInterval(id);
   }, [reload]);
+
+  // Each check spawns the `assistant` CLI, so poll gently and pause entirely while
+  // the window is in the background (usePoll also prevents overlapping runs).
+  usePoll(() => reload(), 15000);
 
   const value = useMemo<StatusApi>(() => {
     // `runner.status` has no explicit `connected` field; a JSON reply without

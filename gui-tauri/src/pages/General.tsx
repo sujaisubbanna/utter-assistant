@@ -20,6 +20,7 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { usePoll } from "../lib/hooks";
 import { LINKS } from "../lib/links";
 import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
 import { useRunnerStatus } from "../lib/status";
@@ -64,7 +65,7 @@ function StatusHero({ onStart, busy }: { onStart: () => void; busy: boolean }) {
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
           style={{ background: `color-mix(in oklab, ${color} 12%, transparent)` }}
         >
-          <StatusDot tone={tone} pulse={state === "running"} className="h-2.5 w-2.5" />
+          <StatusDot tone={tone} className="h-2.5 w-2.5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
@@ -116,9 +117,10 @@ export function GeneralPage() {
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 4000);
-    return () => window.clearInterval(id);
   }, [load]);
+
+  // This one shells out to systemctl; keep it slow and stop when backgrounded.
+  usePoll(() => load(), 15000);
 
   const actionLabel = (action: string) =>
     action === "start" || action === "restart" || action === "stop"
