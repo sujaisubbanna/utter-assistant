@@ -85,7 +85,8 @@ The OSD text is, by design, visible on your screen. The state file lives `0700` 
 
 ## Components in the repository
 
-- **Emitter**: `utter/voice/osd.py`. It writes the state file for a voice lane to drive and is
+- **Emitter**: `utter/voice/osd.py`, driven by the native voice loops (`run_hotkey`/
+  `run_macos`): listening/level/final, plus the `loading` state on cold start and wake. It is
   a strict no-op when disabled.
 - **Panel**: the Noctalia plugin under `plugins/ui/noctalia/` and the widget package under
   `widgets/noctalia/` (bar widget, attention panel, OSD and their pollers).

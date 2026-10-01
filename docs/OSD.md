@@ -44,8 +44,11 @@ window_s = 6
 ```
 
 ## Components
-- **Emitter** — `utter/voice/osd.py` (`OsdEmitter`). It writes the state file for a voice
-  lane to drive and is a strict no-op when disabled; it never blocks the recognition thread.
+- **Emitter** — `utter/voice/osd.py` (`OsdEmitter`). The native voice loops
+  (`Utter.run_hotkey`, `Utter.run_macos`) drive it: PTT press -> `listening`, the capture
+  callback -> `level`, a transcript -> `final` (and the emitter's own dismiss -> `idle`),
+  and cold start / wake -> `loading` until ready via `utter/voice/model_loading.py`. It is a
+  strict no-op when disabled and never blocks the recognition thread.
 - **Panel** — the Noctalia plugin (`plugins/ui/noctalia/`), a persistent overlay panel plus a
   fast poller.
 

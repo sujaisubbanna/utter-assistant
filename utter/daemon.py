@@ -53,6 +53,126 @@ def _notify(message: str, macos_cfg=None) -> None:
         pass
 
 
+def _rms(value) -> float:
+    """RMS of a captured audio chunk as 0.0-1.0 (never raises)."""
+    try:
+        import numpy as np
+        arr = np.asarray(value, dtype="float32")
+        if arr.size == 0:
+            return 0.0
+        return max(0.0, min(1.0, float(np.sqrt(np.mean(np.square(arr))))))
+    except Exception:  # noqa: BLE001 - a bad chunk must not break capture
+        return 0.0
+
+
+def _pcm16_source(chunks, lock):
+    """Snapshot shared float32 chunks as int16 bytes for the OSD streamer."""
+    def source() -> list:
+        try:
+            with lock:
+                snap = list(chunks)
+            if not snap:
+                return []
+            import numpy as np
+            data = np.concatenate([np.asarray(c).reshape(-1) for c in snap])
+            if data.size == 0:
+                return []
+            return [(np.clip(data, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()]
+        except Exception:  # noqa: BLE001 - windowed decode is best-effort
+            return []
+    return source
+
+
+class _Osd:
+    """Best-effort OSD driver for the native voice lanes.
+
+    Purely additive: a disabled emitter writes nothing, and no call may ever
+    raise into the audio/recognition path.
+    """
+
+    def __init__(self, cfg, audio_source=None):
+        self.em = None
+        self.watcher = None
+        self._sleep_hooked = False
+        try:
+            from .voice.osd import OsdEmitter
+            self.em = OsdEmitter(cfg=getattr(cfg, "osd", None), audio_source=audio_source)
+        except Exception:
+            log.exception("could not initialise OSD emitter")
+        self._init_model_loading(cfg)
+
+    # -- safe wrappers -----------------------------------------------------
+    def _emit(self, method: str, *args) -> None:
+        em = self.em
+        if em is None:
+            return
+        try:
+            getattr(em, method)(*args)
+        except Exception:  # noqa: BLE001 - the OSD must never break voice
+            log.debug("OSD %s failed", method, exc_info=True)
+
+    def listening(self, mode: str = "assistant") -> None:
+        self._emit("listening", mode)
+
+    def level(self, value) -> None:
+        self._emit("level", value)
+
+    def final(self, text, activated=None) -> None:
+        self._emit("final", text, activated)
+
+    def idle(self) -> None:
+        self._emit("idle")
+
+    def close(self) -> None:
+        self._emit("close")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(getattr(self.em, "enabled", False))
+
+    # -- model-loading (cold start / wake) ---------------------------------
+    def _init_model_loading(self, cfg) -> None:
+        sc = getattr(cfg, "sleep", None)
+        services = list(getattr(sc, "services", []) or [])
+        if self.em is None or not services:
+            return
+        try:
+            from .voice import model_loading as ml
+            self.watcher = ml.ModelLoadingWatcher(
+                self.em,
+                ml.probes_for_services(services, cfg),
+                timeout_s=getattr(sc, "model_ready_timeout_s", ml.DEFAULT_TIMEOUT_S),
+            )
+        except Exception:
+            log.exception("could not initialise model-loading watcher")
+            self.watcher = None
+
+    def begin_loading(self) -> None:
+        """Show ``loading`` until the model services report ready (cold/wake)."""
+        if self.watcher is None or not self.enabled:
+            return
+        try:
+            self.watcher.begin()
+        except Exception:
+            log.debug("could not start model-loading OSD state", exc_info=True)
+
+    def watch_sleep(self, sleeper) -> None:
+        """Re-assert ``loading`` when the controller wakes from sleep."""
+        if sleeper is None or self.watcher is None or self._sleep_hooked:
+            return
+        if getattr(sleeper, "_utter_osd_state_hook", False):
+            return
+        try:
+            def _on_state(asleep: bool) -> None:
+                if not asleep:
+                    self.begin_loading()
+            sleeper.on_state(_on_state)
+            sleeper._utter_osd_state_hook = True  # type: ignore[attr-defined]
+            self._sleep_hooked = True
+        except Exception:
+            log.debug("could not register OSD sleep hook", exc_info=True)
+
+
 def _plan_from_decision(dec) -> Optional[Plan]:
     """Convert a decide.Decision into an executable Plan (single step)."""
     c = getattr(dec, "candidate", None)
@@ -186,6 +306,12 @@ class Utter:
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
+        # Additive OSD: waveform + listening/final, plus the loading state on
+        # cold start and after wake. A disabled emitter writes nothing.
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(chunks, rec_lock))
+        osd.begin_loading()
+        osd.watch_sleep(sleeper)
+
         def record_start():
             idle.begin("listen")
             if sleeper.asleep:
@@ -194,10 +320,12 @@ class Utter:
             with rec_lock:
                 chunks.clear()
             log.info("PTT down - listening")
+            osd.listening("assistant")
 
             def cb(indata, frames, t, status):
                 with rec_lock:
                     chunks.append(indata.copy())
+                osd.level(_rms(indata))
             stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
                                     channels=self.cfg.audio.channels, dtype="float32",
                                     device=(self.cfg.audio.device or None), callback=cb)
@@ -215,11 +343,24 @@ class Utter:
                 audio = data.reshape(-1).astype("float32")
                 if audio.size < self.cfg.audio.sample_rate * 0.2:
                     log.info("too short, ignoring")
+                    osd.idle()
                     return
-                text = stt.transcribe(audio)
+                try:
+                    text = stt.transcribe(audio)
+                except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                    osd.idle()
+                    raise
                 log.info("transcript: %r", text)
                 if text:
-                    self.handle_utterance(text)
+                    try:
+                        ok = self.handle_utterance(text)
+                    except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                        osd.idle()
+                        raise
+                    # ``final`` schedules its own dismiss after [osd] dismiss_ms.
+                    osd.final(text, bool(ok))
+                else:
+                    osd.idle()
             finally:
                 idle.end("listen")
 
@@ -261,16 +402,22 @@ class Utter:
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
+        # Additive OSD for both dictation and assistant keys.
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock))
+        osd.begin_loading()
+        osd.watch_sleep(sleeper)
+
         def start(mode: str) -> None:
             with rec_lock:
                 if session["stream"] is not None:
                     return
-                session["chunks"] = []
+                session["chunks"].clear()
                 session["mode"] = mode
 
                 def cb(indata, frames, t, status):
                     with rec_lock:
                         session["chunks"].append(indata.copy())
+                    osd.level(_rms(indata))
                 stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
                                         channels=self.cfg.audio.channels, dtype="float32",
                                         device=(self.cfg.audio.device or None), callback=cb)
@@ -281,6 +428,7 @@ class Utter:
                 sleeper.wake()
                 _play("wake")
             _play("dictate" if mode == "dictation" else "start")
+            osd.listening("dictation" if mode == "dictation" else "assistant")
             log.info("PTT down (%s) - listening", mode)
 
         def stop(mode: str) -> None:
@@ -295,26 +443,39 @@ class Utter:
                 audio = data.reshape(-1).astype("float32")
                 if audio.size < self.cfg.audio.sample_rate * 0.2:
                     log.info("too short, ignoring")
+                    osd.idle()
                     return
                 try:
                     text = stt.transcribe(audio)
                 except Exception as e:  # noqa: BLE001
                     log.error("transcription failed: %s", e)
+                    osd.idle()
                     _notify(f"Transcription failed: {e}", mc)
                     return
                 log.info("transcript (%s): %r", mode, text)
                 if not text:
+                    osd.idle()
                     return
                 if mode == "dictation":
                     from .actions import keyboard
-                    res = keyboard.type_text(text)
+                    try:
+                        res = keyboard.type_text(text)
+                    except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                        osd.idle()
+                        raise
                     if res.ok:
                         _play("typed")
                     else:
                         log.warning("dictation typing failed: %s", res.detail)
                         _notify(f"Could not type text: {res.detail}", mc)
+                    osd.final(text, bool(res.ok))
                     return
-                self.handle_utterance(text)
+                try:
+                    ok = self.handle_utterance(text)
+                except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                    osd.idle()
+                    raise
+                osd.final(text, bool(ok))
             finally:
                 idle.end("listen")
 

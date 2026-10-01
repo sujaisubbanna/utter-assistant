@@ -44,6 +44,7 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/voice/test_osd_modes.py || rc=1
 "$PY" tests/voice/test_osd_loading.py || rc=1
 "$PY" tests/voice/test_daemon_cli.py || rc=1
+"$PY" tests/voice/test_daemon_osd.py || rc=1
 "$PY" tests/voice/test_sleep_mode.py || rc=1
 "$PY" tests/voice/test_idle_sleep.py || rc=1
 "$PY" tests/actions/test_open_url_browser.py || rc=1
