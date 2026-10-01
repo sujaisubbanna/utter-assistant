@@ -18,7 +18,7 @@ throughout; anything not shipped in this repo is called out explicitly.
 10. [Profiles & apps](#10-profiles--apps)
 11. [Safety](#11-safety)
 12. [Sleep, wake and the OSD](#12-sleep-wake-and-the-osd)
-13. [Forthcoming: app-targeted actions & background input](#13-forthcoming-app-targeted-actions--background-input)
+13. [App-targeted actions & background input](#13-app-targeted-actions--background-input)
 
 ---
 
@@ -457,19 +457,68 @@ comes back first and the larger models reload in the background.
 
 ---
 
-## 13. Forthcoming: app-targeted actions & background input
+## 13. App-targeted actions & background input
 
-**Not shipped yet.** Two feature lanes are in progress: sending an action to a specific app rather
-than the focused window, using background keyboard/mouse input. The verified platform limits are:
+Shipped. An utterance can name the target up front instead of acting on the focused window. The
+leading `<app>` must resolve to a real profile or a CLI agent (`utter/data/cli_agents.json`);
+generic words ("media", "editor", "music", "terminal") are never claimed, so `type ok`,
+`press enter` and `pause` keep their existing focused behaviour (`_app_target`,
+`_claim_app_target` in `utter/router/rules.py`).
 
-- **Linux/Wayland.** Wayland has no background key injection, so the mechanism is a **focus
-  round-trip** (focus the target, send the key, restore focus). Measured cost is about **38 ms**
-  same-workspace and **41 ms** cross-workspace with compositor animations off, but **~250 ms** of
-  visible viewport scroll when niri animations are on.
-- **macOS.** The intended path is the native `CGEventPostToPid` for **keyboard** (no focus
-  change). The mouse **cannot** target background windows.
-- **Hyprland.** `sendshortcut` exists but is unreliable for Electron/Chromium apps and can
-  silently do nothing.
+| Utterance | Plan |
+|-----------|------|
+| `codex type ok` | `TYPE_TEXT{text="ok", app="codex"}` |
+| `codex press enter` | `KEY{chord="enter", app="codex"}` |
+| `spotify pause` | `MEDIA{command="play-pause", app="spotify"}` |
+| `close steam` | `CLOSE_APP{app="steam"}` |
 
-The config keys are still being finalised; a `[wayland]` setting will control this. Do not rely on
-exact key names yet.
+Target-first `type`/`write`, `press`/`hit`/`send` and `<app> <media-command>` are matched before
+the generic focused `type`/`key` rules. `close <app>` closes one of the app's windows. A
+`window_id` is never set at plan time: the executor resolves the target from the live compositor
+window list, which may only *select* a window.
+
+**Mechanism.** Wayland has no background key injection — `wtype`/`ydotool` emit to the focused
+surface only, and niri/KWin expose no per-window injection. So a targeted `key`/`type_text` is a
+**focus round-trip**: focus the target, inject, then restore the previous focus. `close_app` and
+`media` are genuinely focus-free; they never focus.
+
+**Latency** (measured on one machine — niri, RTX 3090 Ti, 2026-10-02):
+
+- same workspace: ~**38 ms**, invisible (no viewport movement);
+- cross-workspace, compositor animations **off**: ~**41 ms**;
+- cross-workspace, animations **on**: ~**250 ms** of visible viewport scroll
+  (`horizontal-view-movement`) — this is why it is gated.
+
+```toml
+[target]
+mode = "round_trip"            # round_trip | leave | off
+cross_workspace = "ask"        # ask | allow | refuse  (fallback; see [wayland])
+restore = "if_unchanged"       # if_unchanged | always | never
+focus_timeout_ms = 500
+
+[wayland]
+cross_workspace = "auto"       # auto | ask | allow | refuse
+assume_animations_off = false
+```
+
+- `[target].mode`: `round_trip` = focus, act, restore; `leave` = focus, act, stay on the target;
+  `off` = only focus/close/media, refuse targeted input.
+- `[target].cross_workspace` is the fallback policy. `[wayland].cross_workspace` **supersedes** it:
+  `auto` allows cross-workspace without asking **only** when `assume_animations_off` is true,
+  otherwise it falls back to `[target].cross_workspace`; an explicit `ask`/`allow`/`refuse` wins.
+- `restore = "if_unchanged"` only restores focus if the user did not move away during the
+  round-trip.
+- Same-workspace single-window input runs without asking; cross-workspace or a fullscreen previous
+  window requires confirmation (or refuses when there is no confirmation channel, e.g. headless).
+
+**Trust.** The app name comes from the user (trusted intent) and profile `app_ids` are
+precomputed; the compositor window list is untrusted and may only select a window — a window title
+is never turned into text or a command. `screen`-provenance args are still rejected `-32006`, and
+`close_app` requires confirmation.
+
+| Platform | Mechanism | Notes |
+|----------|-----------|-------|
+| Linux/Wayland (niri, KWin) | Focus round-trip | Visible only when the target is off-screen or on another workspace with animations on. |
+| Hyprland | Focus round-trip | `sendshortcut` exists but is unreliable for native-Wayland Electron/Chromium apps and can silently do nothing; the round-trip is the safer path. |
+| macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). **Experimental**, untested on real Apple hardware. |
+| Windows | Not supported | — |

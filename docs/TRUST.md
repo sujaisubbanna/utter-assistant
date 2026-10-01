@@ -83,22 +83,42 @@ Two caveats, stated plainly:
 > turned off; turning it off will mean Utter keeps no memory. Until then, Utter has no memory
 > feature.
 
-## 9. Forthcoming: app-targeted actions and background input
+## 9. App-targeted actions and background input
 
-**Not shipped yet.** Two lanes are in progress; the intended behaviour and its platform limits
-are recorded here so they can be linked later.
+Shipped. An utterance can name its target up front — `<app> type <text>`, `<app> press <key>`
+or `<app> <media-command>` — and `close <app>` closes one of the app's windows. The leading
+`<app>` must resolve to a real profile or a CLI agent (`utter/data/cli_agents.json`); generic
+words ("media", "editor", "music", "terminal") are never claimed, so `type ok`, `press enter`
+and `pause` keep their focused behaviour.
 
-- **Linux/Wayland.** Wayland has no background key injection, so the mechanism is a **focus
-  round-trip** (focus the target, send the key, restore focus). Measured cost is about **38 ms**
-  same-workspace and **41 ms** cross-workspace with compositor animations off, but **~250 ms**
-  of visible viewport scroll when niri animations are on.
-- **macOS.** The intended path is the native `CGEventPostToPid` for **keyboard** (no focus
-  change). The mouse **cannot** target background windows.
-- **Hyprland.** `sendshortcut` exists but is unreliable for Electron/Chromium apps and can
-  silently do nothing.
+Trust is unchanged by targeting:
 
-The config keys are still being finalised; a `[wayland]` setting will control this. Do not rely
-on exact key names yet.
+- The **app name comes from the user** (trusted intent); the profile's `app_ids` are
+  precomputed. The compositor window list is **untrusted** and may only **select** a window —
+  a window title is never turned into text or a command. `screen`-provenance args are still
+  rejected `-32006` (`docs/TRUST.md` §2).
+- `close_app` requires confirmation (runner policy `needs_confirm`). The policy ops `key`,
+  `type_text`, `media`, `focus_app` and `close_app` are registered in the runner; they used to
+  be rejected `-32601`.
+- A `window_id` is never set at plan time: the executor resolves the target from the live
+  window list, and a targeted `key`/`type_text` refuses rather than injecting into the wrong
+  window.
+
+**Mechanism.** Wayland has no background key injection (`wtype`/`ydotool` emit to the focused
+surface only; niri/KWin expose no per-window injection), so a targeted `key`/`type_text` is a
+**focus round-trip**: focus the target, inject, restore the previous focus. `close_app` and
+`media` are genuinely focus-free. Measured on one machine (niri, RTX 3090 Ti, 2026-10-02): ~38 ms
+same-workspace (invisible), ~41 ms cross-workspace with compositor animations off, and ~250 ms of
+visible viewport scroll (`horizontal-view-movement`) cross-workspace with animations on. The
+disruptive case is gated and confirmed; cross-workspace fallback/override keys live under
+`[target]` and `[wayland]` — see `docs/CUSTOMISING.md` §13.
+
+| Platform | Mechanism | Notes |
+|----------|-----------|-------|
+| Linux/Wayland (niri, KWin) | Focus round-trip | Visible only when the target is off-screen or on another workspace with animations on. |
+| Hyprland | Focus round-trip | `sendshortcut` exists but is unreliable for native-Wayland Electron/Chromium apps and can silently do nothing; the round-trip is the safer path. |
+| macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). **Experimental**, untested on real Apple hardware. |
+| Windows | Not supported | — |
 
 ## 10. Supply chain
 Installing a plugin = running untrusted code at user privilege: require a signature
