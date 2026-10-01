@@ -278,7 +278,15 @@ with forced("linux"):
     keyboard._run = orig_run
     check("linux: keyboard.send_key still uses wtype", launch_spawned and launch_spawned[0][0] == "wtype"
           and not calls)
-    check("linux: context provider is utter.context.niri", desktop.provider().__name__ == "utter.context.niri")
+    orig_comp = os.environ.get("UTTER_COMPOSITOR")
+    try:
+        os.environ["UTTER_COMPOSITOR"] = "niri"
+        check("linux: context provider is utter.context.niri", desktop.provider().__name__ == "utter.context.niri")
+    finally:
+        if orig_comp is None:
+            os.environ.pop("UTTER_COMPOSITOR", None)
+        else:
+            os.environ["UTTER_COMPOSITOR"] = orig_comp
     check("linux: url opener is xdg-open", launch._url_opener() == ["xdg-open"])
     check("linux: no `open -a` rewriting", launch._macos_app_argv("Safari") is None)
 
