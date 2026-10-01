@@ -6,7 +6,16 @@
 # and works around a WebKitGTK/dual-NVIDIA issue on Wayland.
 set -euo pipefail
 
-HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks first: the installer links ~/.local/bin/utter-gui at this
+# script, and BASH_SOURCE on its own would resolve HERE to ~/.local/bin (which
+# made it try to build in the wrong directory).
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+    DIR="$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)"
+    SOURCE="$(readlink -- "$SOURCE")"
+    [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+HERE="$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)"
 REPO="$(cd -- "$HERE/.." && pwd)"
 SRC_TAURI="$HERE/src-tauri"
 
