@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2026-10-01
+
+### Changed
+- **Removed the legacy GTK4 settings app** (`gui/`). The Tauri v2 app (`gui-tauri/`) is the
+  only settings UI; the matugen palette template moved to `gui-tauri/theme/`.
+- **Installer installs the right GUI runtime.** The dead `gtk4`/`libadwaita` packages are
+  replaced by `webkit2gtk-4.1` and `libsoup-3.0` (what Tauri v2 needs); AT-SPI accessibility
+  is documented as an optional extra.
+
+### Internal
+- Split the KWin and D-Bus compositor backends into focused modules behind the same facade.
+- Consolidated the test harness into `tests/_harness/`, wired `tests/m5` into the suite,
+  added a CI workflow that runs `scripts/verify.sh`, and added guard tests for the runner
+  stdlib-only rule, the provenance invariant and the installer unit.
+
 ## [0.1.8] - 2026-10-01
 
 ### Internal
@@ -191,6 +206,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `v*` tag and attaches them to the GitHub Release.
 - GitHub Pages serves the documentation site and the installer (`/install.sh`) together.
 
+[0.1.9]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.9
 [0.1.8]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.8
 [0.1.7]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.7
 [0.1.6]: https://github.com/sujaisubbanna/utter-assistant/releases/tag/v0.1.6
