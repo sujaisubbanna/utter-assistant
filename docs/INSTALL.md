@@ -16,7 +16,7 @@ What it does:
 1. Detects the distro from `/etc/os-release` (`ID`/`ID_LIKE`) → **pacman / apt / dnf / zypper**
    (falls back to `command -v`).
 2. Installs the system dependencies (name-mapped per distro): `wtype`, `ydotool` (+`ydotoold`),
-   `grim`, `wl-clipboard`, `pipewire`, `webkit2gtk-4.1` (Tauri GUI), optional `keyd`.
+   `grim`, `wl-clipboard`, `pipewire`, `gtk4`, `libadwaita` (Tauri GUI), optional `keyd`.
 3. Checks the `input` group and `/dev/uinput`; **prints** the `usermod -aG input` + udev + re-login
    steps (it never silently changes groups).
 4. Installs and (with `--yes`) enables the **user** service `utter-runner.service`, bound to

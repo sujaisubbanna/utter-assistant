@@ -24,7 +24,7 @@ for arg in "$@"; do
         --no-deps) DO_DEPS=0 ;;
         --no-service) DO_SERVICE=0 ;;
         -h|--help)
-            sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+            awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
             exit 0 ;;
         *) printf 'unknown argument: %s\n' "$arg" >&2; exit 2 ;;
     esac

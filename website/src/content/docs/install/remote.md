@@ -10,6 +10,11 @@ In a terminal it is an **interactive, step-by-step wizard**: it walks every comp
 it is, its size, whether sudo is needed and what was detected on this machine, and asks whether
 you want it. With `--yes` it accepts the recommended defaults non-interactively.
 
+The wizard uses a built-in ANSI UI (coloured section banners, aligned tables, a step indicator and
+download progress). It falls back to plain ASCII when it is piped, when `NO_COLOR` is set or
+`TERM=dumb`; if `gum` is already on `PATH` it is used for menus and confirmations. Override with
+`UTTER_UI=auto|gum|plain`.
+
 ## Download and run
 
 Download the script, make it executable, and run it. This is the recommended form: it runs in a
@@ -73,7 +78,9 @@ The nine steps, in order:
    what is missing with the detected package manager (**sudo**), or prints the exact command when
    there is no passwordless sudo.
 2. **Core runner + CLI.** The Python core (protocol, runner, `assistant` CLI, plugins) to
-   `$PREFIX/share/utter`, plus the `assistant` wrapper at `$PREFIX/bin/assistant`. Recommended.
+   `$PREFIX/share/utter`, plus the `assistant` wrapper at `$PREFIX/bin/assistant`. PyYAML and
+   requests are installed into a per-user venv at `$PREFIX/share/utter/.venv-agent`, so the CLI
+   and the plugin run without a system-wide install. Recommended.
 3. **systemd user units.** Installs `utter-runner.service` and runs `daemon-reload`. A
    **separate question** asks whether to `enable --now` (recommended: no, start it when you are
    ready).
@@ -119,6 +126,7 @@ summary with next steps.
 | `UTTER_VERSION` | `latest` | release tag (for example `v0.1.0` or `0.1.0`) |
 | `UTTER_BASE_URL` | GitHub Releases | override the download base (for example `http://127.0.0.1:8000` for testing) |
 | `PREFIX` | `$HOME/.local` | install prefix |
+| `UTTER_UI` | `auto` | terminal UI style: `auto` (use `gum` when present), `gum`, or `plain` |
 | `UTTER_PYTHON` | auto-detected | interpreter baked into the `assistant` wrapper |
 | `UTTER_MODEL_STT` | unset | source to pull if the speech tier is accepted (`hf:org/repo[:file]`, `https://...`, `file://...`) |
 | `UTTER_MODEL_DECISION` | unset | source to pull if the decision-head tier is accepted |

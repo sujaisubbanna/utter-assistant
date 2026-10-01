@@ -18,6 +18,7 @@
 #   UTTER_BASE_URL  override the download base (default: GitHub Releases;
 #                       set to http://127.0.0.1:PORT for local testing)
 #   PREFIX              install prefix (default: $HOME/.local)
+#   UTTER_UI        terminal UI style: auto (default), gum, or plain
 #   UTTER_PYTHON    python interpreter baked into the assistant wrapper
 #   UTTER_MODEL_STT / _DECISION / _VISION
 #                       optional model source for a tier (hf:org/repo[:file],
@@ -36,7 +37,7 @@
 set -euo pipefail
 
 # --------------------------------------------------------------------------- #
-# defaults + args
+# section: defaults + argument parsing
 # --------------------------------------------------------------------------- #
 UTTER_REPO="${UTTER_REPO:-sujaisubbanna/utter-assistant}"
 UTTER_VERSION="${UTTER_VERSION:-latest}"
@@ -72,6 +73,7 @@ Environment:
   UTTER_BASE_URL  override the download base (GitHub Releases; use
                       http://127.0.0.1:PORT for local testing)
   PREFIX              install prefix (default: $HOME/.local)
+  UTTER_UI        terminal UI style: auto (default), gum, or plain
   UTTER_PYTHON    python interpreter baked into the assistant wrapper
   UTTER_MODEL_STT / _DECISION / _VISION
                       optional source per model tier (hf:org/repo[:file],
@@ -112,35 +114,230 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --------------------------------------------------------------------------- #
-# output helpers
+# section: ui — one canonical output set (colors, banners, tables, prompts)
 # --------------------------------------------------------------------------- #
-say()    { printf '%s\n' "$*"; }
-step()   { printf '\n== %s ==\n' "$*"; }
-note()   { printf '  note: %s\n' "$*"; }
-warn()   { printf '  WARNING: %s\n' "$*" >&2; }
-die()    { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+# Rendering adapts to the environment:
+#   UTTER_UI=auto|gum|plain   (default auto)
+#   NO_COLOR, TERM=dumb, non-tty stdin/stdout   -> plain ASCII, no animation
+# In a real terminal `gum` is preferred for confirm/menu/spinner prompts when it
+# is already on PATH; the built-in UI is always the fallback. Nothing is ever
+# downloaded for the UI.
+
+UI_MODE="${UTTER_UI:-auto}"
+case "$UI_MODE" in
+    auto|gum|plain) ;;
+    *) UI_MODE="auto" ;;
+esac
+
+is_tty() { [[ -t 0 ]]; }                 # stdin is a terminal (wizard gate)
+ui_tty() { [[ -t 0 && -t 1 ]]; }         # both ends a terminal (styled output)
+
+ui_color_ok() {
+    [[ "$UI_MODE" == "plain" ]] && return 1
+    [[ -n "${NO_COLOR:-}" ]] && return 1
+    [[ "${TERM:-}" == "dumb" ]] && return 1
+    ui_tty || return 1
+    return 0
+}
+
+ui_unicode_ok() {
+    [[ "$UI_MODE" == "plain" ]] && return 1
+    [[ "${TERM:-}" == "dumb" ]] && return 1
+    ui_tty || return 1
+    case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+        *[Uu][Tt][Ff]-8|*[Uu][Tt][Ff]8) return 0 ;;
+    esac
+    return 1
+}
+
+ui_anim_ok() {
+    ui_tty || return 1
+    [[ "${TERM:-}" == "dumb" ]] && return 1
+    [[ "$UI_MODE" == "plain" ]] && return 1
+    return 0
+}
+
+ui_gum_ok() {
+    [[ "$UI_MODE" == "plain" ]] && return 1
+    ui_tty || return 1
+    command -v gum >/dev/null 2>&1
+}
+
+if ui_color_ok; then
+    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+    C_RED=$'\033[31m'; C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'
+    C_BLUE=$'\033[34m'; C_CYAN=$'\033[36m'
+else
+    C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""
+    C_YELLOW=""; C_BLUE=""; C_CYAN=""
+fi
+
+if ui_unicode_ok; then
+    GL_TL="╭"; GL_TR="╮"; GL_BL="╰"; GL_BR="╯"; GL_V="│"; GL_H="─"; GL_ELL="…"
+    SPIN_FRAMES="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+else
+    GL_TL="+"; GL_TR="+"; GL_BL="+"; GL_BR="+"; GL_V="|"; GL_H=""; GL_ELL="..."
+    SPIN_FRAMES="|/-\\"
+fi
+
+# --- core output ----------------------------------------------------------- #
+
+say() { printf '%s\n' "$*"; }
+
+# field <key> <value> — aligned "  key   value" row (matches the historic layout)
+field() { printf '  %s%-9s%s%s\n' "$C_DIM" "$1" "$C_RESET" "$2"; }
+# sub <text> — continuation line, aligned under a field value
+sub() { printf '           %s\n' "$*"; }
+
+ok()   { printf '  %s[ok]%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
+note() { printf '  %snote:%s %s\n' "$C_DIM" "$C_RESET" "$*"; }
+warn() { printf '  %sWARNING:%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
+die()  { printf '%sERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; exit 1; }
+
+# section <title> — phase banner
+section() {
+    local title="$*"
+    if [[ -z "$GL_H" ]]; then
+        printf '\n== %s ==\n' "$title"
+        return 0
+    fi
+    local pad=$(( 60 - ${#title} - 3 )); (( pad < 4 )) && pad=4
+    local rule; printf -v rule '%*s' "$pad" ''; rule="${rule// /$GL_H}"
+    printf '\n%s%s %s%s %s%s\n' \
+        "$C_CYAN" "${GL_H}${GL_H}" "${C_BOLD}${title}" "$C_RESET" "${C_DIM}${rule}" "$C_RESET"
+}
+
+# step_header <n> <total> <label> — wizard step indicator
+step_header() {
+    local n="$1" total="$2" label="$3"
+    if [[ -z "$GL_H" ]]; then
+        printf '\n[%s/%s] %s\n' "$n" "$total" "$label"
+        return 0
+    fi
+    local done="" rest="" i
+    for ((i=1; i<=total; i++)); do
+        if (( i <= n )); then done+="$GL_H"; else rest+="$GL_H"; fi
+    done
+    printf '\n%s[%s/%s]%s %s%s%s  %s%s%s%s\n' \
+        "$C_DIM" "$n" "$total" "$C_RESET" "$C_BOLD" "$label" "$C_RESET" \
+        "$C_CYAN" "$done" "$C_DIM" "${rest}${C_RESET}"
+}
+
+# ui_header <title> — boxed product header
+ui_header() {
+    local title="$*"
+    if [[ -z "$GL_H" ]]; then say "$title"; return 0; fi
+    local width=$(( ${#title} + 6 )); (( width < 46 )) && width=46
+    local inner=$(( width - 2 )) fill pad
+    printf -v fill '%*s' "$inner" ''; fill="${fill// /$GL_H}"
+    pad=$(( inner - 2 - ${#title} )); (( pad < 1 )) && pad=1
+    printf '%s%s%s%s%s\n' "$C_CYAN" "$GL_TL" "$fill" "$GL_TR" "$C_RESET"
+    printf '%s%s%s  %s%s%s%s%s%s\n' \
+        "$C_CYAN" "$GL_V" "$C_RESET" "$C_BOLD" "$title" "$C_RESET" \
+        "$(printf '%*s' "$pad" '')" "$C_CYAN" "${GL_V}${C_RESET}"
+    printf '%s%s%s%s%s\n' "$C_CYAN" "$GL_BL" "$fill" "$GL_BR" "$C_RESET"
+}
+
+# run <description> <command...> — execute, or print it under --dry-run
+run() {
+    local desc="$1"; shift
+    if (( DRY_RUN )); then
+        printf '  %s[dry-run]%s %s\n' "$C_DIM" "$C_RESET" "$desc"
+        printf '            $ %s\n' "$*"
+    else
+        printf '  %s[run]%s %s\n' "$C_CYAN" "$C_RESET" "$desc"
+        "$@"
+    fi
+}
 
 # This wizard installs the Linux (Wayland/systemd) stack. macOS has its own,
 # much smaller path: the .dmg from the release page plus macos/setup.sh.
 if [[ "$(uname -s)" == "Darwin" ]]; then
     die "this installer is for Linux. On macOS: open the utter-gui .dmg from the release page and run macos/setup.sh from the core tarball (see docs/MACOS.md)."
 fi
-heading() { printf '\n[%s/%s] %s\n' "$1" "$2" "$3"; }
-run() {
-    local desc="$1"; shift
-    if (( DRY_RUN )); then
-        printf '  [dry-run] %s\n' "$desc"
-        printf '            $ %s\n' "$*"
-    else
-        printf '  [run] %s\n' "$desc"
-        "$@"
-    fi
+
+# --- spinner + downloads --------------------------------------------------- #
+
+SPIN_PID=""
+spin_start() {
+    ui_anim_ok || return 0
+    local msg="$1" frames="$SPIN_FRAMES" i=0
+    (
+        trap 'exit 0' TERM INT
+        while :; do
+            printf '\r%s%s%s %s' "$C_CYAN" "${frames:i:1}" "$C_RESET" "$msg" >&2
+            i=$(( (i + 1) % ${#frames} ))
+            sleep 0.12
+        done
+    ) &
+    SPIN_PID=$!
+    return 0
 }
 
-is_tty() { [[ -t 0 ]]; }
+spin_stop() {
+    [[ -n "$SPIN_PID" ]] || return 0
+    kill "$SPIN_PID" 2>/dev/null || true
+    wait "$SPIN_PID" 2>/dev/null || true
+    SPIN_PID=""
+    printf '\r\033[K' >&2
+    return 0
+}
+
+# ui_spin_run <message> <command...> — run a long command under the spinner
+ui_spin_run() {
+    local msg="$1"; shift
+    if ui_gum_ok; then
+        local grc=0
+        gum spin --spinner line --title "$msg" -- "$@" || grc=$?
+        return "$grc"
+    fi
+    spin_start "$msg"
+    local rc=0
+    "$@" || rc=$?
+    spin_stop
+    return "$rc"
+}
+
+# ui_download <url> <dest> — download with the best available progress display
+ui_download() {
+    local url="$1" dest="$2" rc=0
+    if ui_gum_ok; then
+        gum spin --spinner line --title "downloading $(basename "$url")" -- \
+            curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url" || rc=$?
+        return "$rc"
+    fi
+    if ui_anim_ok; then
+        curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$dest" "$url" >&2 || rc=$?
+        return "$rc"
+    fi
+    curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url"
+}
+
+# ui_gum_ask <default y|n> <prompt> — gum-backed prompt that keeps y/n/a/s/q
+ui_gum_ask() {
+    local def="$1" prompt="$2" choice=""
+    local -a opts
+    if [[ "$def" == "y" ]]; then
+        opts=("Yes (recommended)" "No" "Yes to all remaining" "Skip all remaining" "Quit")
+    else
+        opts=("No (recommended)" "Yes" "Yes to all remaining" "Skip all remaining" "Quit")
+    fi
+    if ! choice="$(gum choose --header "$prompt" "${opts[@]}")"; then
+        QUIT=1
+        return 1
+    fi
+    case "$choice" in
+        "Yes"*)          return 0 ;;
+        "No"*)           return 1 ;;
+        "Yes to all"*)   ALL_YES=1; return 0 ;;
+        "Skip all"*)     ALL_SKIP=1; return 1 ;;
+        "Quit"*)         QUIT=1; return 1 ;;
+        *)               [[ "$def" == "y" ]] && return 0 || return 1 ;;
+    esac
+}
 
 # --------------------------------------------------------------------------- #
-# paths
+# section: paths
 # --------------------------------------------------------------------------- #
 BIN_DIR="$PREFIX/bin"
 SHARE_DIR="$PREFIX/share/utter"
@@ -172,7 +369,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 # --------------------------------------------------------------------------- #
-# arch + distro
+# section: detection — arch + distro
 # --------------------------------------------------------------------------- #
 detect_arch() {
     case "$(uname -m)" in
@@ -212,7 +409,7 @@ if [[ -r /etc/os-release ]]; then
 fi
 
 # --------------------------------------------------------------------------- #
-# system-dependency probe (used by the deps step)
+# section: system-dependency probe (used by the deps step)
 # --------------------------------------------------------------------------- #
 pkg_for() {
     # logical name -> per-distro package name ("" = not packaged / varies)
@@ -295,45 +492,37 @@ missing_pkgs() {
     printf '%s\n' "${out[@]:-}"
 }
 
-missing_logical() {
-    local out=() logical
-    for logical in "${DEP_REQUIRED[@]}"; do
-        dep_present "$logical" || out+=("$logical")
-    done
-    printf '%s\n' "${out[@]:-}"
-}
-
 # --------------------------------------------------------------------------- #
-# per-component detection
+# section: detection — per-component probes
 # --------------------------------------------------------------------------- #
 command -v noctalia >/dev/null 2>&1 && NOCTALIA_PRESENT=1 || NOCTALIA_PRESENT=0
 [[ -d "${XDG_DATA_HOME:-$HOME/.local/share}/noctalia" ]] && NOCTALIA_PRESENT=1
 
 found_core() {
     if [[ -x "$ASSISTANT_BIN" || -d "$SHARE_DIR" ]]; then
-        say "  found:   already present at $SHARE_DIR"
+        field "found:" "already present at $SHARE_DIR"
     else
-        say "  found:   not installed"
+        field "found:" "not installed"
     fi
 }
 
 found_units() {
     if [[ -f "$RUNNER_UNIT" ]]; then
-        say "  found:   unit installed ($RUNNER_UNIT)"
+        field "found:" "unit installed ($RUNNER_UNIT)"
     elif _systemd_user_ok; then
-        say "  found:   systemd --user available, no unit yet"
+        field "found:" "systemd --user available, no unit yet"
     else
-        say "  found:   systemd --user unavailable"
+        field "found:" "systemd --user unavailable"
     fi
 }
 
 found_gui() {
     if [[ -x "$GUI_BIN" ]]; then
-        say "  found:   installed at $GUI_BIN"
+        field "found:" "installed at $GUI_BIN"
     elif [[ -x "$SYMLINK_PATH" ]]; then
-        say "  found:   installed at $SYMLINK_PATH"
+        field "found:" "installed at $SYMLINK_PATH"
     else
-        say "  found:   not installed"
+        field "found:" "not installed"
     fi
 }
 
@@ -343,14 +532,14 @@ found_models() {
     if [[ -d "$root/manifests" ]]; then
         n="$(find "$root/manifests" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
     fi
-    say "  found:   $n model manifest(s) under $root"
+    field "found:" "$n model manifest(s) under $root"
 }
 
 found_config() {
     if [[ -f "$CONFIG_FILE" ]]; then
-        say "  found:   exists ($CONFIG_FILE)"
+        field "found:" "exists ($CONFIG_FILE)"
     else
-        say "  found:   not present"
+        field "found:" "not present"
     fi
 }
 
@@ -364,9 +553,9 @@ found_stt() {
         parts+=("faster-whisper (python)")
     fi
     if (( ${#parts[@]} )); then
-        say "  found:   ${parts[*]}"
+        field "found:" "${parts[*]}"
     else
-        say "  found:   no STT backend detected"
+        field "found:" "no STT backend detected"
     fi
 }
 
@@ -380,18 +569,18 @@ found_perception() {
         python3 -c 'import transformers' >/dev/null 2>&1 && parts+=("transformers (python)")
     fi
     if (( ${#parts[@]} )); then
-        say "  found:   ${parts[*]}"
+        field "found:" "${parts[*]}"
     else
-        say "  found:   no perception/vision server deps detected"
+        field "found:" "no perception/vision server deps detected"
     fi
 }
 
 found_noctalia() {
     if (( NOCTALIA_PRESENT )); then
-        say "  found:   Noctalia detected"
-        [[ -d "$NOCTALIA_DEST" ]] && say "           widget already at $NOCTALIA_DEST"
+        field "found:" "Noctalia detected"
+        [[ -d "$NOCTALIA_DEST" ]] && sub "widget already at $NOCTALIA_DEST"
     else
-        say "  found:   Noctalia not detected"
+        field "found:" "Noctalia not detected"
     fi
 }
 
@@ -400,8 +589,8 @@ found_deps() {
     for logical in "${DEP_REQUIRED[@]}"; do
         if dep_present "$logical"; then present+=("$logical"); else miss+=("$logical"); fi
     done
-    say "  found:   present: ${present[*]:-none}"
-    say "           missing: ${miss[*]:-none}"
+    field "found:" "present: ${present[*]:-none}"
+    sub "missing: ${miss[*]:-none}"
 }
 
 run_dep_probe() {
@@ -419,7 +608,7 @@ run_dep_probe() {
 }
 
 # --------------------------------------------------------------------------- #
-# component registry
+# section: component registry
 # --------------------------------------------------------------------------- #
 COMP_IDS=(deps core units models gui stt perception noctalia config)
 COMP_LABELS=(
@@ -457,12 +646,15 @@ COMP_SIZE=(
 )
 COMP_SUDO=(1 0 0 0 0 0 0 0 0)
 
-TOTAL=9
-DECISION=()      # yes | no | skip
-REC=()           # recommended default: yes | no
+TOTAL=${#COMP_IDS[@]}
+DECISION=()      # yes | skip (indexed like COMP_IDS)
 ENABLE_UNITS=0
 OVERWRITE_CONFIG=0
 MODELS_YES=""    # csv of accepted tier keys
+
+# The release publishes x86_64 GUI assets only.
+GUI_AVAILABLE=1
+[[ "$ARCH" == "amd64" ]] || GUI_AVAILABLE=0
 
 # --only / --skip
 declare -A ONLY_MAP=() SKIP_MAP=()
@@ -489,7 +681,7 @@ allowed() {
 }
 
 # --------------------------------------------------------------------------- #
-# resolve release
+# section: release resolution
 # --------------------------------------------------------------------------- #
 VER=""; VER_NUM=""; BASE_URL=""
 resolve_release() {
@@ -505,7 +697,9 @@ resolve_release() {
                 VER="<latest>"
             else
                 say "  querying: $api"
-                VER="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+                # `|| true` keeps a failed request from tripping `set -e` so the
+                # friendly error below is the one the user sees.
+                VER="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
                 [[ -n "$VER" ]] || die "could not resolve the latest release for $UTTER_REPO"
             fi
         else
@@ -526,11 +720,10 @@ set_asset_names() {
 }
 
 # --------------------------------------------------------------------------- #
-# download + verify
+# section: download + verify
 # --------------------------------------------------------------------------- #
 SUMS_FETCHED=0
 CORE_FETCHED=0
-CORE_VERIFIED=0
 GUI_FETCHED=0
 GUI_ASSET=""
 
@@ -543,8 +736,7 @@ fetch() {
         return 0
     fi
     printf '  [get] %s\n' "$url"
-    curl -fsSL --retry 3 --retry-delay 2 -o "$TMP/$asset" "$url" \
-        || die "download failed: $url"
+    ui_download "$url" "$TMP/$asset" || die "download failed: $url"
 }
 
 verify() {
@@ -562,7 +754,7 @@ verify() {
     if [[ "$want" != "$got" ]]; then
         die "sha256 mismatch for $asset: want $want got $got"
     fi
-    printf '  [ok] sha256 %s %s\n' "${got:0:16}…" "$asset"
+    ok "sha256 ${got:0:16}${GL_ELL} $asset"
 }
 
 ensure_sums() {
@@ -577,7 +769,6 @@ fetch_core() {
     fetch "$CORE_TARBALL"
     verify "$CORE_TARBALL"
     CORE_FETCHED=1
-    CORE_VERIFIED=1
 }
 
 choose_gui_asset() {
@@ -612,7 +803,7 @@ extract_core_tmp() {
         return 0
     fi
     mkdir -p "$TMP/extract"
-    tar -xzf "$TMP/$CORE_TARBALL" -C "$TMP/extract"
+    ui_spin_run "extracting $CORE_TARBALL" tar -xzf "$TMP/$CORE_TARBALL" -C "$TMP/extract"
     CORE_TMP_ROOT="$(find "$TMP/extract" -mindepth 1 -maxdepth 1 -type d | head -1)"
     [[ -n "$CORE_TMP_ROOT" ]] || die "core tarball has no top-level directory"
 }
@@ -629,7 +820,7 @@ ensure_core_context() {
 CORE_CONTEXT=""
 
 # --------------------------------------------------------------------------- #
-# prompts
+# section: prompts
 # --------------------------------------------------------------------------- #
 ALL_YES=0
 ALL_SKIP=0
@@ -642,6 +833,11 @@ ask_yn() {
     local ans=""
     if (( ALL_YES )); then printf '%s %s ' "$prompt" "$hint"; say "y (all remaining)"; return 0; fi
     if (( ALL_SKIP )); then printf '%s %s ' "$prompt" "$hint"; say "n (skip all remaining)"; return 1; fi
+    if ui_gum_ok; then
+        local rc=0
+        ui_gum_ask "$def" "$prompt" || rc=$?
+        return "$rc"
+    fi
     while true; do
         printf '%s %s ' "$prompt" "$hint"
         IFS= read -r ans || ans=""
@@ -664,7 +860,7 @@ announce_default() {
 }
 
 # --------------------------------------------------------------------------- #
-# install-state (per-component records; marker dirs, no JSON in bash)
+# section: install-state (per-component records; marker dirs, no JSON in bash)
 # --------------------------------------------------------------------------- #
 D_FILES=(); D_DIRS=(); D_UNITS=(); D_PACKAGES=(); D_KEEP=0
 
@@ -761,30 +957,47 @@ with open(tmp, "w", encoding="utf-8") as fh:
     fh.write("\n")
 os.replace(tmp, out)
 PY
-    say "  [ok] wrote $STATE_FILE"
+    ok "wrote $STATE_FILE"
 }
 
 # --------------------------------------------------------------------------- #
-# plan / banner
+# section: plan + banner
 # --------------------------------------------------------------------------- #
 print_banner() {
-    say "utter installer"
-    say "  distro   $DISTRO_ID${DISTRO_LIKE:+ (like: $DISTRO_LIKE)}"
-    say "  arch     $ARCH"
-    say "  prefix   $PREFIX"
-    say "  pkg mgr  $PKG_MGR"
-    say "  mode     $MODE"
-    say "  release  $UTTER_VERSION"
-    say "  python   ${UTTER_PYTHON:-auto-detected}"
+    ui_header "utter installer"
+    field "distro" "$DISTRO_ID${DISTRO_LIKE:+ (like: $DISTRO_LIKE)}"
+    field "arch" "$ARCH"
+    field "prefix" "$PREFIX"
+    field "pkg mgr" "$PKG_MGR"
+    field "mode" "$MODE"
+    field "release" "$UTTER_VERSION"
+    field "python" "${UTTER_PYTHON:-auto-detected}"
+}
+
+# Width of the component-label column, shared by the preview and plan tables.
+comp_label_width() {
+    local w=0 i
+    for i in "${!COMP_LABELS[@]}"; do
+        (( ${#COMP_LABELS[i]} > w )) && w=${#COMP_LABELS[i]}
+    done
+    (( w < 24 )) && w=24
+    printf '%s' "$w"
 }
 
 print_component_preview() {
     say ""
-    say "Components (this installer will walk them one by one):"
-    local i id
+    say "Components (this installer walks them one by one):"
+    local i w; w="$(comp_label_width)"
+    if [[ -n "$GL_H" ]]; then
+        printf '  %s%-3s %-*s %s%s\n' "$C_DIM" "#" "$w" "component" "size" "$C_RESET"
+    else
+        printf '  %-3s %-*s %s\n' "#" "$w" "component" "size"
+    fi
+    local rule; printf -v rule '%*s' "$(( w + 9 ))" ''; rule="${rule// /-}"
+    [[ -n "$GL_H" ]] && rule="${rule//-/─}"
+    printf '  %s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
     for i in "${!COMP_IDS[@]}"; do
-        id="${COMP_IDS[i]}"
-        printf '  %d/%d  %-32s %s\n' "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}" "${COMP_WHAT[i]}"
+        printf '  %-3s %-*s %s\n' "$((i+1))" "$w" "${COMP_LABELS[i]}" "${COMP_SIZE[i]}"
     done
 }
 
@@ -797,7 +1010,7 @@ print_plan() {
 }
 
 # --------------------------------------------------------------------------- #
-# uninstall
+# section: uninstall
 # --------------------------------------------------------------------------- #
 read_component_field() {
     # read_component_field <dir> <field>
@@ -806,7 +1019,7 @@ read_component_field() {
 }
 
 do_uninstall() {
-    step "uninstall"
+    section "uninstall"
     say "  prefix: $PREFIX"
 
     local dirs=()
@@ -816,7 +1029,21 @@ do_uninstall() {
     fi
 
     # Legacy state (installed by an older installer): fall back to known paths.
+    # Without per-component records there is no menu to pick from, so require an
+    # explicit --yes (or --dry-run) before touching anything.
     if (( ${#dirs[@]} == 0 )); then
+        if (( ! ASSUME_YES && ! DRY_RUN )); then
+            note "no per-component install-state found; the classic bootstrap paths are:"
+            sub "$GUI_BIN"
+            sub "$ASSISTANT_BIN"
+            sub "$DESKTOP_FILE"
+            sub "$RUNNER_UNIT"
+            sub "$SHARE_DIR"
+            say ""
+            say "Nothing removed. Re-run with --yes to remove them:"
+            say "    curl -fsSL <install.sh-url> | bash -s -- --uninstall --yes"
+            return 0
+        fi
         do_uninstall_legacy
         return 0
     fi
@@ -831,43 +1058,75 @@ do_uninstall() {
         printf '  %d) %-16s %s%s\n' "$((i+1))" "$id" "${label:-$id}" "$keep"
     done
 
-    if (( ! ASSUME_YES )) && ! is_tty && [[ ! -t 0 ]]; then
+    if (( ! ASSUME_YES && ! DRY_RUN )) && ! is_tty; then
         say ""
         say "Nothing removed. Re-run with --yes to remove all installed components:"
         say "    curl -fsSL <install.sh-url> | bash -s -- --uninstall --yes"
         return 0
     fi
 
-    local selection=""
-    if (( ASSUME_YES )); then
-        selection="all"
-    else
-        printf '\nSelect components to remove [Enter = all except kept, numbers/comma, a = all, q = quit]: '
-        IFS= read -r selection || selection=""
-    fi
-    selection="${selection// /}"
-
-    case "${selection,,}" in
-        q|quit) say "Aborted; nothing removed."; return 0 ;;
-        ""|all|a) ;;
-    esac
-
     local remove=()
-    if [[ "${selection,,}" == "all" || "${selection,,}" == "a" || -z "$selection" ]]; then
+    if (( ASSUME_YES )); then
         for i in "${!dirs[@]}"; do
             [[ "$(read_component_field "${dirs[i]}" keep)" == "1" ]] && continue
             remove+=("${dirs[i]}")
         done
-    else
-        local -A want=()
-        IFS=, read -ra nums <<<"$selection"
-        for n in "${nums[@]}"; do
-            [[ "$n" =~ ^[0-9]+$ ]] || continue
-            if (( n >= 1 && n <= ${#dirs[@]} )); then
-                want["${dirs[$((n-1))]}"]=1
-            fi
+    elif ui_gum_ok; then
+        local -a menu=() picked=()
+        local line out=""
+        for i in "${!dirs[@]}"; do
+            id="$(basename "${dirs[i]}")"
+            label="$(read_component_field "${dirs[i]}" label)"
+            [[ "$(read_component_field "${dirs[i]}" keep)" == "1" ]] && label="$label (kept by default)"
+            menu+=("${id}  ${label:-$id}")
         done
-        for d in "${dirs[@]}"; do [[ -n "${want[$d]:-}" ]] && remove+=("$d"); done
+        if ! out="$(gum choose --no-limit \
+                --header "Select components to remove (nothing selected = all except kept)" \
+                "${menu[@]}")"; then
+            say "Aborted; nothing removed."
+            return 0
+        fi
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && picked+=("$line")
+        done <<<"$out"
+        if (( ${#picked[@]} == 0 )); then
+            for i in "${!dirs[@]}"; do
+                [[ "$(read_component_field "${dirs[i]}" keep)" == "1" ]] && continue
+                remove+=("${dirs[i]}")
+            done
+        else
+            local p
+            for p in "${picked[@]}"; do
+                id="${p%% *}"
+                for i in "${!dirs[@]}"; do
+                    [[ "$(basename "${dirs[i]}")" == "$id" ]] && remove+=("${dirs[i]}")
+                done
+            done
+        fi
+    else
+        local selection=""
+        printf '\nSelect components to remove [Enter = all except kept, numbers/comma, a = all, q = quit]: '
+        IFS= read -r selection || selection=""
+        selection="${selection// /}"
+        case "${selection,,}" in
+            q|quit) say "Aborted; nothing removed."; return 0 ;;
+        esac
+        if [[ "${selection,,}" == "all" || "${selection,,}" == "a" || -z "$selection" ]]; then
+            for i in "${!dirs[@]}"; do
+                [[ "$(read_component_field "${dirs[i]}" keep)" == "1" ]] && continue
+                remove+=("${dirs[i]}")
+            done
+        else
+            local -A want=()
+            IFS=, read -ra nums <<<"$selection"
+            for n in "${nums[@]}"; do
+                [[ "$n" =~ ^[0-9]+$ ]] || continue
+                if (( n >= 1 && n <= ${#dirs[@]} )); then
+                    want["${dirs[$((n-1))]}"]=1
+                fi
+            done
+            for d in "${dirs[@]}"; do [[ -n "${want[$d]:-}" ]] && remove+=("$d"); done
+        fi
     fi
 
     if (( ${#remove[@]} == 0 )); then
@@ -875,7 +1134,7 @@ do_uninstall() {
         return 0
     fi
 
-    step "removing"
+    section "removing"
     local d cid
     for d in "${remove[@]}"; do
         cid="$(basename "$d")"
@@ -903,7 +1162,7 @@ do_uninstall() {
         fi
     fi
 
-    step "done"
+    section "done"
     say "Uninstalled. User config in $CONFIG_DIR and downloaded models are kept."
 }
 
@@ -960,7 +1219,7 @@ do_uninstall_legacy() {
         run "reload systemd user manager" systemctl --user daemon-reload || true
     fi
     [[ -f "$STATE_FILE" ]] && run "remove $STATE_FILE" rm -f "$STATE_FILE" || true
-    step "done"
+    section "done"
     say "Uninstalled. User config in $CONFIG_DIR and models are kept."
 }
 
@@ -970,10 +1229,10 @@ if (( UNINSTALL )); then
 fi
 
 # --------------------------------------------------------------------------- #
-# non-interactive gate (curl | bash with no --yes): plan only, change nothing
+# section: non-interactive gate (curl | bash with no --yes): plan only
 # --------------------------------------------------------------------------- #
 if (( ! ASSUME_YES && ! DRY_RUN )) && ! is_tty; then
-    step "plan"
+    section "plan"
     print_plan
     say ""
     say "stdin is not a terminal, so the wizard was not started and nothing was changed."
@@ -987,28 +1246,28 @@ if (( ! ASSUME_YES && ! DRY_RUN )) && ! is_tty; then
 fi
 
 # --------------------------------------------------------------------------- #
-# resolve release + asset names
+# section: release + asset names
 # --------------------------------------------------------------------------- #
-step "release"
+section "release"
 resolve_release
 set_asset_names
-say "  repo:    $UTTER_REPO"
-say "  version: $VER"
-say "  base:    $BASE_URL"
+field "repo:" "$UTTER_REPO"
+field "version:" "$VER"
+field "base:" "$BASE_URL"
 
 # --------------------------------------------------------------------------- #
-# interactive wizard
+# section: interactive wizard
 # --------------------------------------------------------------------------- #
 print_banner
 
 present_step() {
     local i="$1" id="$2"
-    printf '  what:    %s\n' "${COMP_WHAT[i]}"
-    printf '  size:    %s\n' "${COMP_SIZE[i]}"
+    field "what" "${COMP_WHAT[i]}"
+    field "size" "${COMP_SIZE[i]}"
     if (( COMP_SUDO[i] )) || { [[ "$id" == "gui" ]] && [[ "$MODE" == "package" ]]; }; then
-        printf '  sudo:    yes (system package manager)\n'
+        field "sudo" "yes (system package manager)"
     else
-        printf '  sudo:    no\n'
+        field "sudo" "no"
     fi
     run_dep_probe "$id"
 }
@@ -1020,7 +1279,7 @@ compute_recommendations() {
     REC_BY_ID[core]=y
     REC_BY_ID[units]=y
     REC_BY_ID[models]=n
-    REC_BY_ID[gui]=y
+    (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
     REC_BY_ID[stt]=n
     REC_BY_ID[perception]=n
     REC_BY_ID[noctalia]=n
@@ -1031,7 +1290,7 @@ compute_recommendations
 
 recommend_tiers() {
     # echo lines: key|title|size|reason
-    local json="" key
+    local json=""
     if [[ -x "$ASSISTANT_BIN" ]]; then
         json="$("$ASSISTANT_BIN" recommend --json 2>/dev/null || true)"
     elif [[ -d "$SHARE_DIR/assistant" ]] && command -v python3 >/dev/null 2>&1; then
@@ -1086,21 +1345,29 @@ wizard() {
 
         # Noctalia: auto-skip when the shell is not present.
         if [[ "$id" == "noctalia" ]] && (( ! NOCTALIA_PRESENT )); then
-            heading "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
+            step_header "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
             note "Noctalia not detected; skipping. Install it with --with-noctalia once Noctalia is present."
+            DECISION[i]="skip"
+            continue
+        fi
+
+        # GUI: the release publishes x86_64 GUI assets only.
+        if [[ "$id" == "gui" ]] && (( ! GUI_AVAILABLE )); then
+            step_header "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
+            note "no GUI assets are published for $ARCH yet (the AppImage/deb/rpm are x86_64 only); skipping."
             DECISION[i]="skip"
             continue
         fi
 
         # --only / --skip
         if ! allowed "$id"; then
-            heading "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
+            step_header "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
             note "skipped (not selected by --only/--skip)"
             DECISION[i]="skip"
             continue
         fi
 
-        heading "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
+        step_header "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
         present_step "$i" "$id"
 
         # Models are handled per tier.
@@ -1169,22 +1436,28 @@ if [[ "${DECISION[8]:-skip}" == "yes" ]] && [[ -f "$CONFIG_FILE" ]]; then
 fi
 
 # --------------------------------------------------------------------------- #
-# plan review
+# section: plan review
 # --------------------------------------------------------------------------- #
-step "plan review"
+section "plan review"
 sudo_used=0
+PLAN_W="$(comp_label_width)"
+if [[ -n "$GL_H" ]]; then
+    printf '  %s%-3s %-*s %-8s %s%s\n' "$C_DIM" "#" "$PLAN_W" "component" "action" "sudo" "$C_RESET"
+else
+    printf '  %-3s %-*s %-8s %s\n' "#" "$PLAN_W" "component" "action" "sudo"
+fi
 for i in "${!COMP_IDS[@]}"; do
     id="${COMP_IDS[i]}"
     d="${DECISION[i]:-skip}"
     if [[ "$d" == "yes" ]]; then
         if (( COMP_SUDO[i] )) || { [[ "$id" == "gui" ]] && [[ "$MODE" == "package" ]]; }; then
-            printf '  %d. %-32s install (sudo)\n' "$((i+1))" "${COMP_LABELS[i]}"
+            printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "install" "sudo"
             sudo_used=1
         else
-            printf '  %d. %-32s install\n' "$((i+1))" "${COMP_LABELS[i]}"
+            printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "install" "-"
         fi
     else
-        printf '  %d. %-32s skip\n' "$((i+1))" "${COMP_LABELS[i]}"
+        printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "skip" "-"
     fi
 done
 if (( ENABLE_UNITS )); then say "  units: enable + start utter-runner.service now"; fi
@@ -1199,13 +1472,13 @@ if (( ! ASSUME_YES )); then
 fi
 
 # --------------------------------------------------------------------------- #
-# execution
+# section: execution
 # --------------------------------------------------------------------------- #
 asset_names_ready() { [[ -n "$CORE_TARBALL" ]]; }
 asset_names_ready || { resolve_release; set_asset_names; }
 
 exec_deps() {
-    step "system deps"
+    section "system deps"
     local missing_csv; missing_csv="$(missing_pkgs | paste -sd, - 2>/dev/null || missing_pkgs | tr '\n' ',')"
     if [[ -z "$missing_csv" ]]; then
         say "  all required dependencies are already present"
@@ -1239,8 +1512,81 @@ exec_deps() {
     record_component deps "System deps" "$VER_NUM" "$PKG_MGR" 1 "$ASSISTANT_BIN"
 }
 
+# ensure_python_deps — make `python -m assistant` and the utter_py plugin
+# importable. The core needs PyYAML + requests; prefer an existing venv in the
+# core tree, create one if needed, else fall back to a --user install. Uses
+# python3 explicitly and never relies on a bare `python`. Sets ASSISTANT_PY to
+# the interpreter that should run the plugin.
+ASSISTANT_PY=""
+ensure_python_deps() {
+    local py="" c
+    for c in "${UTTER_PYTHON:-}" "$SHARE_DIR/.venv-agent/bin/python" "$SHARE_DIR/.venv/bin/python"; do
+        [[ -n "$c" ]] || continue
+        if command -v "$c" >/dev/null 2>&1 || [[ -x "$c" ]]; then py="$c"; break; fi
+    done
+    if [[ -z "$py" ]] && command -v python3 >/dev/null 2>&1; then py="$(command -v python3)"; fi
+    [[ -n "$py" ]] || { warn "no python3 on PATH; cannot install assistant dependencies"; return 0; }
+
+    if "$py" -c 'import yaml, requests' >/dev/null 2>&1; then
+        say "  assistant Python dependencies already present"
+        ASSISTANT_PY="$py"
+        return 0
+    fi
+
+    local venv="$SHARE_DIR/.venv-agent"
+    if (( DRY_RUN )); then
+        ASSISTANT_PY="$venv/bin/python"
+        run "create $venv" python3 -m venv "$venv"
+        run "install PyYAML + requests" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests
+        return 0
+    fi
+
+    if [[ ! -x "$venv/bin/python" ]] && command -v python3 >/dev/null 2>&1; then
+        python3 -m venv "$venv" >/dev/null 2>&1 || true
+    fi
+    if [[ -x "$venv/bin/python" ]] \
+        && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
+        ok "installed PyYAML + requests into $venv"
+        ASSISTANT_PY="$venv/bin/python"
+        return 0
+    fi
+    if "$py" -m pip install --user --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
+        ok "installed PyYAML + requests for the user"
+        ASSISTANT_PY="$py"
+        return 0
+    fi
+    warn "could not install PyYAML + requests; install them yourself: python3 -m pip install --user PyYAML requests"
+    ASSISTANT_PY="$py"
+    return 0
+}
+
+# fix_plugin_python — the shipped utter_py manifest uses a bare `["python", …]`
+# entrypoint and the runner config uses `["python3", …]`. Point both at
+# ASSISTANT_PY so the plugin starts with the core's dependencies even when
+# `python` is not on PATH and system `python3` lacks PyYAML/requests.
+fix_plugin_python() {
+    [[ -n "$ASSISTANT_PY" ]] || return 0
+    local files=(
+        "$SHARE_DIR/plugins/utter_py/utter-plugin.toml"
+        "$SHARE_DIR/config.m3.toml"
+    )
+    if (( DRY_RUN )); then
+        printf '  [dry-run] point plugin entrypoints at %s\n' "$ASSISTANT_PY"
+        return 0
+    fi
+    local f
+    for f in "${files[@]}"; do
+        [[ -f "$f" ]] || continue
+        sed -i \
+            -e "s|entrypoint = \\[\"python\", \"-m\", \"plugin\"\\]|entrypoint = [\"${ASSISTANT_PY}\", \"-m\", \"plugin\"]|" \
+            -e "s|entrypoint = \\[\"python3\", \"-m\", \"plugin\"\\]|entrypoint = [\"${ASSISTANT_PY}\", \"-m\", \"plugin\"]|" \
+            "$f"
+    done
+    ok "plugin utter_py will run with $ASSISTANT_PY"
+}
+
 exec_core() {
-    step "install core (runner + assistant CLI)"
+    section "install core (runner + assistant CLI)"
     fetch_core
     run "create $SHARE_DIR" mkdir -p "$SHARE_DIR"
     if (( DRY_RUN )); then
@@ -1248,12 +1594,12 @@ exec_core() {
     else
         local extract="$TMP/extract"
         mkdir -p "$extract"
-        tar -xzf "$TMP/$CORE_TARBALL" -C "$extract"
+        ui_spin_run "extracting $CORE_TARBALL" tar -xzf "$TMP/$CORE_TARBALL" -C "$extract"
         local top; top="$(find "$extract" -mindepth 1 -maxdepth 1 -type d | head -1)"
         [[ -n "$top" ]] || die "core tarball has no top-level directory"
         rm -rf "$SHARE_DIR"
         mv "$top" "$SHARE_DIR"
-        printf '  [ok] extracted core -> %s\n' "$SHARE_DIR"
+        ok "extracted core -> $SHARE_DIR"
     fi
 
     run "create $BIN_DIR" mkdir -p "$BIN_DIR"
@@ -1276,8 +1622,10 @@ fi
 exec "\$PY" -m assistant "\$@"
 WRAP
         chmod +x "$ASSISTANT_BIN"
-        printf '  [ok] wrote %s\n' "$ASSISTANT_BIN"
+        ok "wrote $ASSISTANT_BIN"
     fi
+    ensure_python_deps
+    fix_plugin_python
     reset_record
     D_FILES=("$ASSISTANT_BIN")
     D_DIRS=("$SHARE_DIR")
@@ -1285,7 +1633,7 @@ WRAP
 }
 
 exec_units() {
-    step "install systemd user units"
+    section "install systemd user units"
     local unit_src=""
     if [[ -f "$SHARE_DIR/install/utter-runner.service" ]]; then
         unit_src="$SHARE_DIR/install/utter-runner.service"
@@ -1295,7 +1643,10 @@ exec_units() {
     fi
     if [[ -f "$unit_src" ]] || (( DRY_RUN )); then
         run "create $UNIT_DIR" mkdir -p "$UNIT_DIR"
-        run "install utter-runner.service" cp "$unit_src" "$RUNNER_UNIT"
+        # The unit ships with @REPO@ placeholders; point them at the installed
+        # core tree, or systemd tries to run a literal "@REPO@" path.
+        install_unit() { sed "s|@REPO@|$SHARE_DIR|g" "$unit_src" > "$RUNNER_UNIT"; }
+        run "install utter-runner.service" install_unit
         if command -v systemctl >/dev/null 2>&1; then
             run "reload systemd user manager" systemctl --user daemon-reload || true
         fi
@@ -1314,12 +1665,13 @@ exec_units() {
 }
 
 exec_models() {
-    step "models"
+    section "models"
     if [[ ! -x "$ASSISTANT_BIN" ]] && [[ ! -d "$SHARE_DIR/assistant" ]]; then
         warn "core/CLI is not installed; cannot pull models. Run with the core step enabled."
         return 0
     fi
     local key src
+    local -a keys=()
     IFS=, read -ra keys <<<"$MODELS_YES"
     for key in "${keys[@]}"; do
         [[ -n "$key" ]] || continue
@@ -1342,7 +1694,11 @@ exec_models() {
 }
 
 exec_gui() {
-    step "install GUI ($MODE)"
+    section "install GUI ($MODE)"
+    if (( ! GUI_AVAILABLE )); then
+        note "no GUI assets are published for $ARCH yet (x86_64 only); skipping the GUI."
+        return 0
+    fi
     choose_gui_asset
     fetch_gui
     if [[ "$MODE" == "appimage" ]]; then
@@ -1353,7 +1709,7 @@ exec_gui() {
             printf '  [dry-run] write %s\n' "$DESKTOP_FILE"
         else
             install -m 0755 "$TMP/$GUI_ASSET" "$GUI_BIN"
-            printf '  [ok] installed %s\n' "$GUI_BIN"
+            ok "installed $GUI_BIN"
             if [[ -d "$SHARE_DIR/assets/icons" ]]; then
                 for pair in "utter-32.png:32x32" "utter-64.png:64x64" "utter-128.png:128x128" "utter-256.png:256x256"; do
                     mkdir -p "$ICON_THEME_DIR/${pair##*:}/apps"
@@ -1365,7 +1721,7 @@ exec_gui() {
                     install -m 0644 "$SHARE_DIR/assets/icons/utter.svg" \
                         "$ICON_THEME_DIR/scalable/apps/$ICON_NAME.svg"
                 fi
-                printf '  [ok] installed icons (%s)\n' "$ICON_NAME"
+                ok "installed icons ($ICON_NAME)"
                 command -v gtk-update-icon-cache >/dev/null 2>&1 && \
                     gtk-update-icon-cache -f -t "$ICON_THEME_DIR" >/dev/null 2>&1 || true
             else
@@ -1387,7 +1743,7 @@ Keywords=utter;voice;assistant;settings;stt;llm;
 StartupNotify=true
 StartupWMClass=utter
 DESKTOP
-            printf '  [ok] wrote %s\n' "$DESKTOP_FILE"
+            ok "wrote $DESKTOP_FILE"
             command -v update-desktop-database >/dev/null 2>&1 && \
                 update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
         fi
@@ -1428,7 +1784,7 @@ DESKTOP
 }
 
 exec_stt() {
-    step "STT backend"
+    section "STT backend"
     found_stt
     if command -v vocalinux >/dev/null 2>&1; then
         say "  vocalinux found — the bridge can reuse it (set trigger = \"bridge\" in config.toml)"
@@ -1443,7 +1799,7 @@ exec_stt() {
 }
 
 exec_perception() {
-    step "perception (vision server deps)"
+    section "perception (vision server deps)"
     found_perception
     say "  Vision grounding is optional; the assistant works with a11y-only context."
     say "  To enable it: serve UI-TARS with vLLM and point [vision].base_url at it."
@@ -1453,7 +1809,7 @@ exec_perception() {
 }
 
 exec_noctalia() {
-    step "Noctalia widget (optional)"
+    section "Noctalia widget (optional)"
     if (( ! NOCTALIA_PRESENT )); then
         note "Noctalia not detected; skipping."
         return 0
@@ -1471,7 +1827,7 @@ exec_noctalia() {
 }
 
 exec_config() {
-    step "config"
+    section "config"
     ensure_core_context
     local src="$CORE_CONTEXT/config.default.toml"
     if [[ -f "$CONFIG_FILE" ]] && (( ! OVERWRITE_CONFIG )); then
@@ -1503,7 +1859,7 @@ run_component() {
     esac
 }
 
-step "install"
+section "install"
 for i in "${!COMP_IDS[@]}"; do
     id="${COMP_IDS[i]}"
     if [[ "${DECISION[i]:-skip}" == "yes" ]]; then
@@ -1514,9 +1870,9 @@ done
 rebuild_install_json
 
 # --------------------------------------------------------------------------- #
-# summary / next steps
+# section: summary + next steps
 # --------------------------------------------------------------------------- #
-step "done"
+section "done"
 if (( DRY_RUN )); then
     say "Dry-run complete. Re-run without --dry-run to apply."
 else
@@ -1525,8 +1881,12 @@ else
     say "Next steps:"
     say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
     say "  2. Check the install:  $ASSISTANT_BIN doctor --json"
-    say "  3. Launch the GUI:     ${GUI_BIN}"
-    say "  4. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
+    if (( GUI_AVAILABLE )); then
+        say "  3. Launch the GUI:     ${GUI_BIN}"
+        say "  4. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
+    else
+        say "  3. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
+    fi
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         say ""
         note "$BIN_DIR is not on your PATH; add it: export PATH=\"$BIN_DIR:\$PATH\""

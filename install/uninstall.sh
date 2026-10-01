@@ -17,7 +17,7 @@ for arg in "$@"; do
         --yes|-y) DRY_RUN=0; ASSUME_YES=1 ;;
         --purge) PURGE=1 ;;
         -h|--help)
-            sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+            awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
             exit 0 ;;
         *) printf 'unknown argument: %s\n' "$arg" >&2; exit 2 ;;
     esac
