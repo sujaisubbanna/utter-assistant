@@ -346,6 +346,7 @@ class Utter:
             self.handle_utterance,
             dictation_key=self.cfg.ptt.dictation_key,
             assistant_key=self.cfg.ptt.assistant_key,
+            cfg=self.cfg,
         )
         log.info("vocalinux bridge installed (dictation=%s, assistant=%s)",
                  self.cfg.ptt.dictation_key, self.cfg.ptt.assistant_key)

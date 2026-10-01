@@ -38,6 +38,7 @@ _state: dict = {
     "manager": None,
     "init_patched": False,
     "osd": None,
+    "model_loading": None,
 }
 
 
@@ -258,9 +259,62 @@ def _register_sleep_hooks() -> None:
         if not _state.get("sleep_hooks"):
             sleeper.on_unload(_unload_speech)
             sleeper.on_reload(_reload_speech)
+            sleeper.on_state(_on_sleep_state)
             _state["sleep_hooks"] = True
     except Exception:
         logger.exception("could not register sleep hooks")
+
+
+def _begin_model_loading() -> None:
+    """Show the additive OSD ``loading`` state on cold start / wake."""
+    watcher = _state.get("model_loading")
+    em = _state.get("osd")
+    if watcher is None or em is None or not getattr(em, "enabled", False):
+        return
+    try:
+        watcher.begin()
+    except Exception:
+        logger.exception("could not start model-loading OSD state")
+
+
+def _on_sleep_state(asleep: bool) -> None:
+    # Fires synchronously from SleepController.wake(); waking means the model
+    # services were just (re)started in the background.
+    if not asleep:
+        _begin_model_loading()
+
+
+def _init_model_loading(cfg=None) -> None:
+    """Build the readiness watcher for the configured ``[sleep] services``."""
+    em = _state.get("osd")
+    if em is None:
+        return
+    # A re-install must not leak the previous watcher's polling thread.
+    old = _state.get("model_loading")
+    if old is not None:
+        try:
+            old.cancel()
+        except Exception:
+            logger.debug("could not cancel previous model-loading watcher", exc_info=True)
+    try:
+        from ..config import load_config
+        from . import model_loading as _ml
+
+        if cfg is None:
+            cfg = load_config()
+        sc = getattr(cfg, "sleep", None)
+        services = list(getattr(sc, "services", []) or [])
+        if not services:
+            # Nothing is started/unloaded, so there is nothing to wait for.
+            _state["model_loading"] = None
+            return
+        probes = _ml.probes_for_services(services, cfg)
+        timeout_s = getattr(sc, "model_ready_timeout_s", _ml.DEFAULT_TIMEOUT_S)
+        _state["model_loading"] = _ml.ModelLoadingWatcher(em, probes, timeout_s=timeout_s)
+    except Exception:
+        logger.exception("could not initialise model-loading watcher")
+        _state["model_loading"] = None
+
 
 def install(
     callback: Callback,
@@ -268,6 +322,7 @@ def install(
     assistant_key: Optional[str] = None,
     trigger_prefixes: Optional[Iterable[str]] = None,
     predicate: Optional[Callable[[str], bool]] = None,
+    cfg=None,
 ) -> None:
     from vocalinux.text_injection.text_injector import TextInjector
 
@@ -378,6 +433,10 @@ def install(
         _start_ptt_hotkey(assistant_key, "assistant")
 
     _register_sleep_hooks()
+    # Additive: show "loading" until the model services are ready. On a cold
+    # start this is immediate; on wake the sleep state hook does it again.
+    _init_model_loading(cfg)
+    _begin_model_loading()
     logger.info("installed utter bridge (dictation_key=%s, assistant_key=%s)",
                 dictation_key, assistant_key)
 
@@ -391,6 +450,12 @@ def uninstall() -> None:
     original = getattr(current, _ORIG_ATTR, None)
     if original is not None:
         TextInjector.inject_text = original
+    watcher = _state.get("model_loading")
+    if watcher is not None:
+        try:
+            watcher.cancel()
+        except Exception:
+            logger.exception("could not cancel model-loading watcher")
     em = _state.get("osd")
     if em is not None:
         _osd_idle()
@@ -398,7 +463,8 @@ def uninstall() -> None:
             em.close()
         except Exception:
             logger.exception("could not close utter OSD emitter")
-    _state.update(installed=False, callback=None, mode=None, assistant_until=0.0, osd=None)
+    _state.update(installed=False, callback=None, mode=None, assistant_until=0.0,
+                  osd=None, model_loading=None)
     logger.info("uninstalled utter vocalinux bridge")
 
 

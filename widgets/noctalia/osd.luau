@@ -14,6 +14,7 @@ local STATE_KEY = "utter_osd"
 
 local YELLOW = "#f7c948"   -- assistant: your words become an action
 local BLUE = "#8cc8ff"     -- dictation: your words are typed
+local LOADING = "#7bd4c4"  -- models restarting: calm indeterminate pulse
 local INK = "#ececec"
 local MUTED = "#9c9c9c"
 local OK = "#4cc38a"
@@ -70,10 +71,24 @@ local function pushLevel(level)
 	history[mid] = clamp01(level)
 end
 
-local function wave(color, flat)
+local function wave(color, mode)
 	local bars = {}
+	local phase = 0
+	if mode == "pulse" and type(noctalia.nowMs) == "function" then
+		phase = (noctalia.nowMs() % 100000) / 1000
+	end
 	for i = 1, BARS do
-		local lv = flat and 0.18 or history[i]
+		local lv
+		if mode == "live" then
+			lv = history[i]
+		elseif mode == "pulse" then
+			-- slow travelling swell; never reaches zero, so it reads as alive
+			-- but calm — deliberately unlike the live audio level.
+			local s = 0.5 + 0.5 * math.sin(phase * 1.5 - i * 0.55)
+			lv = 0.12 + 0.33 * s
+		else
+			lv = 0.18
+		end
 		-- soft envelope: taller in the middle, like the mark's centre of mass
 		local centre = 1 - math.abs((i - (BARS + 1) / 2) / ((BARS + 1) / 2)) * 0.45
 		local h = math.floor(MIN_H + (WAVE_H - MIN_H) * math.min(1, lv * 1.35) * centre + 0.5)
@@ -110,6 +125,11 @@ local function view(s)
 		end
 		title = text ~= "" and text or status
 		glyph = activated and "check" or "x"
+	elseif st == "loading" then
+		-- Models are coming up after wake / cold start: calm, distinct pulse.
+		color = LOADING
+		status = "Starting up"
+		title = text ~= "" and text or "Models are coming up…"
 	elseif st == "idle" then
 		color = MUTED
 		status = "Ready"
@@ -137,10 +157,17 @@ local function view(s)
 		end
 	end
 
-	local statusColor = (st == "final" or dictation) and color or MUTED
+	local statusColor = (st == "final" or st == "loading" or dictation) and color or MUTED
 	local statusRow = { ui.label({ text = status, color = statusColor, fontSize = 11, maxLines = 1 }) }
 	if glyph then
 		table.insert(statusRow, 1, ui.glyph({ name = glyph, size = 12, color = color }))
+	end
+
+	local waveMode = "flat"
+	if st == "listening" then
+		waveMode = "live"
+	elseif st == "loading" then
+		waveMode = "pulse"
 	end
 
 	return ui.row({ gap = 12, align = "center", paddingH = 4 }, {
@@ -150,7 +177,7 @@ local function view(s)
 			ui.label({ text = title, color = INK, fontWeight = "bold", fontSize = 14, maxLines = 1, maxWidth = TEXT_W }),
 			ui.row({ gap = 4, align = "center", maxWidth = TEXT_W }, statusRow),
 		}),
-		wave(color, st ~= "listening"),
+		wave(color, waveMode),
 	})
 end
 

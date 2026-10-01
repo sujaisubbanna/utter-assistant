@@ -85,6 +85,11 @@ class SleepConfig:
     # does not count. Independent of `enabled`, which gates the trigger phrase.
     on_idle: bool = True
     idle_minutes: float = 15
+    # How long the OSD may show the additive "loading" state while the model
+    # services restart after wake / on cold start. Readiness is polled from
+    # each server's ``/v1/models``; this is the bounded fallback used only when
+    # no readiness endpoint answers in time.
+    model_ready_timeout_s: float = 30.0
 
 
 @dataclass

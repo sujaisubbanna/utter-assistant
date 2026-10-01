@@ -8,10 +8,17 @@ Frozen contract (written atomically to ``$XDG_RUNTIME_DIR/utter/osd.json``)::
     {"state":"idle","mode":"assistant","level":0.0,"text":"",
      "activated":null,"ts":1234567890}
 
-* ``state``     : ``idle`` | ``listening`` | ``final``
+* ``state``     : ``idle`` | ``listening`` | ``loading`` | ``final``
 * ``level``     : audio level 0.0-1.0 (vocalinux reports 0-100; normalised here)
-* ``text``      : best-effort partial transcript while listening / final text
+* ``text``      : best-effort partial transcript while listening / final text;
+                  a short status line while ``loading`` (empty is allowed)
 * ``activated`` : ``True``/``False`` once a command was decided, else ``null``
+
+``loading`` is **additive** to the original ``idle|listening|final`` set: the
+model services are (re)starting and the panel should show a calm indeterminate
+pulse. It never interrupts an utterance — :meth:`OsdEmitter.loading` is a no-op
+while ``listening``/``final`` is active — and is cleared by
+:meth:`OsdEmitter.ready` (or :meth:`OsdEmitter.idle`) back to ``idle``.
 
 Design rules:
     * Disabled (``UTTER_OSD=0`` or ``[osd] enabled=false``) => **no writes**.
@@ -223,6 +230,52 @@ class OsdEmitter:
                 self._write_locked()
         except Exception:  # pragma: no cover - defensive
             logger.debug("osd idle() failed", exc_info=True)
+
+    def loading(self, text: str = "") -> None:
+        """Model services are (re)starting: show a calm indeterminate state.
+
+        Additive to the frozen ``idle | listening | final`` set. This is a
+        *background* state: it never interrupts an utterance, so while
+        ``listening`` (or a ``final`` result is being held) it is a no-op and
+        the live transcript keeps the overlay. It is safe to call repeatedly
+        (the watcher does, to refresh ``ts`` for the pulse animation).
+        :meth:`ready` clears it back to ``idle``.
+        """
+        if not self.enabled:
+            return
+        try:
+            with self._lock:
+                if self._listening or self._state in ("listening", "final"):
+                    return
+                self._cancel_idle_locked()
+                self._stop_worker_locked()
+                self._state = "loading"
+                self._level = 0.0
+                self._text = text or ""
+                self._activated = None
+                self._write_locked()
+        except Exception:  # pragma: no cover - defensive
+            logger.debug("osd loading() failed", exc_info=True)
+
+    def ready(self) -> None:
+        """Clear a ``loading`` state once the models report ready.
+
+        Only a ``loading`` state is cleared; ``listening``/``final`` are left
+        untouched so a late readiness signal cannot erase an utterance.
+        """
+        if not self.enabled:
+            return
+        try:
+            with self._lock:
+                if self._state != "loading":
+                    return
+                self._listening = False
+                self._cancel_idle_locked()
+                self._stop_worker_locked()
+                self._reset_locked()
+                self._write_locked()
+        except Exception:  # pragma: no cover - defensive
+            logger.debug("osd ready() failed", exc_info=True)
 
     def on_recognition_idle(self) -> None:
         """Called when the recogniser goes IDLE; clears a stuck 'listening'."""
