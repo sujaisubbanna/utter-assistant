@@ -3,7 +3,8 @@ name: pages
 # Publish the documentation site (website/) to GitHub Pages together with the
 # hosted installer, so both of these keep working:
 #   https://sujaisubbanna.github.io/utter-assistant/            (docs)
-#   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+#   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
+#   chmod +x install.sh && ./install.sh                         (interactive wizard)
 on:
   push:
     branches: [main]
