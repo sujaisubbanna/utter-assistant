@@ -9,5 +9,27 @@ Stdlib only. The installer lane calls these frozen entry points::
     python -m assistant install-state record|show
 """
 
+from pathlib import Path
+
 __all__ = ["__version__"]
-__version__ = "0.1.0"
+
+
+def _resolve_version() -> str:
+    """Resolve from ``pyproject.toml`` in a checkout, else distribution metadata."""
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            import tomllib
+
+            return str(tomllib.loads(pyproject.read_text())["project"]["version"])
+        except Exception:
+            pass
+    try:
+        from importlib.metadata import version
+
+        return version("utter")
+    except Exception:
+        return "0.0.0+unknown"
+
+
+__version__ = _resolve_version()
