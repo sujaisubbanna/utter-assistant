@@ -3,5 +3,10 @@
   "framework": "astro",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "trailingSlash": true,
+  "redirects": [
+    { "source": "/utter-assistant", "destination": "/", "permanent": true },
+    { "source": "/utter-assistant/:path*", "destination": "/:path*", "permanent": true }
+  ]
 }
