@@ -53,7 +53,9 @@ export function usePoll(
     if (!enabled || intervalMs <= 0) return;
     let busy = false;
     const run = async () => {
-      if (busy || document.visibilityState !== "visible") return;
+      // Never overlap a run, but a skipped run must not wedge the poll: the
+      // `busy` flag is always cleared in `finally`.
+      if (busy) return;
       busy = true;
       try {
         await fnRef.current();
@@ -61,14 +63,20 @@ export function usePoll(
         busy = false;
       }
     };
+    // Kick once immediately so the first value appears without waiting a full
+    // interval, and so returning to the window refreshes at once.
+    void run();
     const id = window.setInterval(() => void run(), intervalMs);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void run();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
+    // `visibilitychange` is the primary wake-up, but a macOS permission prompt
+    // or System Settings pane can occlude the window without firing it reliably,
+    // so also refresh whenever the window regains focus.
+    const onWake = () => void run();
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
     return () => {
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
     };
   }, [intervalMs, enabled]);
 }

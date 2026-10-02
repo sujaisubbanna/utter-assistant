@@ -325,6 +325,12 @@ export function SetupPage() {
       if (item?.status === "denied") {
         // macOS only prompts once; after that the pane has to be opened by hand.
         void api.openSettingsPane(PANE[id] ?? "Privacy").catch(() => {});
+      } else {
+        // TCC can settle a beat after the prompt closes, so re-check a few
+        // times instead of waiting for the next poll tick (or a tab remount).
+        for (const delay of [400, 1200, 2500]) {
+          window.setTimeout(() => void refresh(), delay);
+        }
       }
     } catch (err) {
       toast(t("setup.actions.requestFailed", { error: String(err) }), "error");
