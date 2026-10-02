@@ -11,10 +11,14 @@ Building the settings app needs Node + pnpm and a Rust toolchain. Only x86_64 re
 published today.
 
 The installer is an **interactive wizard**. It walks each component (the runner and `assistant`
-CLI, the settings app, the background services, speech models and the optional Noctalia widget)
-and asks whether you want it. In a terminal, Enter accepts the recommended default. `--yes`
-accepts them all non-interactively. Every download is verified against the release's
-`sha256sums.txt`.
+CLI, your spoken language, the settings app, the background services, speech models and the
+optional Noctalia widget) and asks whether you want it. In a terminal, Enter accepts the
+recommended default. `--yes` accepts them all non-interactively. Every download is verified against
+the release's `sha256sums.txt`.
+
+**English ships inline** — the language step defaults to English and downloads nothing, so the
+default install needs no model fetch. Other languages are opt-in: the step offers the matching
+multilingual speech model and voice (with sizes) and only downloads what you accept.
 
 Pick the path that suits you. On a Mac none of these apply: see
 [macOS (experimental)](/guides/macos/) for the `.dmg` and `macos/setup.sh`.
@@ -68,7 +72,7 @@ curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s 
 ```
 
 Other flags: `--skip <csv>`, `--with-noctalia`, `--dry-run`, `--uninstall`. The full flag and
-environment matrix, the nine wizard steps and where everything ends up are in
+environment matrix, the ten wizard steps and where everything ends up are in
 [Install from the web](/install/remote/).
 
 ## 3. Build from source

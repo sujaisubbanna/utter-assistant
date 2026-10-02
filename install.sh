@@ -20,14 +20,22 @@
 #   PREFIX              install prefix (default: $HOME/.local)
 #   UTTER_UI        terminal UI style: auto (default), gum, or plain
 #   UTTER_PYTHON    python interpreter baked into the assistant wrapper
-#   UTTER_MODEL_STT / _DECISION / _VISION
+#   UTTER_MODEL_STT / _DECISION / _VISION / _TTS
 #                       optional model source for a tier (hf:org/repo[:file],
 #                       https://… or file://…); pulled only if that tier is chosen
+#   UTTER_MODEL_STT_<LANG> / UTTER_MODEL_TTS_<LANG>
+#                       per-language overrides (e.g. UTTER_MODEL_STT_DE_DE or
+#                       UTTER_MODEL_STT_DE) that fall back to the generic tier var
+#   UTTER_TTS_VOICE_<LANG> / UTTER_TTS_VOICE
+#                       voice name/path written to [tts] voice for that language
+#   UTTER_LOCALE_PACK_<LANG> / UTTER_LOCALE_PACK
+#                       optional UI localization pack source; only offered (and
+#                       only pulled) when it is configured
 #
 # Flags:
 #   --appimage         install the AppImage (no sudo; default)
 #   --package          install the .deb/.rpm via the package manager (sudo)
-#   --only <csv>       only offer these components (core,gui,units,models,…)
+#   --only <csv>       only offer these components (core,lang,gui,units,models,…)
 #   --skip <csv>       never offer these components
 #   --with-noctalia    mark the optional Noctalia widget as recommended
 #   --dry-run          run the walk, print the plan, change nothing
@@ -75,14 +83,21 @@ Environment:
   PREFIX              install prefix (default: $HOME/.local)
   UTTER_UI        terminal UI style: auto (default), gum, or plain
   UTTER_PYTHON    python interpreter baked into the assistant wrapper
-  UTTER_MODEL_STT / _DECISION / _VISION
+  UTTER_MODEL_STT / _DECISION / _VISION / _TTS
                       optional source per model tier (hf:org/repo[:file],
                       https://… or file://…); pulled only if that tier is chosen
+  UTTER_MODEL_STT_<LANG> / UTTER_MODEL_TTS_<LANG>
+                      per-language override for the multilingual speech model
+                      or the TTS voice (falls back to UTTER_MODEL_STT / _TTS)
+  UTTER_TTS_VOICE_<LANG> / UTTER_TTS_VOICE
+                      voice name/path written to [tts] voice
+  UTTER_LOCALE_PACK_<LANG> / UTTER_LOCALE_PACK
+                      optional UI localization pack; only offered when configured
 
 Flags:
   --appimage         install the AppImage (no sudo; default)
   --package          install the .deb/.rpm via the package manager (sudo)
-  --only <csv>       only offer these components (core,gui,units,models,…)
+  --only <csv>       only offer these components (core,lang,gui,units,models,…)
   --skip <csv>       never offer these components
   --with-noctalia    mark the optional Noctalia widget as recommended
   --dry-run          run the walk, print the plan, change nothing
@@ -592,10 +607,22 @@ found_deps() {
     sub "missing: ${miss[*]:-none}"
 }
 
+found_lang() {
+    local syscode
+    syscode="$(resolve_system_language)"
+    if [[ -n "$syscode" ]]; then
+        field "found:" "system language $syscode"
+    else
+        field "found:" "no system language (C/POSIX); English default"
+    fi
+    sub "English ships inline; other languages need an opt-in download"
+}
+
 run_dep_probe() {
     case "$1" in
         deps)        found_deps ;;
         core)        found_core ;;
+        lang)        found_lang ;;
         units)       found_units ;;
         models)      found_models ;;
         gui)         found_gui ;;
@@ -609,10 +636,11 @@ run_dep_probe() {
 # --------------------------------------------------------------------------- #
 # section: component registry
 # --------------------------------------------------------------------------- #
-COMP_IDS=(deps core units models gui stt perception noctalia config)
+COMP_IDS=(deps core lang units models gui stt perception noctalia config)
 COMP_LABELS=(
     "System deps"
     "Core runner + CLI"
+    "Language"
     "systemd user units"
     "Models"
     "GUI"
@@ -624,6 +652,7 @@ COMP_LABELS=(
 COMP_WHAT=(
     "Wayland/input/audio tools and libs (wtype, ydotool, grim, wl-clipboard, pipewire, webkit2gtk-4.1, libsoup-3.0)"
     "protocol + reference runner + assistant CLI + bundled plugins"
+    "spoken language (STT/TTS) and optional per-language downloads"
     "utter-runner.service user unit (+ optional enable & start)"
     "recommended STT / decision-head / vision models (always the user's choice)"
     "Tauri settings window (AppImage to \$PREFIX/bin, .desktop entry)"
@@ -635,6 +664,7 @@ COMP_WHAT=(
 COMP_SIZE=(
     "varies (distro packages)"
     "~6 MB download"
+    "English ships inline; downloads opt-in"
     "<10 KB"
     "several GB per accepted tier"
     "release AppImage (tens of MB)"
@@ -643,17 +673,39 @@ COMP_SIZE=(
     "<100 KB"
     "<10 KB"
 )
-COMP_SUDO=(1 0 0 0 0 0 0 0 0)
+COMP_SUDO=(1 0 0 0 0 0 0 0 0 0)
 
 TOTAL=${#COMP_IDS[@]}
 DECISION=()      # yes | skip (indexed like COMP_IDS)
 ENABLE_UNITS=0
 OVERWRITE_CONFIG=0
 MODELS_YES=""    # csv of accepted tier keys
+LANG_CODE=""     # chosen spoken language, normalized (e.g. en-GB); empty = English
+LANG_TTS_VOICE=""  # voice name/path to write to [tts] voice (non-English only)
+LANG_STT_SRC=""  # source for the multilingual STT model, if offered/accepted
+LANG_TTS_SRC=""  # source for a TTS voice model, if offered/accepted
+LANG_UI_PACK=""  # source for a UI localization pack, if offered/accepted
+LANG_ACCEPT=()   # csv of accepted language downloads: stt,tts,ui
+LANG_DEFAULT="English (default)"
 
 # The release publishes x86_64 GUI assets only.
 GUI_AVAILABLE=1
 [[ "$ARCH" == "amd64" ]] || GUI_AVAILABLE=0
+
+# decision_of <id> — the recorded decision ("yes" | "skip") for a component id;
+# "skip" when the component is unknown or was never reached. Decisions are
+# looked up by id so reordering/inserting components cannot silently shift a
+# hardcoded numeric index.
+decision_of() {
+    local want="$1" i
+    for i in "${!COMP_IDS[@]}"; do
+        if [[ "${COMP_IDS[i]}" == "$want" ]]; then
+            printf '%s' "${DECISION[i]:-skip}"
+            return 0
+        fi
+    done
+    printf 'skip'
+}
 
 # --only / --skip
 declare -A ONLY_MAP=() SKIP_MAP=()
@@ -1004,8 +1056,9 @@ print_plan() {
     print_banner
     print_component_preview
     say ""
-    say "Recommended defaults: core, systemd units and GUI; models/STT/perception"
-    say "are opt-in. Nothing is downloaded or changed until you confirm."
+    say "Recommended defaults: core, systemd units and GUI; the language step is"
+    say "English (inline, no downloads); models/STT/perception are opt-in."
+    say "Nothing is downloaded or changed until you confirm."
 }
 
 # --------------------------------------------------------------------------- #
@@ -1276,6 +1329,7 @@ compute_recommendations() {
     local miss; miss="$(missing_pkgs)"
     [[ -n "$miss" ]] && REC_BY_ID[deps]=y || REC_BY_ID[deps]=n
     REC_BY_ID[core]=y
+    REC_BY_ID[lang]=y
     REC_BY_ID[units]=y
     REC_BY_ID[models]=n
     (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
@@ -1336,6 +1390,238 @@ MODEL_TIER_KEYS=()
 MODEL_TIER_TITLES=()
 MODEL_TIER_SIZES=()
 
+# --------------------------------------------------------------------------- #
+# section: language (spoken STT/TTS; English ships inline)
+# --------------------------------------------------------------------------- #
+# resolve_system_language — normalize LC_ALL/LC_MESSAGES/LANG to lang[-REGION]
+# (en_GB.UTF-8 -> en-GB), or print nothing when the locale is C/POSIX/unknown.
+resolve_system_language() {
+    local raw="${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}"
+    raw="${raw%%@*}"
+    raw="${raw%%.*}"
+    [[ -n "$raw" ]] || return 0
+    case "${raw^^}" in
+        C|POSIX) return 0 ;;
+    esac
+    local lang="" rest="" script="" region=""
+    lang="${raw%%[_-]*}"; rest="${raw#"$lang"}"; rest="${rest#[_-]}"
+    case "$rest" in
+        [A-Za-z][A-Za-z][A-Za-z][A-Za-z][_-]*) script="${rest%%[_-]*}"; rest="${rest#"$script"}"; rest="${rest#[_-]}" ;;
+    esac
+    case "$rest" in
+        [A-Za-z][A-Za-z]|[0-9][0-9][0-9]) region="$rest" ;;
+    esac
+    lang="${lang,,}"
+    if [[ -n "$script" ]]; then
+        printf '%s-%s%s' "$lang" "${script^}" "${region:+-${region^^}}"
+    else
+        printf '%s%s' "$lang" "${region:+-${region^^}}"
+    fi
+}
+
+# language env-key token: de-DE -> DE_DE, de -> DE
+lang_env_token() {
+    local code="$1"
+    printf '%s' "${code^^}" | tr '-' '_'
+}
+
+# lang_env_source <prefix> <code> — UTTER_MODEL_STT_DE_DE first, then
+# UTTER_MODEL_STT_DE, then the generic UTTER_MODEL_STT; print nothing when none
+# is configured.
+lang_env_source() {
+    local prefix="$1" code="$2" token full short
+    token="$(lang_env_token "$code")"
+    full="$prefix"_"$token"
+    short="$prefix"_"${token%%_*}"
+    if [[ -n "${!full:-}" ]]; then printf '%s' "${!full}"; return 0; fi
+    if [[ -n "${!short:-}" ]]; then printf '%s' "${!short}"; return 0; fi
+    if [[ -n "${!prefix:-}" ]]; then printf '%s' "${!prefix}"; return 0; fi
+    return 0
+}
+
+# lang_locale_pack <code> — an explicitly configured UI localization pack, or
+# empty. There is no guessed default: a pack is only offered when the user (or
+# a pack feed) provided UTTER_LOCALE_PACK_<LANG> / UTTER_LOCALE_PACK.
+lang_locale_pack() {
+    local code="$1" token lpack lgeneric
+    token="$(lang_env_token "$code")"
+    lpack="UTTER_LOCALE_PACK_$token"
+    lgeneric="UTTER_LOCALE_PACK_${token%%_*}"
+    if [[ -n "${!lpack:-}" ]]; then printf '%s' "${!lpack}"; return 0; fi
+    if [[ -n "${!lgeneric:-}" ]]; then printf '%s' "${!lgeneric}"; return 0; fi
+    if [[ -n "${UTTER_LOCALE_PACK:-}" ]]; then printf '%s' "${UTTER_LOCALE_PACK}"; return 0; fi
+    return 0
+}
+
+# lang_voice_value <code> — voice to persist for a language: an explicit
+# UTTER_TTS_VOICE_<LANG> override, else the language itself (espeak derives a
+# voice from [tts] language when voice is empty).
+lang_voice_value() {
+    local code="$1" token v
+    token="$(lang_env_token "$code")"
+    v="UTTER_TTS_VOICE_$token"
+    if [[ -n "${!v:-}" ]]; then printf '%s' "${!v}"; return 0; fi
+    v="UTTER_TTS_VOICE_${token%%_*}"
+    if [[ -n "${!v:-}" ]]; then printf '%s' "${!v}"; return 0; fi
+    printf '%s' "$code"
+}
+
+# lang_chosen_label — human label for the current LANG_CODE.
+lang_chosen_label() {
+    [[ -n "$LANG_CODE" ]] && printf '%s (%s)' "$LANG_CODE" "$LANG_CODE" || printf '%s' "$LANG_DEFAULT"
+}
+
+# lang_offer_downloads — after a non-English language is chosen, OFFER each
+# matching download (default No). Nothing is fetched unless the user accepts,
+# and everything routes through `assistant models pull` via exec_lang.
+lang_offer_downloads() {
+    local code="$1"
+    local stt_src tts_src ui_src
+    stt_src="$(lang_env_source UTTER_MODEL_STT "$code")"
+    tts_src="$(lang_env_source UTTER_MODEL_TTS "$code")"
+    ui_src="$(lang_locale_pack "$code")"
+
+    say ""
+    say "  English ships inline and needs no downloads."
+    say "  For $code, everything below is optional — press Enter to skip."
+    say ""
+
+    if [[ -n "$stt_src" ]]; then
+        field "stt" "multilingual speech recognition (~480 MB, or ~1.6 GB for large-v3-turbo)"
+        sub "the English default distil-small.en only speaks English"
+        if ask_yn "n" "  Download the multilingual STT model (~480 MB / ~1.6 GB)?"; then
+            LANG_STT_SRC="$stt_src"; LANG_ACCEPT+=(stt)
+        fi
+        (( QUIT )) && return 1
+    else
+        note "no multilingual STT source configured; add it later with:"
+        say "        UTTER_MODEL_STT=$(lang_env_token "$code")=hf:org/repo assistant models pull <src>"
+    fi
+
+    if [[ -n "$tts_src" ]]; then
+        field "tts" "spoken replies for $code (voice model/path)"
+        if ask_yn "n" "  Download the TTS voice for $code?"; then
+            LANG_TTS_SRC="$tts_src"; LANG_ACCEPT+=(tts)
+        fi
+        (( QUIT )) && return 1
+    else
+        note "no TTS voice source configured; espeak/spd-say voices need no download."
+    fi
+
+    if [[ -n "$ui_src" ]]; then
+        field "ui pack" "settings-window localization pack (<5 MB)"
+        if ask_yn "n" "  Download the $code settings-window localization pack?"; then
+            LANG_UI_PACK="$ui_src"; LANG_ACCEPT+=(ui)
+        fi
+        (( QUIT )) && return 1
+    fi
+
+    if (( ${#LANG_ACCEPT[@]} == 0 )); then
+        say ""
+        note "no downloads accepted; you can add them later (see the command printed above)."
+    fi
+    return 0
+}
+
+# run_language_step — the wizard body for the language component. Sets
+# LANG_CODE / LANG_TTS_VOICE and, when a non-English language is chosen,
+# offers (never forces) the matching downloads.
+run_language_step() {
+    local syscode choice other
+    syscode="$(resolve_system_language)"
+
+    say ""
+    say "  Spoken language for speech-to-text and spoken replies."
+    say "  English ships inline and needs no downloads; other languages do."
+    if [[ -n "$syscode" ]]; then
+        say "  Detected system language: $syscode"
+    else
+        say "  System language: not detected (C/POSIX); defaulting to English."
+    fi
+    say ""
+
+    # Non-interactive / --yes: English, no downloads, print how to change later.
+    if (( ASSUME_YES )); then
+        LANG_CODE=""
+        say "  default: English (default) — no downloads"
+        say "  to add a language later: edit [stt]/[tts] language in $CONFIG_FILE"
+        say "  then pull a multilingual model: assistant models pull <hf:org/repo[:file]>"
+        return 0
+    fi
+
+    local -a opts=("English (default)")
+    [[ -n "$syscode" && "$syscode" != en* ]] && opts+=("$syscode")
+    opts+=("Other language (type a code)")
+
+    if ui_gum_ok; then
+        if ! choice="$(gum choose --header "Spoken language" "${opts[@]}")"; then
+            QUIT=1
+            return 1
+        fi
+    else
+        local n=0 o
+        for o in "${opts[@]}"; do n=$((n+1)); printf '  %d) %s\n' "$n" "$o"; done
+        printf '  choose [1-%d] (Enter = 1): ' "$n"
+        local ans=""
+        IFS= read -r ans || ans=""
+        ans="${ans//[[:space:]]/}"
+        case "${ans,,}" in
+            q|quit) QUIT=1; return 1 ;;
+            "")     choice="${opts[0]}" ;;
+            *[!0-9]*|"") choice="${opts[0]}" ;;
+            *)
+                if (( ans >= 1 && ans <= ${#opts[@]} )); then
+                    choice="${opts[$((ans-1))]}"
+                else
+                    choice="${opts[0]}"
+                fi
+                ;;
+        esac
+    fi
+
+    if [[ "$choice" == "Other language"* ]]; then
+        printf '  Language code (e.g. de, de-DE, pt-BR): '
+        IFS= read -r other || other=""
+        other="${other//[[:space:]]/}"
+        if [[ -n "$other" ]]; then
+            LANG_CODE="$(normalize_lang_code "$other")"
+        fi
+    elif [[ "$choice" == "English"* || "$choice" == "$LANG_DEFAULT" ]]; then
+        LANG_CODE=""
+    else
+        LANG_CODE="$(normalize_lang_code "$choice")"
+    fi
+
+    if [[ -z "$LANG_CODE" || "$LANG_CODE" == en || "$LANG_CODE" == en-* ]]; then
+        LANG_CODE=""
+        say "  selected: English (default) — inline, no downloads."
+        say "  to switch later, edit [stt]/[tts] language in $CONFIG_FILE"
+        return 0
+    fi
+
+    LANG_TTS_VOICE="$(lang_voice_value "$LANG_CODE")"
+    say "  selected: $LANG_CODE"
+    lang_offer_downloads "$LANG_CODE"
+}
+
+# normalize_lang_code <raw> — lowercase the language subtag, uppercase the
+# region, keep an optional hyphen. Unknown shapes are passed through unchanged.
+normalize_lang_code() {
+    local raw="$1" lang rest region
+    raw="${raw%%@*}"; raw="${raw%%.*}"; raw="${raw//_/-}"
+    lang="${raw%%-*}"; rest="${raw#*-}"
+    lang="${lang,,}"
+    if [[ "$rest" == "$raw" ]]; then
+        printf '%s' "$lang"; return 0
+    fi
+    region="${rest##*-}"; region="${rest%%-*}"
+    case "$region" in
+        [A-Za-z][A-Za-z]|[0-9][0-9][0-9]) region="${region^^}" ;;
+        *) region="" ;;
+    esac
+    printf '%s%s' "$lang" "${region:+-${region}}"
+}
+
 wizard() {
     local i id rec
     for i in "${!COMP_IDS[@]}"; do
@@ -1368,6 +1654,14 @@ wizard() {
 
         step_header "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
         present_step "$i" "$id"
+
+        # Language: choose the spoken language; English is inline and default.
+        if [[ "$id" == "lang" ]]; then
+            run_language_step
+            (( QUIT )) && return 1
+            DECISION[i]="yes"
+            continue
+        fi
 
         # Models are handled per tier.
         if [[ "$id" == "models" ]]; then
@@ -1421,13 +1715,13 @@ if ! wizard; then
 fi
 
 # sub-questions (asked once, after the walk)
-if [[ "${DECISION[2]:-skip}" == "yes" ]] && (( ! ASSUME_YES )); then
+if [[ "$(decision_of units)" == "yes" ]] && (( ! ASSUME_YES )); then
     if ask_yn "n" "  Enable and start utter-runner.service now?"; then
         ENABLE_UNITS=1
     fi
     (( QUIT )) && { say "Quit before making any changes."; exit 0; }
 fi
-if [[ "${DECISION[8]:-skip}" == "yes" ]] && [[ -f "$CONFIG_FILE" ]]; then
+if [[ "$(decision_of config)" == "yes" ]] && [[ -f "$CONFIG_FILE" ]]; then
     if ask_yn "n" "  $CONFIG_FILE exists — overwrite it with the default?"; then
         OVERWRITE_CONFIG=1
     fi
@@ -1460,6 +1754,11 @@ for i in "${!COMP_IDS[@]}"; do
     fi
 done
 if (( ENABLE_UNITS )); then say "  units: enable + start utter-runner.service now"; fi
+if [[ -n "$LANG_CODE" ]]; then
+    say "  language: $LANG_CODE (English default otherwise)"
+else
+    say "  language: English (default) — inline, no downloads"
+fi
 if (( ${#MODELS_YES} )); then say "  models accepted: $MODELS_YES"; fi
 if (( sudo_used )); then say "  sudo: required for one or more selected steps"; else say "  sudo: not required"; fi
 
@@ -1663,6 +1962,53 @@ exec_units() {
     fi
 }
 
+exec_lang() {
+    section "language"
+    if [[ -z "$LANG_CODE" ]]; then
+        say "  English (default) — ships inline, no downloads."
+        say "  To switch languages later, edit [stt]/[tts] language in $CONFIG_FILE"
+        say "  and pull a multilingual model: assistant models pull <hf:org/repo[:file]>"
+        reset_record
+        D_KEEP=1
+        record_component lang "Language (English)" "$VER_NUM" "inline" 0 "$ASSISTANT_BIN"
+        return 0
+    fi
+    say "  Selected language: $LANG_CODE"
+    if (( ${#LANG_ACCEPT[@]} == 0 )); then
+        say "  No downloads accepted; English-only models keep working."
+        say "  Add a multilingual model later: assistant models pull <hf:org/repo[:file]>"
+        reset_record
+        D_KEEP=1
+        record_component lang "Language ($LANG_CODE)" "$VER_NUM" "inline" 0 "$ASSISTANT_BIN"
+        return 0
+    fi
+    if [[ ! -x "$ASSISTANT_BIN" ]] && [[ ! -d "$SHARE_DIR/assistant" ]]; then
+        warn "core/CLI is not installed; cannot pull language downloads. Run with the core step enabled."
+        reset_record
+        D_KEEP=1
+        record_component lang "Language ($LANG_CODE)" "$VER_NUM" "inline" 0 "$ASSISTANT_BIN"
+        return 0
+    fi
+    local kind src
+    for kind in "${LANG_ACCEPT[@]}"; do
+        case "$kind" in
+            stt) src="$LANG_STT_SRC" ;;
+            tts) src="$LANG_TTS_SRC" ;;
+            ui)  src="$LANG_UI_PACK" ;;
+            *)   src="" ;;
+        esac
+        if [[ -n "$src" ]]; then
+            run "pull $LANG_CODE $kind download ($src)" "$ASSISTANT_BIN" models pull "$src"
+        else
+            note "no source configured for the $LANG_CODE $kind download; pull it later with:"
+            say "        assistant models pull <hf:org/repo[:file] | https://… | file://…>"
+        fi
+    done
+    reset_record
+    D_KEEP=1
+    record_component lang "Language ($LANG_CODE)" "$VER_NUM" "assistant-models" 0 "$ASSISTANT_BIN"
+}
+
 exec_models() {
     section "models"
     if [[ ! -x "$ASSISTANT_BIN" ]] && [[ ! -d "$SHARE_DIR/assistant" ]]; then
@@ -1820,6 +2166,100 @@ exec_noctalia() {
     fi
 }
 
+# toml_escape <string> — minimal TOML basic-string escaping (backslash + quote).
+toml_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '%s' "$s"
+}
+
+# set_config_value <file> <section> <key> <value> [<section> <key> <value> ...]
+# Edits `key = "value"` in-place inside [section]. This is the same
+# line-preserving pattern used elsewhere; nothing is hand-parsed beyond the
+# section/key assignment it was asked to change.
+set_config_value() {
+    local file="$1"; shift
+    if (( DRY_RUN )); then
+        printf '  [dry-run] edit %s\n' "$file"
+        return 0
+    fi
+    local section key value
+    while [[ $# -ge 3 ]]; do
+        section="$1"; key="$2"; value="$3"; shift 3
+        _toml_set_one "$file" "$section" "$key" "$value"
+    done
+}
+
+_toml_set_one() {
+    local file="$1" section="$2" key="$3" value="$4"
+    local escaped; escaped="$(toml_escape "$value")"
+    local produced
+    if ! produced="$(awk -v sec="$section" -v k="$key" -v val="$escaped" '
+        BEGIN { cur=""; found=0; sec_end=0 }
+        {
+            line=$0
+            if (match(line, /^[[:space:]]*\[[^]]+\]([[:space:]]*(#.*)?)?$/)) {
+                if (cur==sec && sec_end==0) sec_end=NR
+                h=line
+                sub(/^[[:space:]]*\[/, "", h)
+                sub(/\].*$/, "", h)
+                cur=h
+                if (cur==sec) { sec_start=NR }
+            }
+            if (cur==sec && line ~ ("^[[:space:]]*" k "[[:space:]]*=")) {
+                if (!found) { print k " = \"" val "\""; found=1 }
+                next
+            }
+            print line
+        }
+        END {
+            if (!found) {
+                if (sec_start) {
+                    # insertion after the section marker is handled by a rewrite
+                    # pass below; flag it for the caller
+                    print "__UTTER_NEED_INSERT__" > "/dev/stderr"
+                } else {
+                    print "__UTTER_NEED_SECTION__" > "/dev/stderr"
+                }
+            }
+        }
+    ' "$file" 2>"$TMP/_toml_hint")"; then
+        return 1
+    fi
+    local hint=""
+    [[ -f "$TMP/_toml_hint" ]] && hint="$(cat "$TMP/_toml_hint")"
+    if [[ "$hint" == *NEED_INSERT* ]]; then
+        _toml_insert_after_section "$file" "$section" "$key" "$value"
+        return 0
+    fi
+    if [[ "$hint" == *NEED_SECTION* ]]; then
+        [[ -s "$file" ]] && printf '\n' >> "$file"
+        printf '[%s]\n%s = "%s"\n' "$section" "$key" "$escaped" >> "$file"
+        return 0
+    fi
+    printf '%s\n' "$produced" > "$file"
+    return 0
+}
+
+_toml_insert_after_section() {
+    local file="$1" section="$2" key="$3" value="$4"
+    local escaped; escaped="$(toml_escape "$value")"
+    awk -v sec="$section" -v k="$key" -v val="$escaped" '
+        BEGIN { cur=""; inserted=0 }
+        {
+            print
+            if (match($0, /^[[:space:]]*\[[^]]+\]([[:space:]]*(#.*)?)?$/)) {
+                h=$0
+                sub(/^[[:space:]]*\[/, "", h)
+                sub(/\].*$/, "", h)
+                cur=h
+                if (cur==sec && !inserted) { print k " = \"" val "\""; inserted=1 }
+            }
+        }
+    ' "$file" > "$file._tmp" && mv "$file._tmp" "$file"
+}
+
 exec_config() {
     section "config"
     ensure_core_context
@@ -1831,6 +2271,18 @@ exec_config() {
     if [[ -f "$src" ]] || (( DRY_RUN )); then
         run "create $CONFIG_DIR" mkdir -p "$CONFIG_DIR"
         run "write $CONFIG_FILE from default" cp "$src" "$CONFIG_FILE"
+        if [[ -n "$LANG_CODE" ]]; then
+            if (( DRY_RUN )); then
+                printf '  [dry-run] set [stt] language = "%s" in %s\n' "$LANG_CODE" "$CONFIG_FILE"
+                printf '  [dry-run] set [tts] language = "%s" in %s\n' "$LANG_CODE" "$CONFIG_FILE"
+                [[ -n "$LANG_TTS_VOICE" ]] && \
+                    printf '  [dry-run] set [tts] voice = "%s" in %s\n' "$LANG_TTS_VOICE" "$CONFIG_FILE"
+            else
+                set_config_value "$CONFIG_FILE" stt language "$LANG_CODE" \
+                    tts language "$LANG_CODE" tts voice "$LANG_TTS_VOICE"
+                ok "wrote language $LANG_CODE to $CONFIG_FILE"
+            fi
+        fi
         reset_record
         D_KEEP=1
         record_component config "Config" "$VER_NUM" "default" 0 "$ASSISTANT_BIN"
@@ -1843,6 +2295,7 @@ run_component() {
     case "$1" in
         deps)       exec_deps ;;
         core)       exec_core ;;
+        lang)       exec_lang ;;
         units)      exec_units ;;
         models)     exec_models ;;
         gui)        exec_gui ;;
@@ -1871,6 +2324,14 @@ if (( DRY_RUN )); then
     say "Dry-run complete. Re-run without --dry-run to apply."
 else
     say "Installed utter $VER into $PREFIX"
+    say ""
+    if [[ -n "$LANG_CODE" ]]; then
+        say "Language: $LANG_CODE"
+    else
+        say "Language: English (default; English ships inline, no downloads)"
+        say "  to add a language later: edit [stt]/[tts] language in $CONFIG_FILE"
+        say "  then: assistant models pull <hf:org/repo[:file]>"
+    fi
     say ""
     say "Next steps:"
     say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
