@@ -73,8 +73,8 @@ check("has_module(nonexistent) false", not platform.has_module("utter_no_such_mo
 from utter.config import Config, load_config  # noqa: E402
 
 defaults = Config()
-check("[macos] defaults: apple_speech -> whisper_cpp", defaults.macos.stt_backend == "apple_speech"
-      and defaults.macos.stt_fallback == "whisper_cpp")
+check("[macos] defaults: whisper_cpp -> apple_speech", defaults.macos.stt_backend == "whisper_cpp"
+      and defaults.macos.stt_fallback == "apple_speech")
 check("[macos] defaults: say / quartz", defaults.macos.tts_backend == "say"
       and defaults.macos.hotkey_backend == "quartz" and defaults.macos.injection == "quartz")
 check("Linux [stt] default unchanged", defaults.stt.backend == "faster_whisper")
@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check("missing [macos] section -> defaults", cfg.macos == Config().macos)
 
 repo_default = load_config(Path(__file__).resolve().parents[2] / "config.default.toml")
-check("config.default.toml parses with [macos]", repo_default.macos.stt_backend == "apple_speech")
+check("config.default.toml parses with [macos]", repo_default.macos.stt_backend == "whisper_cpp")
 
 # --------------------------------------------------------------------------- #
 # 3. STT backend chain
@@ -119,7 +119,7 @@ check("darwin: whisper first when only pywhispercpp present",
                           which=none) == ["whisper_cpp", "apple_speech"])
 check("darwin: nothing importable keeps configured order",
       stt.select_backends("darwin", stt_cfg, mac_cfg, has_module=lambda n: False, which=none)
-      == ["apple_speech", "whisper_cpp"])
+      == ["whisper_cpp", "apple_speech"])
 check("darwin: fallback 'none' dropped",
       stt.select_backends("darwin", stt_cfg, SimpleNamespace(stt_backend="whisper_cpp", stt_fallback="none"),
                           has_module=lambda n: False, which=none) == ["whisper_cpp"])
@@ -473,7 +473,18 @@ finally:
     subprocess.run = orig_sp_run
     mshot._displays = lambda: []
 
-check("screenshot backing_scale_factor defaults to 1.0 without AppKit", mshot.backing_scale_factor() == 1.0)
+# Force the AppKit import to fail so this check is meaningful on a real Mac too
+# (it is about the no-AppKit fallback, not about the host's actual scale).
+_saved_appkit = sys.modules.get("AppKit")
+sys.modules["AppKit"] = None
+try:
+    check("screenshot backing_scale_factor defaults to 1.0 without AppKit",
+          mshot.backing_scale_factor() == 1.0)
+finally:
+    if _saved_appkit is None:
+        sys.modules.pop("AppKit", None)
+    else:
+        sys.modules["AppKit"] = _saved_appkit
 
 print("PASS" if ok else "FAIL")
 raise SystemExit(0 if ok else 1)

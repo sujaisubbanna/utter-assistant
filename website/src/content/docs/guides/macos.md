@@ -102,8 +102,8 @@ replies** offers the system voices, **General** controls the launchd agents, and
 
 ```toml
 [macos]
-stt_backend = "apple_speech"     # apple_speech | whisper_cpp | faster_whisper | vocamac
-stt_fallback = "whisper_cpp"
+stt_backend = "whisper_cpp"      # apple_speech | whisper_cpp | faster_whisper | vocamac
+stt_fallback = "apple_speech"
 speech_locale = "en-US"          # fallback when [stt] language does not resolve
 on_device_only = true            # never send audio to Apple's servers
 tts_backend = "say"              # say | avspeech | none

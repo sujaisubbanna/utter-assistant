@@ -137,9 +137,11 @@ log_level = "INFO"
 
 [macos]
 # Only read on macOS; Linux ignores this whole section (see docs/MACOS.md).
-# Speech-to-text: Apple Speech.framework first, local whisper.cpp as fallback.
-stt_backend = "apple_speech"     # apple_speech | whisper_cpp | faster_whisper | vocamac
-stt_fallback = "whisper_cpp"
+# Speech-to-text: local whisper.cpp first (reliable and fully offline), Apple
+# Speech.framework as fallback. Apple can stall for 30s+ with no callback on
+# some Macs/locales, so it is the fallback, not the primary.
+stt_backend = "whisper_cpp"      # apple_speech | whisper_cpp | faster_whisper | vocamac
+stt_fallback = "apple_speech"
 speech_locale = "en-US"
 on_device_only = true            # never send audio to Apple's servers
 # Spoken replies: the system `say` command, or AVSpeechSynthesizer via PyObjC.

@@ -305,8 +305,8 @@ Everything macOS-specific lives in one section. Linux ignores it entirely.
 
 ```toml
 [macos]
-stt_backend = "apple_speech"     # apple_speech | whisper_cpp | faster_whisper | vocamac
-stt_fallback = "whisper_cpp"     # tried when the primary fails to load
+stt_backend = "whisper_cpp"      # apple_speech | whisper_cpp | faster_whisper | vocamac
+stt_fallback = "apple_speech"    # tried when the primary fails to load
 speech_locale = "en-US"
 on_device_only = true            # never send audio to Apple's servers
 tts_backend = "say"              # say | avspeech | none
