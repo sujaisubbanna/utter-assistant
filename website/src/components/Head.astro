@@ -1,0 +1,61 @@
+---
+// Override of Starlight's default <Head /> component.
+//
+// Starlight already emits title/description/canonical/hreflang/OG/Twitter.
+// This adds JSON-LD structured data derived from the env-driven site origin,
+// so it always matches the canonical URL:
+//   - SoftwareApplication on the landing page (template: splash)
+//   - TechArticle on the documentation pages
+//
+// The original component is imported by its package path (not the virtual
+// override path) to avoid recursing into this file.
+import Default from '@astrojs/starlight/components/Head.astro';
+
+const { entry, isFallback, entryMeta, lang, siteTitle } = Astro.locals.starlightRoute;
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const siteRoot = new URL(import.meta.env.BASE_URL, Astro.site);
+const description = entry.data.description ?? undefined;
+// On a fallback page the chrome is localised but the content is still the
+// default (English) locale, so describe the content language honestly.
+const contentLang = isFallback ? entryMeta.lang : lang;
+const isLanding = entry.data.template === 'splash';
+const isArticle = !isLanding && entry.id !== '404' && entry.id !== 'demo';
+
+const jsonLd = isLanding
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: siteTitle,
+      description,
+      url: siteRoot.href,
+      applicationCategory: 'UtilitiesApplication',
+      operatingSystem: 'Linux, macOS',
+      license: 'https://www.apache.org/licenses/LICENSE-2.0',
+      codeRepository: 'https://github.com/sujaisubbanna/utter-assistant',
+      downloadUrl: 'https://github.com/sujaisubbanna/utter-assistant/releases',
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    }
+  : isArticle
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'TechArticle',
+        headline: entry.data.title,
+        description,
+        inLanguage: contentLang,
+        url: canonical.href,
+        mainEntityOfPage: canonical.href,
+        isPartOf: { '@type': 'WebSite', name: siteTitle, url: siteRoot.href },
+        license: 'https://www.apache.org/licenses/LICENSE-2.0',
+        publisher: { '@type': 'Organization', name: 'Utter', url: siteRoot.href },
+      }
+    : undefined;
+---
+
+<Default />
+{
+  jsonLd !== undefined && (
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  )
+}

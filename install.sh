@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # utter bootstrap installer — interactive step-by-step wizard + curl | bash.
 #
-#   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
-#   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+#   curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
+#   curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
 #
 # In a terminal this is an interactive wizard: it walks every component and asks
 # whether you want it (showing what it is, its size, whether sudo is needed, and
@@ -70,8 +70,8 @@ usage() {
     cat <<'USAGE'
 utter bootstrap installer — interactive step-by-step wizard + curl | bash.
 
-  curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
-  curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+  curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
+  curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
 
 In a terminal this is an interactive wizard: it walks every component and asks
 whether you want it (showing what it is, its size, whether sudo is needed, and

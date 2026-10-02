@@ -313,8 +313,9 @@ real target.
   app (`gui/`) was removed.
 - **Packaging / CI ✅** (reconciled): `.github/workflows/release.yml` builds **AppImage + deb
   + rpm** from `gui-tauri/` on `ubuntu-24.04` plus `utter-core-<ver>.tar.gz`
-  (+ `sha256sums.txt`) and attaches them to the Release; `.github/workflows/pages.yml`
-  publishes `install.sh` for `curl … | bash`. Artifacts:
+  (+ `sha256sums.txt`) and attaches them to the Release; the docs site is a static Vercel
+  deployment (`vercel.json` → `website/dist`) that also serves
+  `install.sh` for `curl … | bash`. Artifacts:
   `utter-gui_<ver>_amd64.AppImage`, `utter-gui_<ver>_amd64.deb`,
   `utter-gui-<ver>-1.x86_64.rpm`, `utter-core-<ver>.tar.gz`, `sha256sums.txt`.
 - **Installer ✅** (reconciled): `install.sh` is an **interactive step-by-step wizard** —

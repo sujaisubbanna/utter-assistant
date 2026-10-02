@@ -1,5 +1,5 @@
-# Utter docs — https://utter-assistant.vercel.app/
+# Utter docs — https://utter.sujaisubbanna.com/
 User-agent: *
 Allow: /
 
-Sitemap: https://utter-assistant.vercel.app/sitemap-index.xml
+Sitemap: https://utter.sujaisubbanna.com/sitemap-index.xml

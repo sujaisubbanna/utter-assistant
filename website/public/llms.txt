@@ -1,0 +1,64 @@
+# Utter
+
+> Utter is a local, context-aware voice-to-desktop-action assistant for Linux
+> (Wayland; niri and KDE Plasma first-class) with an experimental macOS port.
+> It turns spoken commands into desktop actions. Speech recognition, the
+> decision and vision models and the screenshots run locally: no account, no
+> telemetry, offline by default.
+
+Canonical site: https://utter.sujaisubbanna.com/
+Source: https://github.com/sujaisubbanna/utter-assistant
+License: Apache-2.0
+Languages: English (default), Spanish, German, Japanese (machine-drafted docs);
+the settings app and installer ship 10 UI locales.
+
+## Start here
+
+- [Introduction](https://utter.sujaisubbanna.com/introduction/): what Utter is, the rules-first design, and how it decides what to do.
+- [Getting started](https://utter.sujaisubbanna.com/getting-started/): the two push-to-talk keys, picking a first model, the two modes and sleep mode.
+- [Demo](https://utter.sujaisubbanna.com/demo/): a 47-second hands-free clip.
+
+## Install
+
+- [Install overview](https://utter.sujaisubbanna.com/install/): the three ways to install on Linux.
+- [Install from the web](https://utter.sujaisubbanna.com/install/remote/): the one-line installer, every flag and environment variable.
+- [Clone and build from source](https://utter.sujaisubbanna.com/install/from-source/): the developer installer, systemd user services and building the settings app.
+- Hosted installer: https://utter.sujaisubbanna.com/install.sh
+
+## Guides
+
+- [Configuration](https://utter.sujaisubbanna.com/guides/configuration/): every knob in ~/.config/utter/config.toml.
+- [Apps and actions](https://utter.sujaisubbanna.com/guides/apps-and-actions/): how spoken commands become desktop actions and app profiles.
+- [Models](https://utter.sujaisubbanna.com/guides/models/): the model store and recommendations per GPU class.
+- [Trust and safety](https://utter.sujaisubbanna.com/guides/trust-and-safety/): provenance tagging, confirmation and permissions.
+- [Theming](https://utter.sujaisubbanna.com/guides/theming/): matugen (Material You) palette integration.
+- [Noctalia widget and OSD](https://utter.sujaisubbanna.com/guides/noctalia/): the optional bar widget and on-screen display.
+- [KDE Plasma](https://utter.sujaisubbanna.com/guides/kde-plasma/): the KWin/Wayland backend.
+- [macOS (experimental)](https://utter.sujaisubbanna.com/guides/macos/): native speech, Quartz push-to-talk and injection.
+
+## Plugins
+
+- [Plugin protocol](https://utter.sujaisubbanna.com/plugins/): JSON-RPC framing, handshake, manifests, capabilities and streams.
+- [Writing a plugin](https://utter.sujaisubbanna.com/plugins/writing-a-plugin/): a worked minimal plugin in Python and Rust.
+
+## Help
+
+- [Troubleshooting](https://utter.sujaisubbanna.com/help/troubleshooting/): fixes for common problems.
+- [FAQ](https://utter.sujaisubbanna.com/help/faq/): short answers to common questions.
+
+## Reference
+
+- [Architecture](https://utter.sujaisubbanna.com/reference/architecture/): runner, protocol, plugin taxonomy and trust boundaries.
+- [The utter CLI (agents)](https://utter.sujaisubbanna.com/reference/cli-agent/): drive Utter from the command line with a stable JSON contract.
+- [The assistant CLI](https://utter.sujaisubbanna.com/reference/cli-assistant/): doctor, recommend, models, status and install-state.
+- [Releasing](https://utter.sujaisubbanna.com/reference/releasing/): how releases, the installer and this site are built and published.
+
+## Translations (machine-drafted, unreviewed)
+
+- Spanish: https://utter.sujaisubbanna.com/es/
+- German: https://utter.sujaisubbanna.com/de/
+- Japanese: https://utter.sujaisubbanna.com/ja/
+
+Pages without a translation fall back to English under the locale prefix (for
+example https://utter.sujaisubbanna.com/de/guides/configuration/ serves the
+English page with a notice).

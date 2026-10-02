@@ -21,7 +21,7 @@ Download the script, make it executable, and run it. This is the recommended for
 real terminal, so the **interactive wizard** can ask you about each component.
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
+curl -fsSL https://utter.sujaisubbanna.com/install.sh -o install.sh
 chmod +x install.sh
 ./install.sh
 ```
@@ -40,19 +40,19 @@ anything**. Use this form only when you pass flags explicitly.
 
 ```bash
 # accept all recommended defaults, no prompts
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
 
 # only install the core and the GUI; skip everything else
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --only core,gui --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --only core,gui --yes
 
 # install everything recommended but the models, and change nothing (preview)
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --skip models --dry-run
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --skip models --dry-run
 
 # native package (deb/rpm) via the system package manager (needs sudo)
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --package --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --package --yes
 
 # include the optional Noctalia widget
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --with-noctalia
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --with-noctalia
 ```
 
 If you would rather read the script first, it is the same file as `install.sh` at the root of
@@ -150,7 +150,7 @@ summary with next steps.
 Install a specific version into a custom prefix, non-interactively:
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh \
+curl -fsSL https://utter.sujaisubbanna.com/install.sh \
   | UTTER_VERSION=v0.1.0 PREFIX="$HOME/opt/utter" bash -s -- --yes
 ```
 
@@ -185,10 +185,10 @@ The Python core is always installed per-user (no sudo) regardless of mode.
 
 ```bash
 # interactive menu of installed components
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --uninstall
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --uninstall
 
 # remove everything that was installed (keeps your config and models)
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --uninstall --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --uninstall --yes
 ```
 
 `--uninstall` lists the components recorded in the per-component install state and lets you
