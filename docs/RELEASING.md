@@ -60,19 +60,20 @@ installer (`install.sh`) resolves these names from the release tag.
   `$PREFIX/share/utter`.
 - **Checksums**: `sha256sums.txt` covering every asset.
 
-## Hosted installer (Pages)
+## Hosted installer (Vercel)
 
-`.github/workflows/pages.yml` publishes `install.sh` (and a small `index.html`)
-to GitHub Pages on every push to `main` that touches `install.sh`. Enable Pages
-once in **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-After that:
+The documentation site is a static Astro build deployed to **Vercel** at
+`https://utter.sujaisubbanna.com/`, together with the bootstrap installer. The
+root `vercel.json` runs `cd website && corepack pnpm@10.0.0 build` and serves
+`website/dist`; a build step copies `install.sh` into that output so it is
+served from the site root. GitHub Pages is retired. After deploying:
 
 ```bash
 # interactive wizard in a terminal
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
 
 # non-interactive: accept all recommended defaults
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
 ```
 
 The installer is a step-by-step wizard that offers each component (system deps,

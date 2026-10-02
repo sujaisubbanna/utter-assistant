@@ -51,7 +51,7 @@ does step by step, are in [Clone and build from source](/install/from-source/).
 No clone needed:
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
 ```
 
 :::note[A bare pipe changes nothing]
@@ -62,13 +62,13 @@ any other flag:
 
 ```bash
 # recommended defaults, no prompts
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
 
 # native package (.deb/.rpm) through your package manager instead of the AppImage (needs sudo)
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --package --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --package --yes
 
 # only these components
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --only core,gui --yes
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --only core,gui --yes
 ```
 
 Other flags: `--skip <csv>`, `--with-noctalia`, `--dry-run`, `--uninstall`. The full flag and

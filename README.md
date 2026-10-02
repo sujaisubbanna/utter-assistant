@@ -20,7 +20,7 @@
 
 <a href="https://www.producthunt.com/products/utter-offline-personal-assistant?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-utter-offline-personal-assistant" target="_blank" rel="noopener noreferrer"><img alt="Utter — Offline personal assistant - Hold a key, say it — your desktop does it. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1266975&theme=dark" /></a>
 
-**[Documentation](https://sujaisubbanna.github.io/utter-assistant/)** · [Install](#install) · [CLI](docs/CLI.md) · [Roadmap](#roadmap) · [Changelog](CHANGELOG.md)
+**[Documentation](https://utter.sujaisubbanna.com/)** · [Install](#install) · [CLI](docs/CLI.md) · [Roadmap](#roadmap) · [Changelog](CHANGELOG.md)
 
 <img src="docs/media/settings-tour.gif" alt="A tour of the Utter settings app" width="820">
 <br>
@@ -71,7 +71,7 @@ Whisper model (`small`, `large-v3-turbo`, …) and TTS voice. Non-English with a
 ## Demo
 
 <div align="center">
-  <a href="https://sujaisubbanna.github.io/utter-assistant/demo/"><img src="docs/media/utter-demo-poster.png" alt="Watch the Utter demo: opening YouTube, searching by dictation and playing a video, hands-free" width="820"></a>
+  <a href="https://utter.sujaisubbanna.com/demo/"><img src="docs/media/utter-demo-poster.png" alt="Watch the Utter demo: opening YouTube, searching by dictation and playing a video, hands-free" width="820"></a>
   <br>
   <sub><b>Watch the demo</b> (47 s): “Open YouTube” → “Click the search box” → <i>dictate</i> “Rick Astley, never gonna give you up” → “Press enter” → “Click the first video”. No hands.</sub>
 </div>
@@ -80,12 +80,12 @@ Whisper model (`small`, `large-v3-turbo`, …) and TTS voice. Non-English with a
 
 1. Run the installer. A real terminal lets the wizard ask about each component:
    ```bash
-   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh
+   curl -fsSL https://utter.sujaisubbanna.com/install.sh -o install.sh
    chmod +x install.sh && ./install.sh
    ```
 2. Or install with the recommended defaults, no prompts:
    ```bash
-   curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash -s -- --yes
+   curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
    ```
 3. Open the settings app, set your push-to-talk keys on the **Voice** page, and pick a model on the **Models** page. Full walkthrough: [docs/INSTALL.md](docs/INSTALL.md).
 
@@ -128,7 +128,7 @@ A tiny **runner** supervises swappable **plugins** over one versioned protocol. 
 Linux on Wayland — niri and KDE Plasma first-class — plus PipeWire and Python 3.12+. macOS is experimental and untested on real hardware. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
 
 - **Clone:** `git clone https://github.com/sujaisubbanna/utter-assistant.git && cd utter-assistant && ./install.sh` (`--dry-run` previews). Minimal package install: `install/install.sh --yes`; undo with `install/uninstall.sh --yes`.
-- **Remote:** `curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
+- **Remote:** `curl -fsSL https://utter.sujaisubbanna.com/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
 - **Source:** the runner core is stdlib-only Python; the assistant adds a few optional runtime deps (numpy, PyYAML, requests). The settings app is Tauri v2 + React + Tailwind CSS v4 — build it with `pnpm install && pnpm tauri build` in `gui-tauri/`. Run `scripts/verify.sh` for the test suites.
 
 ## Configure
@@ -163,7 +163,7 @@ Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and an experimental 
 
 ## Documentation
 
-Full documentation: **[sujaisubbanna.github.io/utter-assistant](https://sujaisubbanna.github.io/utter-assistant/)** (built from `website/` with Astro Starlight). The in-repo Markdown sources:
+Full documentation: **[utter.sujaisubbanna.com](https://utter.sujaisubbanna.com/)** (built from `website/` with Astro Starlight). The in-repo Markdown sources:
 
 | Doc | What's inside |
 |---|---|

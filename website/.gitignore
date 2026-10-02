@@ -2,6 +2,10 @@
 dist/
 # demo media copied in at build time (the repo keeps one copy in docs/media)
 public/media/
+# hosted installer staged at build time (the repo keeps install.sh at the root)
+public/install.sh
+# full-docs export generated at build time (public/llms.txt is hand-written)
+public/llms-full.txt
 # generated types
 .astro/
 # dependencies

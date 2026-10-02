@@ -1,0 +1,105 @@
+---
+title: "Utter"
+description: "Utter は Linux と macOS(ベータ)で音声をアクションに変えます。キーを押しながら話すだけで実行されます。ローカル、オフライン、プライベート。"
+template: splash
+banner:
+  content: '未レビューの機械翻訳です。<a href="https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRANSLATING.md">翻訳への協力方法</a>。'
+hero:
+  title: あなたの声を、デスクトップのアクションに。
+  tagline: キーを押しながら話すだけで、Utter が実行します。ハンズフリー、プライベート、完全オフライン。
+  image:
+    light: ../../../assets/utter-mark-light.svg
+    dark: ../../../assets/utter-mark-dark.svg
+    alt: Utter のマーク、様式化された 2 つの引用符
+  actions:
+    - text: インストール
+      link: install/
+      icon: right-arrow
+      variant: primary
+    - text: はじめかた
+      link: getting-started/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/sujaisubbanna/utter-assistant
+      icon: github
+      variant: minimal
+    - text: リリース
+      link: https://github.com/sujaisubbanna/utter-assistant/releases
+      icon: download
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import generalDark from '../../../assets/general-dark.png';
+import generalLight from '../../../assets/general-light.png';
+
+<div class="install-box">
+
+```bash
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
+```
+
+<p style="text-align:center; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); margin-top: 0.75rem">
+  ターミナルでは対話形式のウィザードが開きます。<code>--yes</code> なしでパイプすると、計画を表示するだけで何も変更しません。Linux on Wayland、x86_64。
+</p>
+
+</div>
+
+<div class="product-hunt">
+  <a href="https://www.producthunt.com/products/utter-offline-personal-assistant?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-utter-offline-personal-assistant" target="_blank" rel="noopener noreferrer"><img alt="Utter — Offline personal assistant - Hold a key, say it — your desktop does it. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1266975&theme=dark" /></a>
+</div>
+
+<div class="utter-strip">
+  <div>
+    <strong>プッシュトゥトーク</strong>
+    <p>アシスタントキーを押しながら話すか、ディクテーションキーを押しながら話せば、任意のフィールドに入力できます。</p>
+  </div>
+  <div>
+    <strong>デスクトップアクション</strong>
+    <p>アプリや Web サイトを開き、ウィンドウをフォーカス・閉じ、ワークスペースを切り替え、メディアを操作し、アプリのショートカットを押します。</p>
+  </div>
+  <div>
+    <strong>ルール優先</strong>
+    <p>ほとんどのコマンドは高速で予測可能なルールに一致します。小さなローカルモデルは用意されたアクションの中から選ぶだけです。コマンドを作り出すことはありません。</p>
+  </div>
+  <div>
+    <strong>オフライン</strong>
+    <p>音声認識、AI モデル、スクリーンショットはすべてお使いのマシン内に留まります。アカウントもテレメトリもありません。</p>
+  </div>
+  <div>
+    <strong>GPU を解放</strong>
+    <p>「go to sleep」と言うか、しばらく使わないでおくとモデルがアンロードされます。キーを押し続ければ一瞬で復帰します。</p>
+  </div>
+</div>
+
+<CardGrid>
+  <Card title="2 つのモード、2 つのキー" icon="seti:audio">
+    **アシスタントキー**(既定は Insert)を押しながら話すとコマンドを実行します。**ディクテーションキー**(既定は F13)を押しながら話すと入力します。各モードには独自のサウンドと波形の色があります。
+  </Card>
+  <Card title="コンテキストを理解" icon="laptop">
+    Utter はどのアプリがフォーカスされ、画面に何があるかを把握します。まずアクセシビリティ情報を使い、最後の手段としてのみスクリーンショットを撮ります。
+  </Card>
+  <Card title="編集できるアプリ別アクション" icon="pen">
+    ショートカット付きの 100 以上のアプリプロファイル。設定アプリまたは YAML ファイルから任意のキーの組み合わせを変更できます。
+  </Card>
+  <Card title="既定で安全" icon="approve-check">
+    ターミナルコマンドと生の入力は、有効にするまでオフのままです。重要なアクションは先に確認します。画面のテキストはアクションを選択できますが、作成はできません。
+  </Card>
+</CardGrid>
+
+<div class="screens">
+  <Image src={generalDark} alt="Utter 設定アプリ、一般ページ、ダークテーマ" />
+  <Image src={generalLight} alt="Utter 設定アプリ、一般ページ、ライトテーマ" />
+</div>
+
+<CardGrid>
+  <LinkCard title="はじめに" description="Utter とは何か、どのように動作を決めるか。" href="/introduction/" />
+  <LinkCard title="設定" description="ホットキー、音声、AI とビジョンのモデル、オーディオ、プロファイル。" href="/guides/configuration/" />
+  <LinkCard title="信頼と安全性" description="出所、確認、危険なアクション、権限。" href="/guides/trust-and-safety/" />
+  <LinkCard title="プラグインの書き方" description="Python または Rust から JSON-RPC プロトコルを話す。" href="/plugins/writing-a-plugin/" />
+</CardGrid>
+
+<p style="text-align:center; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); margin-top: 3rem">
+  AI コーディングアシスタントとともに作られ、人間がレビューしています。重要なことを任せる前にコードを読み、おかしいと思った点は報告してください。Apache-2.0。
+</p>

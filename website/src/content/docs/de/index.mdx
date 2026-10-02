@@ -1,0 +1,105 @@
+---
+title: "Utter"
+description: "Utter macht aus deiner Stimme Aktionen unter Linux und macOS (Beta). Halte eine Taste gedrückt, sag, was du willst, und es passiert. Lokal, offline und privat."
+template: splash
+banner:
+  content: 'Maschinell übersetzt, nicht geprüft. <a href="https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRANSLATING.md">So hilfst du bei der Übersetzung</a>.'
+hero:
+  title: Deine Stimme, in Aktionen auf deinem Desktop verwandelt.
+  tagline: Halte eine Taste gedrückt, sag, was du willst, und Utter erledigt es. Freihändig, privat und völlig offline.
+  image:
+    light: ../../../assets/utter-mark-light.svg
+    dark: ../../../assets/utter-mark-dark.svg
+    alt: Die Utter-Marke, zwei stilisierte Anführungszeichen
+  actions:
+    - text: Installieren
+      link: install/
+      icon: right-arrow
+      variant: primary
+    - text: Erste Schritte
+      link: getting-started/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/sujaisubbanna/utter-assistant
+      icon: github
+      variant: minimal
+    - text: Releases
+      link: https://github.com/sujaisubbanna/utter-assistant/releases
+      icon: download
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import generalDark from '../../../assets/general-dark.png';
+import generalLight from '../../../assets/general-light.png';
+
+<div class="install-box">
+
+```bash
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
+```
+
+<p style="text-align:center; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); margin-top: 0.75rem">
+  In einem Terminal öffnet dies einen interaktiven Assistenten. Ohne <code>--yes</code> weitergeleitet, gibt er nur den Plan aus und ändert nichts. Linux unter Wayland, x86_64.
+</p>
+
+</div>
+
+<div class="product-hunt">
+  <a href="https://www.producthunt.com/products/utter-offline-personal-assistant?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-utter-offline-personal-assistant" target="_blank" rel="noopener noreferrer"><img alt="Utter — Offline personal assistant - Hold a key, say it — your desktop does it. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1266975&theme=dark" /></a>
+</div>
+
+<div class="utter-strip">
+  <div>
+    <strong>Push-to-Talk</strong>
+    <p>Halte die Assistenten-Taste gedrückt und sprich, oder halte die Diktat-Taste gedrückt, um Gesagtes in ein beliebiges Feld zu tippen.</p>
+  </div>
+  <div>
+    <strong>Desktop-Aktionen</strong>
+    <p>Apps und Websites öffnen, Fenster fokussieren und schließen, Arbeitsbereiche wechseln, Medien steuern, App-Kürzel drücken.</p>
+  </div>
+  <div>
+    <strong>Regeln zuerst</strong>
+    <p>Die meisten Befehle passen zu schnellen, vorhersehbaren Regeln. Ein kleines lokales Modell wählt nur unter vorbereiteten Aktionen aus. Es erfindet nie Befehle.</p>
+  </div>
+  <div>
+    <strong>Offline</strong>
+    <p>Spracherkennung, KI-Modelle und Screenshots bleiben auf deinem Rechner. Kein Konto, keine Telemetrie.</p>
+  </div>
+  <div>
+    <strong>Gibt deine GPU frei</strong>
+    <p>Sag „go to sleep“ oder benutze ihn eine Weile nicht, und die Modelle werden entladen. Halte eine Taste gedrückt, um ihn im Bruchteil einer Sekunde zu wecken.</p>
+  </div>
+</div>
+
+<CardGrid>
+  <Card title="Zwei Modi, zwei Tasten" icon="seti:audio">
+    Halte die **Assistenten-Taste** (standardmäßig Insert) gedrückt, um einen Befehl auszuführen. Halte die **Diktat-Taste** (standardmäßig F13) gedrückt, um Gesagtes zu tippen. Jeder Modus hat seinen eigenen Klang und seine eigene Wellenfarbe.
+  </Card>
+  <Card title="Versteht Kontext" icon="laptop">
+    Utter weiß, welche App fokussiert ist und was auf dem Bildschirm zu sehen ist. Es nutzt zuerst Barrierefreiheitsinformationen und macht nur als letzten Ausweg einen Screenshot.
+  </Card>
+  <Card title="Pro-App-Aktionen, die du bearbeiten kannst" icon="pen">
+    Über 100 App-Profile mit ihren Kürzeln. Ändere jede Tastenkombination in der Einstellungs-App oder in einer YAML-Datei.
+  </Card>
+  <Card title="Standardmäßig sicher" icon="approve-check">
+    Terminalbefehle und Roheingabe bleiben aus, bis du sie einschaltest. Wichtige Aktionen fragen zuerst. Bildschirmtext kann eine Aktion auswählen, aber niemals verfassen.
+  </Card>
+</CardGrid>
+
+<div class="screens">
+  <Image src={generalDark} alt="Die Utter-Einstellungs-App, Seite Allgemein, dunkles Design" />
+  <Image src={generalLight} alt="Die Utter-Einstellungs-App, Seite Allgemein, helles Design" />
+</div>
+
+<CardGrid>
+  <LinkCard title="Einführung" description="Was Utter ist und wie es entscheidet, was zu tun ist." href="/introduction/" />
+  <LinkCard title="Konfiguration" description="Tastenkürzel, Sprache, KI- und Vision-Modelle, Audio, Profile." href="/guides/configuration/" />
+  <LinkCard title="Vertrauen und Sicherheit" description="Herkunft, Bestätigungen, gefährliche Aktionen und Berechtigungen." href="/guides/trust-and-safety/" />
+  <LinkCard title="Ein Plugin schreiben" description="Sprich das JSON-RPC-Protokoll aus Python oder Rust." href="/plugins/writing-a-plugin/" />
+</CardGrid>
+
+<p style="text-align:center; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); margin-top: 3rem">
+  Mit KI-Programmierassistenten erstellt und von einem Menschen geprüft. Lies den Code, bevor du ihm etwas Wichtiges anvertraust, und melde alles, was falsch aussieht. Apache-2.0.
+</p>

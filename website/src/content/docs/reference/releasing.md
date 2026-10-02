@@ -54,20 +54,19 @@ the release tag, so the installer flags can change without touching the release 
 
 ## The hosted installer and this site
 
-The `pages` workflow builds this documentation site and publishes it to GitHub Pages together
-with the bootstrap installer. The installer keeps its stable address, so the one-liner never
-changes:
+The site is a static Astro build deployed to **Vercel** at
+`https://utter.sujaisubbanna.com/`, together with the bootstrap installer. The
+installer keeps its stable address, so the one-liner never changes:
 
 ```bash
-curl -fsSL https://sujaisubbanna.github.io/utter-assistant/install.sh | bash
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
 ```
 
-The workflow runs on every push to `main` that touches `install.sh`, the site under `website/`,
-or the workflow itself, and can be run by hand. It installs the pinned pnpm version from the
-site's `package.json`, restores the pnpm store cache, runs `pnpm install --frozen-lockfile` and
-`pnpm build`, copies `install.sh` into the build output, and deploys with the official Pages
-actions. Pages has to be enabled once in **Settings → Pages → Build and deployment → Source:
-GitHub Actions**.
+Vercel is configured by the root `vercel.json`: `cd website && corepack
+pnpm@10.0.0 build`, output `website/dist`. The build copies `install.sh` into
+the build output so it is served from the site root; the old GitHub Pages
+`/utter-assistant/*` paths redirect to the new root. Deployments happen on push
+to `main`, or with `vercel --prod` by hand. (GitHub Pages is retired.)
 
 To work on the site locally:
 
