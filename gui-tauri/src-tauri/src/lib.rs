@@ -57,6 +57,10 @@ fn locate_python(repo: &Path) -> String {
         repo.join(".venv-agent/bin/python"),
         repo.join(".venv-macos/bin/python"),
         repo.join(".venv/bin/python"),
+        // macOS self-install layout: <root>/core is the repo, <root>/python
+        // is the relocatable interpreter (see scripts/build-macos-runtime.sh).
+        repo.join("../python/bin/python3"),
+        repo.join("python/bin/python3"),
     ] {
         if candidate.exists() {
             return candidate.to_string_lossy().into_owned();
@@ -100,14 +104,14 @@ fn theme_path() -> PathBuf {
 
 /// Headless supervisor used by the launchd agents (see main.rs).
 pub fn supervise(mode: &str) -> i32 {
-    let mut repo = locate_repo();
-    let mut python = locate_python(&repo);
-    if std::env::var("UTTER_REPO").is_err() {
-        if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
-            repo = core;
-            python = runtime_python;
-        }
+    // On macOS the unpacked runtime is the blessed interpreter: it is a
+    // relocatable CPython with all deps, while $PATH python3 may be Apple's
+    // stub (3.9, no tomllib). Prefer it whenever it exists.
+    if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
+        return macos_setup::supervise_python(mode, &core, &runtime_python);
     }
+    let repo = locate_repo();
+    let python = locate_python(&repo);
     macos_setup::supervise_python(mode, &repo, &python)
 }
 
