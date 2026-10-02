@@ -5,6 +5,54 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-02
+
+### Added
+- **Multilingual speech.** The spoken language for speech-to-text and spoken
+  replies is now a setting, independent of the settings-app UI language. It
+  resolves `auto` from the system locale (`LC_ALL`/`LC_MESSAGES`/`LANG`) and is
+  threaded through both Whisper backends and the macOS `SFSpeechRecognizer`
+  locale. Configuring a non-English language with an English-only (`.en`) model
+  logs a clear warning instead of silently transcribing the wrong language.
+- **Linux text-to-speech.** Spoken replies now work off macOS: espeak-ng,
+  espeak or speech-dispatcher (`spd-say`) are used when present, honouring
+  `[tts] enabled`, `engine`, `language` and `voice`. No new dependency, and no
+  engine means a silent no-op, never a crash.
+- **Localization.** The settings app ships 10 locales (en, es, de, fr, it, pt,
+  zh, ja, ko, ru) and the installer gained a locale-file layer with the same
+  set. English is the only inline locale; every other language is an opt-in
+  download chosen during install or from settings — nothing is auto-downloaded.
+  Translations are machine-drafted and unreviewed for now.
+- **Crowdin integration (build-time only).** Sources are exported to JSON,
+  translators work in Crowdin, and `scripts/i18n_crowdin.py` turns the results
+  back into the shipped locale files. Crowdin is never a runtime dependency and
+  the app never contacts it.
+- **Installer language step** and a set of **installer UI upgrades**: an amber
+  gradient wordmark, a short animated reveal, and a live per-component task
+  list. Everything degrades to plain ASCII with no escape codes when piped,
+  under `NO_COLOR`/`TERM=dumb`, or with `--yes`/`--dry-run`.
+- **Target any app by name**: `<app> type …`, `<app> press …`, `<app> pause`
+  and `close <app>` act on a named app instead of the focused window. On
+  Wayland this is a brief focus round-trip (measured ~38 ms same-workspace);
+  macOS posts keys to the target process directly. Displayed on the Safety page
+  with platform-appropriate options.
+
+### Changed
+- **The Vocalinux bridge was removed.** Utter is self-sufficient: its own evdev
+  push-to-talk, local microphone capture and Whisper. The optional waveform
+  (OSD) is now driven directly by the native voice loop.
+- Docs, README and the docs site updated throughout (multilingual, what Utter
+  stores, app targeting, VRAM/latency).
+
+### Fixed
+- The settings app no longer renders a black window when built with a bare
+  `cargo build`; the launcher and docs use `pnpm tauri build`, which embeds the
+  frontend.
+- `assistant doctor`/`status` explain a missing runner socket and how to start
+  it instead of leaking `[Errno 2] No such file or directory`.
+- Several already-merged features verified and hardened: runner op registration,
+  macOS `CGEventPostToPid` background input, and installer dependency fixes.
+
 ## [0.1.11] - 2026-10-01
 
 ### Internal
