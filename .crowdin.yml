@@ -1,0 +1,42 @@
+# Crowdin configuration — build-time localization only.
+#
+# Crowdin is NOT a runtime dependency. Translators work in Crowdin; finished
+# translations are exported into this repo as `gui-tauri/src/i18n/<lang>.ts`
+# (usually via a pull request). The app bundles whatever locale files are
+# committed here. See docs/TRANSLATING.md.
+#
+# Setup: create a Crowdin project for the utter repo, then set the repository
+# secrets CROWDIN_PROJECT_ID and CROWDIN_PERSONAL_TOKEN (see
+# .github/workflows/crowdin.yml). Without those secrets the sync workflow is a
+# no-op.
+
+project_id_env: CROWDIN_PROJECT_ID
+api_token_env: CROWDIN_PERSONAL_TOKEN
+
+preserve_hierarchy: true
+
+files:
+  # Source of truth: the English settings-app UI strings.
+  - source: /gui-tauri/src/i18n/en.ts
+    translation: /gui-tauri/src/i18n/%two_letters_code%.ts
+    # The .ts modules are plain `export const xx: Messages = {…}` objects, so
+    # they are parsed as TypeScript rather than raw JSON. Keep `en.ts` as the
+    # source of truth so keys stay typed against it.
+    type: ts
+    languages_mapping:
+      two_letters_code:
+        zh-CN: zh
+        zh-TW: zh
+        pt-BR: pt
+        pt-PT: pt
+
+  # Installer strings: keyed by their exact English message.
+  - source: /install/i18n/en.sh
+    translation: /install/i18n/%two_letters_code%.sh
+    type: ts
+    languages_mapping:
+      two_letters_code:
+        zh-CN: zh
+        zh-TW: zh
+        pt-BR: pt
+        pt-PT: pt
