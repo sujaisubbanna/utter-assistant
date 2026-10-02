@@ -1,5 +1,7 @@
 .venv
 .venv-agent
+.venv-macos
+*.egg-info/
 models/
 __pycache__/
 *.pyc
