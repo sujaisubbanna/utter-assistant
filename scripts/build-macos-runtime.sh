@@ -69,7 +69,11 @@ echo "resolving python-build-standalone ($PY_SERIES, $PBS_ARCH)"
 API="https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
 AUTH=()
 [[ -n "${GITHUB_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
-PBS_URL="$(curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" "$API" \
+# bash 3.2 (macOS system bash) + `set -u`: expanding an empty array with
+# "${AUTH[@]}" errors as unbound, so expand conditionally.
+AUTH_EXPAND=()
+[[ ${#AUTH[@]} -gt 0 ]] && AUTH_EXPAND=("${AUTH[@]}")
+PBS_URL="$(curl -fsSL ${AUTH_EXPAND[@]+"${AUTH_EXPAND[@]}"} -H "Accept: application/vnd.github+json" "$API" \
     | python3 -c "
 import json, sys
 series, arch = sys.argv[1], sys.argv[2]
