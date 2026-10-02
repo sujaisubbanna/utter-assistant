@@ -438,7 +438,7 @@ def _comfy(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Op
 
 
 def _open(utterance: str, t: str, raw: str, ctx: Context, profiles: dict):
-    m = re.match(r"^(?:open|go to|navigate to|visit)\s+(.+)$", raw, re.I)
+    m = re.match(r"^(?:open|go to|navigate to|visit)\s+(.+)$", t)
     if not m:
         return None
     target = m.group(1).strip()
@@ -511,6 +511,7 @@ def _search(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> O
     m = re.match(r"^(?:search|look up)\s+(.+?)\s+for\s+(.+)$", raw, re.I)
     if m and m.group(1).strip().lower() in SITE_SEARCH:
         site, q = m.group(1).strip().lower(), m.group(2).strip()
+        q = re.sub(r"[.!?]+$", "", q).strip()
         return _make_plan(utterance, [Step(Action.OPEN_URL,
                                           {"url": SITE_SEARCH[site].format(q=q.replace(' ', '+'))},
                                           tier=Tier.APP, description=f"search {site} for {q}")])
@@ -519,6 +520,7 @@ def _search(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> O
     m = re.match(r"^(?:search(?: the web)?|google|look up)\s+(?:for\s+)?(.+)$", raw, re.I)
     if m:
         q = re.sub(r"^(?:for|about)\s+", "", m.group(1).strip(), flags=re.I)
+        q = re.sub(r"[.!?]+$", "", q).strip()
         if browser:
             prof = profiles.get(ctx.focused_app)
             search_url = getattr(prof, "search_url", None) if prof else None

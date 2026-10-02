@@ -83,6 +83,53 @@ def _pcm16_source(chunks, lock):
     return source
 
 
+class _NativeOverlay:
+    """System-wide overlay facade (macOS native panel; no-op elsewhere).
+
+    Same rule as the Linux panel: assistant lane only. Every method is safe
+    to call from any thread and never raises.
+    """
+
+    def __init__(self) -> None:
+        self._ov = None
+        try:
+            from . import platform
+            if not platform.is_macos():
+                return
+            from .macos.overlay import Overlay
+            self._ov = Overlay()
+        except Exception:
+            self._ov = None
+
+    def _call(self, method: str, *args) -> None:
+        ov = self._ov
+        if ov is None:
+            return
+        try:
+            getattr(ov, method)(*args)
+        except Exception:
+            pass
+
+    def listening(self, text: str = "") -> None:
+        self._call("listening", text)
+
+    def level(self, value: float) -> None:
+        self._call("level", value)
+
+    def final(self, text: str, ok: bool, dismiss_ms: int = 1200) -> None:
+        self._call("final", text, ok, dismiss_ms)
+
+    def idle(self) -> None:
+        self._call("idle")
+
+
+def _osd_dismiss_ms(cfg) -> int:
+    try:
+        return int(getattr(getattr(cfg, "osd", None), "dismiss_ms", 1200))
+    except (TypeError, ValueError):
+        return 1200
+
+
 class _Osd:
     """Best-effort OSD driver for the native voice lanes.
 
@@ -410,6 +457,10 @@ class Utter:
         osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock))
         osd.begin_loading()
         osd.watch_sleep(sleeper)
+        # Native system-wide overlay (macOS twin of the Linux Noctalia panel):
+        # assistant lane only, driven directly (no file polling).
+        native = _NativeOverlay()
+        dismiss_ms = _osd_dismiss_ms(self.cfg)
 
         def start(mode: str) -> None:
             with rec_lock:
@@ -421,7 +472,10 @@ class Utter:
                 def cb(indata, frames, t, status):
                     with rec_lock:
                         session["chunks"].append(indata.copy())
-                    osd.level(_rms(indata))
+                    level = _rms(indata)
+                    osd.level(level)
+                    if mode == "assistant":
+                        native.level(level)
                 stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
                                         channels=self.cfg.audio.channels, dtype="float32",
                                         device=(self.cfg.audio.device or None), callback=cb)
@@ -433,6 +487,8 @@ class Utter:
                 _play("wake")
             _play("dictate" if mode == "dictation" else "start")
             osd.listening("dictation" if mode == "dictation" else "assistant")
+            if mode == "assistant":
+                native.listening()
             log.info("PTT down (%s) - listening", mode)
 
         def stop(mode: str) -> None:
@@ -448,17 +504,23 @@ class Utter:
                 if audio.size < self.cfg.audio.sample_rate * 0.2:
                     log.info("too short, ignoring")
                     osd.idle()
+                    if mode == "assistant":
+                        native.idle()
                     return
                 try:
                     text = stt.transcribe(audio)
                 except Exception as e:  # noqa: BLE001
                     log.error("transcription failed: %s", e)
                     osd.idle()
+                    if mode == "assistant":
+                        native.idle()
                     _notify(f"Transcription failed: {e}", mc)
                     return
                 log.info("transcript (%s): %r", mode, text)
                 if not text:
                     osd.idle()
+                    if mode == "assistant":
+                        native.idle()
                     return
                 if mode == "dictation":
                     from .actions import keyboard
@@ -478,8 +540,12 @@ class Utter:
                     ok = self.handle_utterance(text)
                 except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                     osd.idle()
+                    if mode == "assistant":
+                        native.idle()
                     raise
                 osd.final(text, bool(ok))
+                if mode == "assistant":
+                    native.final(text, bool(ok), dismiss_ms)
             finally:
                 idle.end("listen")
 
