@@ -12,6 +12,12 @@ install/install.sh --yes         # actually install deps + enable the runner uni
 install/install.sh --yes --no-deps   # skip distro packages, only wire the service
 ```
 
+**Agent-driven install.** Any of these can also be driven by an AI coding agent: point it at
+[`INSTALL-AGENT.md`](INSTALL-AGENT.md) (also on the site as
+[Agent-driven install](https://utter.sujaisubbanna.com/install/agent/)). It is a self-contained
+runbook — platform detection, install, verification, macOS permissions, first run, uninstall —
+with no prior repo context required.
+
 What it does:
 1. Detects the distro from `/etc/os-release` (`ID`/`ID_LIKE`) → **pacman / apt / dnf / zypper**
    (falls back to `command -v`).

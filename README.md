@@ -129,6 +129,7 @@ Natively supported on Linux on Wayland — niri and KDE Plasma first-class, plus
 
 - **Clone:** `git clone https://github.com/sujaisubbanna/utter-assistant.git && cd utter-assistant && ./install.sh` (`--dry-run` previews). Minimal package install: `install/install.sh --yes`; undo with `install/uninstall.sh --yes`.
 - **Remote:** `curl -fsSL https://utter.sujaisubbanna.com/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
+- **Agent-driven install:** hand your coding agent [`docs/INSTALL-AGENT.md`](docs/INSTALL-AGENT.md) — a self-contained runbook that installs Utter and verifies each step.
 - **Source:** the runner core is stdlib-only Python; the assistant adds a few optional runtime deps (numpy, PyYAML, requests). The settings app is Tauri v2 + React + Tailwind CSS v4 — build it with `pnpm install && pnpm tauri build` in `gui-tauri/`. Run `scripts/verify.sh` for the test suites.
 
 ## Configure
@@ -167,6 +168,7 @@ Full documentation: **[utter.sujaisubbanna.com](https://utter.sujaisubbanna.com/
 | Doc | What's inside |
 |---|---|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | Installer, background services, the model store and the `assistant` CLI |
+| [`docs/INSTALL-AGENT.md`](docs/INSTALL-AGENT.md) | Self-contained runbook for an AI agent to install and verify Utter |
 | [`docs/CLI.md`](docs/CLI.md) | The `utter` agent CLI: commands, JSON envelope, exit codes, safety |
 | [`docs/CUSTOMISING.md`](docs/CUSTOMISING.md) | Config, hotkeys, speech, AI and vision models, audio |
 | [`docs/APPS.md`](docs/APPS.md) | How commands become actions, and adding a new app |
@@ -175,6 +177,7 @@ Full documentation: **[utter.sujaisubbanna.com](https://utter.sujaisubbanna.com/
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runner, protocol, plugins, lifecycle |
 | [`docs/THEMING.md`](docs/THEMING.md) | Matugen colours for the settings app and widgets |
 | [`AGENTS.md`](AGENTS.md) | Repo guide and invariants for contributors and AI agents |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to report bugs, suggest features and open a pull request |
 
 ## Trust & safety
 
@@ -185,9 +188,7 @@ Full documentation: **[utter.sujaisubbanna.com](https://utter.sujaisubbanna.com/
 
 ## Contributing
 
-- **Never commit to `main`.** Use a feature branch (`fix/…`, `feat/…`, `chore/…`) and open it for review.
-- **Run `scripts/verify.sh`** before declaring anything done.
-- **Read [AGENTS.md](AGENTS.md)** for the repo map, contracts and invariants.
+**Never commit to `main`** — use a feature branch (`fix/…`, `feat/…`, `chore/…`) and open it for review — and **run `scripts/verify.sh`** before declaring anything done. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, and [AGENTS.md](AGENTS.md) for the repo map, contracts and invariants.
 
 ## License
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & general discussion
+    url: https://github.com/sujaisubbanna/utter-assistant/discussions
+    about: Ask questions and discuss ideas with the community — please don't use the issue tracker for these.
+  - name: Report a security vulnerability
+    url: https://github.com/sujaisubbanna/utter-assistant/blob/main/SECURITY.md
+    about: Please report security issues privately, never in a public issue.
