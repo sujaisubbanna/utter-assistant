@@ -17,6 +17,7 @@ import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -165,11 +166,15 @@ except RuntimeError as exc:
 from utter.voice import tts  # noqa: E402
 from utter.macos import tts as mac_tts  # noqa: E402
 
-check("tts: linux -> none", tts.backend_for("linux", mac_cfg) == "none")
+check("tts: linux -> none when no engine installed",
+      tts.backend_for("linux", mac_cfg, which=lambda _name: None) == "none")
 check("tts: darwin -> say", tts.backend_for("darwin", mac_cfg) == "say")
 check("tts: darwin avspeech honoured", tts.backend_for("darwin", SimpleNamespace(tts_backend="AVSpeech")) == "avspeech")
 with forced("linux"):
-    check("tts.speak is a no-op on linux", tts.speak("hello", Config()) is False)
+    with patch.object(tts.shutil, "which", side_effect=lambda name: "/usr/bin/espeak-ng" if name == "espeak-ng" else None), \
+            patch.object(tts.subprocess, "Popen") as popen:
+        check("tts.speak on linux uses the detected engine",
+              tts.speak("hello", Config()) is True and popen.called)
 check("say argv: voice + rate", mac_tts.say_argv("hi there", "Samantha", 180)
       == ["say", "-v", "Samantha", "-r", "180", "--", "hi there"])
 check("say argv: defaults", mac_tts.say_argv("-leading dash") == ["say", "--", "-leading dash"])

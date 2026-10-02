@@ -70,6 +70,18 @@ Defaults are those shipped in `config.default.toml`.
 | `model` | `distil-small.en` | backend-specific model name or path |
 | `device` | `cuda` | faster-whisper device |
 | `compute_type` | `float16` | faster-whisper compute type |
+| `language` | `auto` | spoken language: `auto`, `en`, `en-GB`, `de-DE`, … (independent of the UI language) |
+
+### `[tts]`
+
+Linux spoken replies (macOS uses `[macos] tts_backend` / `tts_voice` / `tts_rate`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Linux spoken replies on/off (macOS still uses `[macos]`) |
+| `engine` | `auto` | `auto` (piper → espeak-ng → espeak → spd-say), `none`, or an engine name to force |
+| `language` | `auto` | spoken language, same resolution rules as `[stt] language` |
+| `voice` | `""` | engine voice: espeak name (`en-gb`, `de`) or a Piper `.onnx` model/path; empty derives from `language` |
 
 ### `[router]`
 
@@ -191,6 +203,30 @@ Model lookup for whisper.cpp checks, in order: an explicit path or `$UTTER_WHISP
 `$UTTER_MODELS_DIR`, `<repo>/models/whisper`, then `~/.cache/whisper`. The default whisper.cpp
 filename is `ggml-small.en.bin`. If no local file exists and the configured name is a valid
 whisper.cpp model, `pywhispercpp` downloads it.
+
+### Spoken language (STT and TTS)
+
+`[stt] language` and `[tts] language` are a **separate axis from the settings-app UI
+language** (English/Español strings). Resolution is shared (`utter/locale.py`): a concrete
+value is normalised (`en_GB`/`en-US.UTF-8` → `en-GB`), while `auto` (the default) reads
+`LC_ALL` → `LC_MESSAGES` → `LANG`. If nothing resolves, the language stays unknown: Whisper
+auto-detects and TTS uses the engine default — Utter never silently guesses English.
+
+Whisper `.en` checkpoints (`distil-small.en`, `ggml-base.en.bin`, …) are English-only.
+Pairing one with a non-English language logs a warning, and Utter **does not switch models or
+download anything by itself**. The Voice page offers an explicit switch instead:
+
+| Model | Approx. download | Notes |
+|---|---|---|
+| `small` | ~480 MB | multilingual, modest GPU/CPU cost |
+| `large-v3-turbo` | ~1.6 GB | multilingual, fastest large variant |
+
+On Linux, `[tts] engine = "auto"` probes **piper** (only with a local voice model), then
+**espeak-ng**, **espeak**, **spd-say**; empty `[tts] voice` derives an espeak voice from the
+language (`de-DE` → `de`, `en-GB` → `en-gb`). No engine installed means a warning and spoken
+replies disabled, never a crash. English and Español are the only UI locales shipped inline;
+more UI locales are not implemented yet. On macOS, a resolved `[stt] language` becomes the
+`SFSpeechRecognizer` locale, with `[macos] speech_locale` as the fallback.
 
 ## The decision head and the planner
 

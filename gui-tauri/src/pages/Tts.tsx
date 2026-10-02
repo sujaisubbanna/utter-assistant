@@ -45,16 +45,24 @@ function TtsLinuxPage() {
   }, []);
 
   const engine = String(get("tts", "engine", "espeak-ng"));
-  const voice = String(get("tts", "voice", "en"));
+  const language = String(get("tts", "language", "auto"));
+  const voice = String(get("tts", "voice", ""));
   const engineDef = TTS_ENGINES.find((item) => item.value === engine);
   const engineName = engineDef ? optionLabel(engineDef, t) : engine;
   const missing = available[ENGINE_BINARY[engine]] === false;
   const engineLink = engineDef?.link ? linkFor(engineDef.link) : undefined;
+  // An empty voice means "derive from the language / engine default"; for the
+  // test command, espeak engines can take the configured language directly.
+  const testVoice = voice.trim()
+    ? voice.trim()
+    : language.trim() !== "auto" && engine.startsWith("espeak")
+      ? language.trim().toLowerCase()
+      : "";
 
   const test = async () => {
     setTesting(true);
     try {
-      const result = await api.ttsTest(engine, voice, phrase.trim() || t("tts.test.defaultPhrase"));
+      const result = await api.ttsTest(engine, testVoice, phrase.trim() || t("tts.test.defaultPhrase"));
       toast(
         result.ok
           ? t("tts.test.spoken")
@@ -84,6 +92,7 @@ function TtsLinuxPage() {
             k="enabled"
             title={t("tts.output.enable")}
             description={t("tts.output.enableHint")}
+            fallback
           />
           <SelectSetting
             title={t("tts.output.engine")}
@@ -99,10 +108,21 @@ function TtsLinuxPage() {
           />
           <ConfigText
             section="tts"
+            k="language"
+            title={t("tts.output.language")}
+            description={t("tts.output.languageHint")}
+            fallback="auto"
+            placeholder="auto"
+            monospace
+            width="w-24"
+          />
+          <ConfigText
+            section="tts"
             k="voice"
             title={t("tts.output.voice")}
             description={t("tts.output.voiceHint")}
-            fallback="en"
+            fallback=""
+            placeholder="auto"
             monospace
             width="w-40"
           />

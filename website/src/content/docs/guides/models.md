@@ -29,6 +29,15 @@ rules it applies:
 | AMD or Intel GPU (Vulkan) | whisper.cpp | `small` | Vulkan | about 1 GB VRAM |
 | No usable GPU | whisper.cpp | `base.en` | CPU, int8 | about 1 GB RAM |
 
+:::note[Other spoken languages]
+The small default checkpoints ending in `.en` are English-only. For another spoken language,
+choose a multilingual model instead (`small` on modest hardware, `large-v3-turbo` with more
+VRAM). The Voice page offers the switch explicitly with the size shown, and **Utter never
+downloads a model by itself** — whichever model you choose is fetched by the speech engine the
+first time it is used. See
+[Spoken language](/guides/configuration/#spoken-language-stt-and-tts).
+:::
+
 ### Decision head and planner
 
 | VRAM | Model class | Quantisation | Footprint |

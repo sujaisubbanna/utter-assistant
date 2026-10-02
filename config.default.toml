@@ -33,6 +33,27 @@ backend = "faster_whisper"
 model = "distil-small.en"
 device = "cuda"          # Linux-only: CUDA/NVIDIA (ignored on macOS)
 compute_type = "float16"
+# Spoken language: "auto" (detect from LC_ALL/LC_MESSAGES/LANG, else let
+# Whisper auto-detect) or a code such as "en", "en-GB", "de-DE". This is
+# independent of the settings-app UI language. NOTE: ".en" models (including
+# the default distil-small.en) only speak English; pick a multilingual model
+# such as "small" or "large-v3-turbo" for other languages (the Voice page
+# offers this explicitly; nothing is downloaded automatically).
+language = "auto"
+
+[tts]
+# Spoken replies. Linux engines are probed in order, no extra Python deps:
+#   auto = piper (with a local voice model) -> espeak-ng -> espeak -> spd-say
+#   none = spoken replies disabled; or force "piper", "espeak-ng", "espeak", "spd-say".
+enabled = true
+engine = "auto"
+# Spoken language: "auto" (system locale) or a code such as "en-GB", "de-DE".
+# Independent of the settings-app UI language. espeak derives a voice from it
+# when `voice` is empty.
+language = "auto"
+# Engine-specific voice: an espeak voice ("en-gb", "de") or a Piper .onnx
+# model/path. Empty = derive from `language` (espeak) or the engine default.
+voice = ""
 
 [router]
 # rules first; the tiny planner LLM is only consulted when no rule matches.
