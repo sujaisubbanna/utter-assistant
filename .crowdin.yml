@@ -1,14 +1,17 @@
 # Crowdin configuration — build-time localization only.
 #
-# Crowdin is NOT a runtime dependency. Translators work in Crowdin; finished
-# translations are exported into this repo as `gui-tauri/src/i18n/<lang>.ts`
-# (usually via a pull request). The app bundles whatever locale files are
-# committed here. See docs/TRANSLATING.md.
+# Crowdin does NOT parse our TypeScript/Shell locale modules, so the sources it
+# sees are the plain JSON exports in `crowdin/`:
 #
-# Setup: create a Crowdin project for the utter repo, then set the repository
-# secrets CROWDIN_PROJECT_ID and CROWDIN_PERSONAL_TOKEN (see
-# .github/workflows/crowdin.yml). Without those secrets the sync workflow is a
-# no-op.
+#     scripts/i18n_crowdin.py export   # en.ts + install/i18n/*.sh -> crowdin/*.json
+#     scripts/i18n_crowdin.py import   # crowdin/*-<lang>.json -> <lang>.ts / <lang>.sh
+#
+# Translators work in Crowdin; finished strings come back as PRs (see
+# .github/workflows/crowdin.yml), then `import` rewrites the real locale files.
+# Crowdin is never a runtime dependency and is never contacted by the app.
+#
+# Maintainer setup: set the secrets CROWDIN_PROJECT_ID and CROWDIN_PERSONAL_TOKEN.
+# Without them the sync workflow is a no-op.
 
 project_id_env: CROWDIN_PROJECT_ID
 api_token_env: CROWDIN_PERSONAL_TOKEN
@@ -16,13 +19,10 @@ api_token_env: CROWDIN_PERSONAL_TOKEN
 preserve_hierarchy: true
 
 files:
-  # Source of truth: the English settings-app UI strings.
-  - source: /gui-tauri/src/i18n/en.ts
-    translation: /gui-tauri/src/i18n/%two_letters_code%.ts
-    # The .ts modules are plain `export const xx: Messages = {…}` objects, so
-    # they are parsed as TypeScript rather than raw JSON. Keep `en.ts` as the
-    # source of truth so keys stay typed against it.
-    type: ts
+  # Settings-app UI strings (flat dotted keys: "app.name", "language.system").
+  - source: /crowdin/ui-en.json
+    translation: /crowdin/ui-%two_letters_code%.json
+    type: json
     languages_mapping:
       two_letters_code:
         zh-CN: zh
@@ -30,10 +30,10 @@ files:
         pt-BR: pt
         pt-PT: pt
 
-  # Installer strings: keyed by their exact English message.
-  - source: /install/i18n/en.sh
-    translation: /install/i18n/%two_letters_code%.sh
-    type: ts
+  # Installer strings (key = exact English message, value = translation).
+  - source: /crowdin/installer-en.json
+    translation: /crowdin/installer-%two_letters_code%.json
+    type: json
     languages_mapping:
       two_letters_code:
         zh-CN: zh
