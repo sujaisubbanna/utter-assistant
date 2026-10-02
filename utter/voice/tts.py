@@ -302,6 +302,9 @@ def _speak_piper(text: str, model_path: str, language_code: Optional[str]) -> bo
 
 def _speak_linux(text: str, tts_cfg=None) -> bool:
     """Speak on Linux with the configured/preferred local engine. Never raises."""
+    if tts_cfg is not None and not bool(getattr(tts_cfg, "enabled", True)):
+        logger.debug("tts: spoken replies disabled by [tts] enabled=false")
+        return False
     engine = backend_for(platform.LINUX, None, tts_cfg=tts_cfg)
     if engine == "none":
         logger.warning(

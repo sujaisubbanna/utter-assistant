@@ -45,6 +45,7 @@ language = "auto"
 # Spoken replies. Linux engines are probed in order, no extra Python deps:
 #   auto = piper (with a local voice model) -> espeak-ng -> espeak -> spd-say
 #   none = spoken replies disabled; or force "piper", "espeak-ng", "espeak", "spd-say".
+enabled = true
 engine = "auto"
 # Spoken language: "auto" (system locale) or a code such as "en-GB", "de-DE".
 # Independent of the settings-app UI language. espeak derives a voice from it

@@ -96,6 +96,7 @@ The defaults assume a common `keyd` remap (see [§3](#3-hotkeys--push-to-talk)).
 
 | Key | Default | Meaning |
 |---|---|---|
+| `enabled` | `true` | Linux spoken replies on/off (macOS still uses `[macos]`) |
 | `engine` | `auto` | Linux engine: `auto` (piper → espeak-ng → espeak → spd-say), `none`, or a name to force |
 | `language` | `auto` | spoken language, same rules as `[stt] language` |
 | `voice` | `""` | engine voice: espeak name (`en-gb`, `de`) or a Piper `.onnx` model/path; empty derives it from `language` |

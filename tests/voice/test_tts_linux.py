@@ -42,7 +42,7 @@ class RecordingPopen:
 
 
 def cfg(**kw):
-    base = dict(engine="auto", language="auto", voice="")
+    base = dict(enabled=True, engine="auto", language="auto", voice="")
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -155,6 +155,12 @@ class TestSpeakLinux(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(RecordingPopen.calls, [])
         self.assertIn("no local speech engine", "\n".join(logs.output))
+
+    def test_disabled_by_config(self):
+        ok = self._speak("hallo", cfg(enabled=False),
+                         which_map({"espeak-ng": "/usr/bin/espeak-ng"}))
+        self.assertFalse(ok)
+        self.assertEqual(RecordingPopen.calls, [])
 
     def test_empty_text_is_false(self):
         with patch.object(tts.platform, "is_macos", return_value=False), \

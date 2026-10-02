@@ -78,6 +78,7 @@ Linux spoken replies (macOS uses `[macos] tts_backend` / `tts_voice` / `tts_rate
 
 | Key | Default | Meaning |
 |---|---|---|
+| `enabled` | `true` | Linux spoken replies on/off (macOS still uses `[macos]`) |
 | `engine` | `auto` | `auto` (piper → espeak-ng → espeak → spd-say), `none`, or an engine name to force |
 | `language` | `auto` | spoken language, same resolution rules as `[stt] language` |
 | `voice` | `""` | engine voice: espeak name (`en-gb`, `de`) or a Piper `.onnx` model/path; empty derives from `language` |

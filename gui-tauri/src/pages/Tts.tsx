@@ -92,6 +92,7 @@ function TtsLinuxPage() {
             k="enabled"
             title={t("tts.output.enable")}
             description={t("tts.output.enableHint")}
+            fallback
           />
           <SelectSetting
             title={t("tts.output.engine")}

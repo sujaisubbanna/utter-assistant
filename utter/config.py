@@ -54,7 +54,10 @@ class TTSConfig:
     follows the same rules as ``[stt] language`` (default ``"auto"``).
     ``voice`` is engine-specific (espeak voice name, Piper voice model/path);
     empty derives a default from ``language`` or uses the engine default.
+    ``enabled`` gates Linux spoken replies (on by default; macOS keeps using
+    ``[macos]``).
     """
+    enabled: bool = True
     engine: str = "auto"
     language: str = "auto"
     voice: str = ""
