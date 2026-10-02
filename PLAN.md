@@ -154,13 +154,15 @@ the runner socket; owns no state (writes go through `config.set`, applied live).
 - **General / Services:** **autostart** toggle (systemd user unit + XDG autostart), start /
   stop / restart runner, vision, planner, audio-defaults units; status + logs.
 - **Voice:** PTT key **capture** (dictation + assistant), STT plugin switch (whisper.cpp /
-  faster-whisper / Vosk / Parakeet / remote), model + language, input device (RNNoise
+  faster-whisper / Vosk / Parakeet / remote), model + language (**auto = system locale**, with
+  an explicit multilingual-model switch when the configured `.en` model can't speak it),
+  input device (RNNoise
   source), mic-level test.
 - **Models:** installed list, **download/pull** (resumable, progress), remove, verify
   (sha256), storage path + disk usage, **"recommend for my hardware"**.
 - **LLM:** provider switch (vLLM / Ollama / llama.cpp / remote), endpoint + model,
   `decide_threshold`, enable/disable the decision head.
-- **TTS:** enable/disable, engine + voice, test.
+- **TTS:** enable/disable, engine + voice + spoken language (auto = system locale), test.
 - **Perception:** vision on/off + model; accessibility toggle.
 - **Plugins:** installed list (kind/version/status), enable/disable, configure from
   `config_schema`, install from file/URL, **permission consent**, `doctor`.

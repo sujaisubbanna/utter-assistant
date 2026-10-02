@@ -303,6 +303,12 @@ The STT chain is `[stt_backend, stt_fallback]`; backends whose runtime is missin
 with a logged warning. whisper.cpp models are looked up exactly as on Linux
 (`$UTTER_WHISPER_MODEL`, `$UTTER_MODELS_DIR`, `models/whisper/`).
 
+For Apple Speech, a resolved `[stt] language` (see
+[CUSTOMISING §4](CUSTOMISING.md#spoken-language-stt--tts)) becomes the
+`SFSpeechRecognizer` locale — for example `[stt] language = "de-DE"` or `auto`
+picking up `LANG=de_DE.UTF-8` gives `de-DE`. When nothing resolves,
+`speech_locale` is used, then `en-US`.
+
 On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native endpoints configured in `[macos.runtime]` (defaulting to local Ollama) rather than the Linux-only CUDA / vLLM / UI-TARS defaults.
 
 ## Platform matrix

@@ -104,7 +104,7 @@ replies** offers the system voices, **General** controls the launchd agents, and
 [macos]
 stt_backend = "apple_speech"     # apple_speech | whisper_cpp | faster_whisper | vocamac
 stt_fallback = "whisper_cpp"
-speech_locale = "en-US"
+speech_locale = "en-US"          # fallback when [stt] language does not resolve
 on_device_only = true            # never send audio to Apple's servers
 tts_backend = "say"              # say | avspeech | none
 tts_voice = ""                   # `say -v ?` lists voices

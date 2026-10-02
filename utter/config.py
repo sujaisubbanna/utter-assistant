@@ -39,6 +39,25 @@ class STTConfig:
     model: str = "distil-small.en"
     device: str = "cuda"  # Linux default (CUDA/NVIDIA; ignored on macOS)
     compute_type: str = "float16"
+    # Spoken language. "auto" = resolve from the system locale (LC_ALL/
+    # LC_MESSAGES/LANG), else let Whisper auto-detect. Independent of the
+    # settings-app UI language. Use a code like "en", "en-GB", "de-DE".
+    language: str = "auto"
+
+
+@dataclass
+class TTSConfig:
+    """Spoken replies (``[tts]``), independent of the UI language.
+
+    ``engine`` picks a local Linux engine: ``auto`` (piper → espeak-ng →
+    espeak → spd-say), ``none``, or an engine name to force. ``language``
+    follows the same rules as ``[stt] language`` (default ``"auto"``).
+    ``voice`` is engine-specific (espeak voice name, Piper voice model/path);
+    empty derives a default from ``language`` or uses the engine default.
+    """
+    engine: str = "auto"
+    language: str = "auto"
+    voice: str = ""
 
 
 @dataclass
@@ -242,6 +261,7 @@ class Config:
     ptt: PTTConfig = field(default_factory=PTTConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     stt: STTConfig = field(default_factory=STTConfig)
+    tts: TTSConfig = field(default_factory=TTSConfig)
     router: RouterConfig = field(default_factory=RouterConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     actions: ActionsConfig = field(default_factory=ActionsConfig)
@@ -279,6 +299,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.ptt, raw.get("ptt", {}))
         _merge(cfg.audio, raw.get("audio", {}))
         _merge(cfg.stt, raw.get("stt", {}))
+        _merge(cfg.tts, raw.get("tts", {}))
         _merge(cfg.router, raw.get("router", {}))
         _merge(cfg.vision, raw.get("vision", {}))
         _merge(cfg.actions, raw.get("actions", {}))

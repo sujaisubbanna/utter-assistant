@@ -157,6 +157,65 @@ export function VoicePage() {
   return <VoiceLinuxPage />;
 }
 
+/** Whisper ".en" checkpoints are English-only (mirrors `stt.py`). */
+const ENGLISH_ONLY_MODEL = /(?:^|[.-])en(?:[.-]|$)/i;
+
+function isEnglishOnlyModel(model: string): boolean {
+  const name = (model.split("/").pop() ?? model).trim().toLowerCase();
+  const stem = name.endsWith(".bin") ? name.slice(0, -4) : name;
+  return ENGLISH_ONLY_MODEL.test(stem);
+}
+
+/** The webview follows the system locale the daemon also reads. */
+function systemLanguageCode(): string {
+  const raw = (navigator.language || "").trim().toLowerCase();
+  return raw === "c" || raw === "posix" ? "" : raw;
+}
+
+const MULTILINGUAL_CHOICES = [
+  { model: "small", size: "~480 MB" },
+  { model: "large-v3-turbo", size: "~1.6 GB" },
+];
+
+/**
+ * Explicit, user-driven model switch when the spoken language is not English
+ * but the configured Whisper checkpoint is English-only. Nothing is downloaded
+ * here: the speech engine fetches the chosen model on first use.
+ */
+function SttLanguageMismatch() {
+  const t = useT();
+  const { get, setMany } = useConfig();
+  const language = String(get("stt", "language", "auto")).trim().toLowerCase();
+  const model = String(get("stt", "model", "distil-small.en"));
+  const effective = language === "auto" || language === "" ? systemLanguageCode() : language;
+  if (!effective || effective.startsWith("en") || !isEnglishOnlyModel(model)) return null;
+  return (
+    <div className="flex items-start gap-3 rounded-lg bg-[color-mix(in_oklab,var(--warning)_10%,var(--card))] px-4 py-3.5 shadow-[0_0_0_1px_color-mix(in_oklab,var(--warning)_30%,transparent)]">
+      <Icon name="info" size={16} className="mt-0.5 shrink-0 text-[color:var(--warning)]" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium text-foreground">{t("voice.stt.mismatch.title")}</div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t("voice.stt.mismatch.body", { language: effective, model })}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {MULTILINGUAL_CHOICES.map((choice) => (
+            <Button
+              key={choice.model}
+              size="sm"
+              variant="secondary"
+              icon="download"
+              onClick={() => void setMany("stt", { model: choice.model })}
+            >
+              {t("voice.stt.mismatch.use", { model: choice.model, size: choice.size })}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">{t("voice.stt.mismatch.downloadHint")}</p>
+      </div>
+    </div>
+  );
+}
+
 function VoiceLinuxPage() {
   const t = useT();
   const { get, set, loading } = useConfig();
@@ -274,9 +333,11 @@ function VoiceLinuxPage() {
             title={t("voice.stt.language")}
             description={t("voice.stt.languageHint")}
             fallback="auto"
+            placeholder="auto"
             monospace
             width="w-24"
           />
+          <SttLanguageMismatch />
           <SelectSetting
             title={t("voice.stt.device")}
             description={t("voice.stt.deviceHint")}

@@ -52,6 +52,15 @@ Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and 
 | Sleep when idle | Say "go to sleep", or let Utter idle, to free the GPU; hold a push-to-talk key to wake it. |
 | Headless CLI | Drive the same commands and settings from a terminal, script or agent, with JSON output. |
 
+### Multilingual
+
+English ships inline: the settings UI and the default `distil-small.en` speech model need no
+downloads. Everything else is **opt-in** — the app ships English and Spanish UI strings today,
+and for other spoken languages you point `[stt] language` at a multilingual Whisper model
+(`small`, `large-v3-turbo`, …) and `[tts] language`/`voice` at an installed engine voice. Utter
+**never downloads a model by itself**, and the **spoken language is independent of the UI
+language**. See [spoken language](docs/CUSTOMISING.md#spoken-language-stt--tts).
+
 ## Demo
 
 <div align="center">

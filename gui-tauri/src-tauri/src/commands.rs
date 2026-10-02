@@ -684,18 +684,25 @@ pub async fn tts_test(
     voice: String,
     text: String,
 ) -> Result<CmdResult, String> {
-    let voice = if voice.trim().is_empty() {
-        "en".to_string()
-    } else {
-        voice
-    };
+    // Empty voice = engine default, derived from [tts] language elsewhere.
+    // Never hardcode a language here.
+    let voice = voice.trim();
     let cmd = match engine.as_str() {
-        "espeak-ng" => Cmd::new("espeak-ng").arg("-v").arg(voice).arg(text),
-        "espeak" => Cmd::new("espeak").arg("-v").arg(voice).arg(text),
-        "spd-say" => Cmd::new("spd-say").arg("-v").arg(voice).arg(text),
-        "piper" => Cmd::new("piper").arg("--output-raw").arg("--model").arg(voice).arg(text),
-        // macOS: the system `say` CLI; "en" is the Linux default, meaning "system voice".
-        "say" | "avspeech" if voice == "en" => Cmd::new("say").arg("--").arg(text),
+        "espeak-ng" | "espeak" | "spd-say" => {
+            let mut cmd = Cmd::new(engine.as_str());
+            if !voice.is_empty() {
+                cmd = cmd.arg("-v").arg(voice);
+            }
+            cmd.arg(text)
+        }
+        "piper" => {
+            if voice.is_empty() {
+                return Err("piper needs a voice model (set [tts] voice)".to_string());
+            }
+            Cmd::new("piper").arg("--output-raw").arg("--model").arg(voice).arg(text)
+        }
+        // macOS: the system `say` CLI.
+        "say" | "avspeech" if voice.is_empty() => Cmd::new("say").arg("--").arg(text),
         "say" | "avspeech" => Cmd::new("say").arg("-v").arg(voice).arg("--").arg(text),
         other => return Err(format!("unsupported engine: {other}")),
     };

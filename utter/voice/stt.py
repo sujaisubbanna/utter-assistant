@@ -30,6 +30,7 @@ from typing import Optional
 
 import numpy as np
 
+from utter import locale as language
 try:
     from utter.config import STTConfig, load_config
 except Exception:  # pragma: no cover - config package should always import
@@ -39,6 +40,24 @@ except Exception:  # pragma: no cover - config package should always import
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
+
+# Whisper ".en" checkpoints (distil-small.en, ggml-base.en-q5_1, ...) are
+# English-only; a non-English `[stt] language` with one of these is a
+# configuration mistake we warn about loudly instead of silently mis-hearing.
+_ENGLISH_ONLY_RE = re.compile(r"(?:^|[.-])en(?:[.-]|$)")
+
+#: Multilingual models the UI offers (name, approximate download size). Kept
+#: here so Python and the settings UI describe the same choices. Nothing is
+#: downloaded automatically; the user picks one explicitly.
+MULTILINGUAL_MODELS = (("small", "~480 MB"), ("large-v3-turbo", "~1.6 GB"))
+
+
+def is_english_only_model(model: str) -> bool:
+    """True for Whisper ``.en`` variants (English-only checkpoints)."""
+    name = Path(str(model or "")).name.lower()
+    if name.endswith(".bin"):
+        name = name[:-4]
+    return bool(_ENGLISH_ONLY_RE.search(name))
 
 # Where to look for a whisper.cpp ggml model, in order. Override with
 # $UTTER_WHISPER_MODEL (a full path) or $UTTER_MODELS_DIR.
@@ -189,8 +208,44 @@ class Transcriber:
         self._explicit_model_path = model_path
         self.model_path: Optional[str] = model_path
         self.load_time_s: Optional[float] = None
+        # Language reported by the most recent transcription (detected when the
+        # backend provides it, otherwise the requested code; None for auto).
+        self.last_language: Optional[str] = None
         self._model = None
         self._lock = threading.Lock()
+
+    @property
+    def language(self) -> Optional[str]:
+        """Resolved BCP-47 spoken language, or ``None`` for auto/unknown.
+
+        Reads ``[stt] language`` on every call (so tests and live config
+        edits see the current value) and delegates ``"auto"`` to the system
+        locale. Never guesses English.
+        """
+        value = language.AUTO
+        if self.cfg is not None:
+            value = getattr(self.cfg, "language", language.AUTO) or language.AUTO
+        return language.resolve(value)
+
+    def _warn_english_only(self, model_ref: str) -> None:
+        """Warn when a non-English language is paired with an ``.en`` model.
+
+        The model is never swapped and nothing is downloaded automatically: an
+        English-only checkpoint would simply mis-transcribe. The warning names
+        the setting and the multilingual options the Voice page offers.
+        """
+        resolved = self.language
+        if not resolved or language.is_english(resolved):
+            return
+        if not is_english_only_model(model_ref):
+            return
+        choices = ", ".join(name for name, _size in MULTILINGUAL_MODELS)
+        logger.warning(
+            "STT language is %s but model %r is English-only (.en). Set "
+            "[stt] model to a multilingual model (%s) — no model is downloaded "
+            "automatically. Until then, non-English speech will be mis-transcribed.",
+            resolved, model_ref, choices,
+        )
 
     @classmethod
     def for_platform(cls, cfg=None, *, model_path: Optional[str] = None,
@@ -244,6 +299,7 @@ class Transcriber:
 
         model_ref = self._resolve_whispercpp_model()
         self.model_path = model_ref
+        self._warn_english_only(model_ref)
         n_threads = max(1, (os.cpu_count() or 4))
         logger.info("loading whisper.cpp model %s (n_threads=%d)", model_ref, n_threads)
         return Model(model_ref, n_threads=n_threads)
@@ -261,6 +317,7 @@ class Transcriber:
         model_ref = self._explicit_model_path or getattr(cfg, "model", "base")
         device = getattr(cfg, "device", "cpu") or "cpu"
         compute_type = getattr(cfg, "compute_type", "int8") or "int8"
+        self._warn_english_only(model_ref)
         from utter import platform
         if platform.is_macos() and device == "cuda":
             device = "cpu"
@@ -280,11 +337,16 @@ class Transcriber:
         from utter.macos.speech import AppleSpeechRecognizer
 
         mc = self.macos_cfg
+        # Spoken language first: a resolved `[stt] language` (e.g. de-DE) beats
+        # the macOS `speech_locale`; unknown falls back to it, then en-US.
+        fallback = (getattr(mc, "speech_locale", "") if mc is not None else "") or "en-US"
+        locale_code = self.language or fallback
         rec = AppleSpeechRecognizer(
-            locale=getattr(mc, "speech_locale", "en-US") or "en-US",
+            locale=locale_code,
             on_device=bool(getattr(mc, "on_device_only", True)),
         )
         rec.load()
+        self.last_language = rec.locale
         self.model_path = f"Speech.framework/{rec.locale}" + ("/on-device" if rec.on_device else "")
         return rec
 
@@ -417,8 +479,11 @@ class Transcriber:
         return _clean_text(out)
 
     def _transcribe_whisper_cpp(self, audio: np.ndarray) -> str:
+        # `None` tells whisper.cpp to auto-detect (pywhispercpp accepts None,
+        # "" or "auto"); never fall back to the old hardcoded "en".
+        lang = language.base_language(self.language)
         kwargs = {
-            "language": "en",
+            "language": lang,
             "print_realtime": False,
             "print_progress": False,
             "print_timestamps": False,
@@ -427,11 +492,23 @@ class Transcriber:
             segments = self._model.transcribe(audio, **kwargs)
         except (TypeError, ValueError):
             # Older/leaner pywhispercpp builds may not accept the print_* params.
-            segments = self._model.transcribe(audio, language="en")
+            segments = self._model.transcribe(audio, language=lang)
+        self.last_language = lang
+        logger.debug("whisper_cpp transcription language: %s", lang or "auto")
         return _clean_text(" ".join(getattr(s, "text", "") for s in segments))
 
     def _transcribe_faster_whisper(self, audio: np.ndarray) -> str:
-        segments, _info = self._model.transcribe(audio, language="en", vad_filter=False)
+        lang = language.base_language(self.language)
+        kwargs = {"vad_filter": False}
+        if lang is not None:
+            kwargs["language"] = lang
+        segments, info = self._model.transcribe(audio, **kwargs)
+        # faster-whisper reports the language it actually detected in `info`.
+        detected = getattr(info, "language", None) if info is not None else None
+        self.last_language = detected or lang
+        if detected and lang and detected != lang:
+            logger.warning("faster-whisper transcribed as %s (configured %s)", detected, lang)
+        logger.debug("faster-whisper transcription language: %s", self.last_language or "auto")
         return _clean_text(" ".join(s.text for s in segments))
 
 

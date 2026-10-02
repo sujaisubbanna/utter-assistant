@@ -590,10 +590,14 @@ class Executor:
 
     def _do_speak(self, step: Step) -> ActionResult:
         text = step.args.get("text", "")
-        from . import platform
-        if platform.is_macos():
+        # `tts.speak` picks the platform backend itself (macOS `say`/AVSpeech,
+        # Linux espeak-ng/espeak/spd-say/piper) and never raises.
+        try:
             from .voice import tts
+
             tts.speak(text, self.cfg)
+        except Exception:  # noqa: BLE001 - spoken replies must not break actions
+            pass
         return ActionResult(True, step.action, step.tier, text)
 
     # -- perception escalation --------------------------------------------
