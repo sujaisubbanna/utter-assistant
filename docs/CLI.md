@@ -47,6 +47,22 @@ utter settings set stt.device --value '"cuda"' --dry-run --json
 utter settings set audio.sample_rate --value 48000 --confirm --json
 ```
 
+### Language
+
+The spoken language (speech-to-text and spoken replies) is a setting, independent of the
+settings-app UI language. `"auto"` resolves from `LC_ALL`/`LC_MESSAGES`/`LANG`; otherwise set a
+code such as `de-DE`. Non-English needs a multilingual Whisper model (the default is an
+English-only `.en` model); pull one with `python -m assistant models pull <src>`.
+
+```sh
+utter settings set stt.language --value '"de-DE"' --confirm --json
+utter settings set tts.language --value '"de-DE"' --confirm --json
+utter settings set tts.voice    --value '"de"' --confirm --json
+```
+
+The settings-app UI ships 10 locales (en, es, de, fr, it, pt, zh, ja, ko, ru); see
+[TRANSLATING.md](TRANSLATING.md) for how those are managed.
+
 `commands set APP PHRASE CHORD` adds a phrase for the selected app. When that app is focused and the phrase is spoken, Utter sends the configured keyboard chord. It accepts only a bounded printable phrase and a keyboard chord; it cannot define shell commands or arbitrary action arguments. Preview writes with `--dry-run`; persist or remove them with `--confirm`.
 
 ```sh

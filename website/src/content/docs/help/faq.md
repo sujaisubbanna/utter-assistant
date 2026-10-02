@@ -90,9 +90,12 @@ page, then regenerate the catalog. See [Apps and actions](/guides/apps-and-actio
 
 ### Which languages does it speak?
 
-The settings app is localised in English and Spanish, with more languages easy to add. Speech
-recognition depends on the model you pick; the default whisper models are English-only variants,
-and multilingual whisper models work too.
+The settings app and the installer ship 10 UI locales: English, Spanish, German, French,
+Italian, Portuguese, Chinese, Japanese, Korean and Russian. The spoken language is a separate
+setting (it defaults to your system locale), so you can use a Spanish UI and speak English.
+Speech recognition depends on the model: the default is an English-only (`.en`) whisper model,
+and you opt into a multilingual model (`small`, `large-v3-turbo`, …) from the settings app or the
+installer. Utter never downloads a model on its own.
 
 ### Is Utter finished?
 

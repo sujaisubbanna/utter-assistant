@@ -49,17 +49,24 @@ Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and 
 | Editable per-app actions | More than 100 app profiles with their shortcuts. Change any key combination in the settings app. |
 | Safe by default | Terminal commands and raw input stay off until you enable them, and important actions ask first. |
 | Completely offline | Speech, AI models and screenshots never leave your machine. No account, no telemetry. |
+| Multilingual | Use it in your own language. 10 UI locales (en, es, de, fr, it, pt, zh, ja, ko, ru); the spoken language is a separate setting, and extra speech models are opt-in. |
 | Sleep when idle | Say "go to sleep", or let Utter idle, to free the GPU; hold a push-to-talk key to wake it. |
 | Headless CLI | Drive the same commands and settings from a terminal, script or agent, with JSON output. |
 
 ### Multilingual
 
-English ships inline: the settings UI and the default `distil-small.en` speech model need no
-downloads. Everything else is **opt-in** — the app ships English and Spanish UI strings today,
-and for other spoken languages you point `[stt] language` at a multilingual Whisper model
-(`small`, `large-v3-turbo`, …) and `[tts] language`/`voice` at an installed engine voice. Utter
-**never downloads a model by itself**, and the **spoken language is independent of the UI
-language**. See [spoken language](docs/CUSTOMISING.md#spoken-language-stt--tts).
+Use Utter in your own language — the settings app ships **10 UI locales** (English, Spanish,
+German, French, Italian, Portuguese, Chinese, Japanese, Korean, Russian) and the installer
+speaks the same set. The **spoken language** (speech-to-text and spoken replies) is a *separate*
+setting: it resolves `auto` from your system locale, or you set `[stt] language` / `[tts] language`
+directly. There are two independent axes, so you can run a Spanish UI and speak English.
+
+English ships inline. Everything else is **opt-in**: Utter **never downloads a model by itself** —
+you pick a language during install or in the settings app, and it offers the matching multilingual
+Whisper model (`small`, `large-v3-turbo`, …) and TTS voice. Non-English with an English-only
+(`.en`) model warns rather than silently mis-transcribing. See
+[spoken language](docs/CUSTOMISING.md#spoken-language-stt--tts) and
+[translating](docs/TRANSLATING.md).
 
 ## Demo
 

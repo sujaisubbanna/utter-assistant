@@ -53,6 +53,11 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
 5. **Socket is default-deny** (allow-list/token, `SO_PEERCRED`).
 6. **Handles are capabilities, not paths** (`handle://sha256`, plugin-scoped).
 7. **Verification is required**: run `scripts/verify.sh`; add checks for new behaviour.
+8. **Language is two independent axes**: the UI locale (`gui-tauri/src/i18n/*.ts`, plus
+   `install/i18n/*.sh` for the installer) and the *spoken* language (`[stt] language` /
+   `[tts] language`). Never couple them. English ships inline; other languages are opt-in
+   downloads and nothing is fetched automatically. Every non-English UI locale must keep key
+   parity with `en.ts` (`pnpm exec tsc --noEmit` enforces it) — see `docs/TRANSLATING.md`.
 
 ## Task conventions
 - Work in **bounded lanes** with a single writer per file/dir; announce ownership.

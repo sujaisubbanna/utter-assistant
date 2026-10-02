@@ -19,7 +19,7 @@ Everything runs on your machine. Speech recognition, the small AI models and the
 | **Understands context** | Knows which app is focused and what is on screen, via accessibility information first and screenshots only as a last resort. |
 | **Per-app actions you can edit** | More than 100 app profiles with their shortcuts. Change any key combination from the settings app. |
 | **Safe by default** | Risky abilities (terminal commands, raw input) stay off until you turn them on, and important actions ask first. |
-| **Localised** | The settings app speaks English and Spanish, with more languages easy to add. |
+| **Localised** | Ships 10 UI locales (en, es, de, fr, it, pt, zh, ja, ko, ru). The spoken language is a separate setting, so you can use a Spanish UI and speak English. |
 
 ## Rules first, the model only chooses
 
