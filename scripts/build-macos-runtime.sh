@@ -136,6 +136,15 @@ find "$RT/python" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/nu
 printf '%s\n' "$VERSION" > "$RT/VERSION"
 
 # --------------------------------------------------------------------------- #
+# 3b. stable ad-hoc code identity: TCC keys grants to the designated requirement,
+#     and the default linker cdhash DR changes on every build. Sign the payload
+#     before packing so runtime.tar.gz already carries the stable identity the
+#     live app will use (see docs/MACOS.md, scripts/sign-macos.sh).
+# --------------------------------------------------------------------------- #
+echo "signing runtime with stable TCC identity"
+"$SCRIPT_DIR/sign-macos.sh" runtime "$RT"
+
+# --------------------------------------------------------------------------- #
 # 4. pack (atomically: a partial run must not leave a truncated artifact behind)
 # --------------------------------------------------------------------------- #
 echo "packing runtime.tar.gz"

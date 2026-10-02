@@ -204,6 +204,42 @@ empty, or malformed, the build is **fail-safe**: it automatically produces an
 unsigned `.app`/`.dmg` and clearly logs that it is unsigned. A missing or invalid
 secret never fails the build. Without notarization, users need the `xattr -cr` step above.
 
+### Stable ad-hoc identity (TCC)
+
+An ad-hoc / linker signature has a designated requirement of `cdhash H"…"`, which
+changes on **every** rebuild. TCC keys privacy grants to that requirement, so all
+granted permissions are lost (or never attributed) after each build. The fix is to
+re-sign the app and the bundled runtime ad-hoc with an explicit identifier-based DR
+— no certificate needed:
+
+```bash
+# runtime payload inside runtime.tar.gz (run by build-macos-runtime.sh)
+scripts/sign-macos.sh runtime <runtime-dir>
+
+# the app bundle after `pnpm tauri build`
+scripts/sign-macos.sh app gui-tauri/src-tauri/target/release/bundle/macos/utter.app
+```
+
+`scripts/build-macos-runtime.sh` calls the runtime mode just before it packs
+`runtime.tar.gz`; `scripts/build-macos-app.sh` runs `pnpm tauri build` and then the
+app mode. Both use `--sign - --identifier org.utter.settings
+--requirements '=designated => identifier "org.utter.settings"'`; confirm with
+`codesign -d -r- <path>` (it should print the identifier, not `cdhash H"…"`).
+After installing/updating, re-register and reset the grants so they bind to the new
+(now stable) identity:
+
+```bash
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREGISTER" -f /Applications/utter.app
+for s in Microphone SpeechRecognition ListenEvent Accessibility ScreenCapture; do
+    tccutil reset "$s" org.utter.settings
+done
+# reopen utter and grant the prompts again
+```
+
+Do **not** set `signingIdentity` in `tauri.conf.json`: no Developer ID certificate is
+assumed on this machine, and the ad-hoc stable DR above is what TCC needs.
+
 ### How the bundle is built
 
 `scripts/build-macos-runtime.sh` (run by CI on `macos-14`) downloads the
