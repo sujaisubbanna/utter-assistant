@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # utter installer locale: es
-# MACHINE-DRAFTED, UNREVIEWED translation — generated for initial coverage.
-# It has not been checked by a native speaker and may contain errors.
-# Corrections and review are tracked in docs/TRANSLATING.md (Crowdin).
-# Do not edit by hand expecting upstream to pick it up: regenerate or
-# submit the fix via Crowdin, then it will be re-exported here.
+# MACHINE-DRAFTED / CROWDIN-IMPORTED — unreviewed unless a fluent speaker
+# checked it. Corrections go through docs/TRANSLATING.md (Crowdin).
 # ---------------------------------------------------------------------------
-# The installer sources this file when present and looks up translations by
-# the exact English message; any key not present falls back to English.
-# Never treat a value as a printf format: it is always printed via %s.
-# L10N is declared (and reset) by install.sh before sourcing this file;
-# do not re-declare it here, or it would shadow the caller's array.
+# Translations are keyed by the exact English message; anything missing falls
+# back to English. Values are always printed via %s, never as a printf format.
+# `L10N` is declared by install.sh before sourcing this file.
+# ---------------------------------------------------------------------------
 
 L10N['  2. Check the install:  {1} doctor --json']='  2. Comprueba la instalación:  {1} doctor --json'
 L10N['  Detected system language: {1}']='  Idioma del sistema detectado: {1}'
@@ -137,6 +133,7 @@ L10N['missing {1} (cannot verify {2})']='falta {1} (no se puede verificar {2})'
 L10N['missing: {1}']='faltan: {1}'
 L10N['models']='modelos'
 L10N['multilingual speech recognition (~480 MB, or ~1.6 GB for large-v3-turbo)']='reconocimiento de voz multilingüe (~480 MB, o ~1,6 GB para large-v3-turbo)'
+L10N['no']='no'
 L10N['no GUI assets are published for {1} yet (the AppImage/deb/rpm are x86_64 only); skipping.']='aún no se publican recursos de GUI para {1} (AppImage/deb/rpm son solo x86_64); se omite.'
 L10N['no GUI assets are published for {1} yet (x86_64 only); skipping the GUI.']='aún no se publican recursos de GUI para {1} (solo x86_64); se omite la GUI.'
 L10N['no GUI binary']='sin binario de GUI'
@@ -168,6 +165,7 @@ L10N['not installed']='no instalado'
 L10N['not present']='no presente'
 L10N['optional bar widget, attention panel and OSD for the Noctalia shell']='widget de barra opcional, panel de atención y OSD para el shell Noctalia'
 L10N['perception (vision server deps)']='percepción (dependencias del servidor de visión)'
+L10N['plan']='plan'
 L10N['plan review']='revisión del plan'
 L10N['please answer y, n, a, s, or q']='responde s, n, t, o, o q'
 L10N['plugin utter_py will run with {1}']='el plugin utter_py se ejecutará con {1}'

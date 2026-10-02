@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # utter installer locale: it
-# MACHINE-DRAFTED, UNREVIEWED translation — generated for initial coverage.
-# It has not been checked by a native speaker and may contain errors.
-# Corrections and review are tracked in docs/TRANSLATING.md (Crowdin).
-# Do not edit by hand expecting upstream to pick it up: regenerate or
-# submit the fix via Crowdin, then it will be re-exported here.
+# MACHINE-DRAFTED / CROWDIN-IMPORTED — unreviewed unless a fluent speaker
+# checked it. Corrections go through docs/TRANSLATING.md (Crowdin).
 # ---------------------------------------------------------------------------
-# The installer sources this file when present and looks up translations by
-# the exact English message; any key not present falls back to English.
-# Never treat a value as a printf format: it is always printed via %s.
-# L10N is declared (and reset) by install.sh before sourcing this file;
-# do not re-declare it here, or it would shadow the caller's array.
+# Translations are keyed by the exact English message; anything missing falls
+# back to English. Values are always printed via %s, never as a printf format.
+# `L10N` is declared by install.sh before sourcing this file.
+# ---------------------------------------------------------------------------
 
 L10N['  2. Check the install:  {1} doctor --json']='  2. Verifica l'\''installazione:  {1} doctor --json'
 L10N['  Detected system language: {1}']='  Lingua di sistema rilevata: {1}'
@@ -137,6 +133,7 @@ L10N['missing {1} (cannot verify {2})']='{1} mancante (impossibile verificare {2
 L10N['missing: {1}']='mancanti: {1}'
 L10N['models']='modelli'
 L10N['multilingual speech recognition (~480 MB, or ~1.6 GB for large-v3-turbo)']='riconoscimento vocale multilingue (~480 MB o ~1,6 GB per large-v3-turbo)'
+L10N['no']='no'
 L10N['no GUI assets are published for {1} yet (the AppImage/deb/rpm are x86_64 only); skipping.']='nessun asset GUI è ancora pubblicato per {1} (AppImage/deb/rpm solo x86_64); ignorato.'
 L10N['no GUI assets are published for {1} yet (x86_64 only); skipping the GUI.']='nessun asset GUI è ancora pubblicato per {1} (solo x86_64); GUI ignorata.'
 L10N['no GUI binary']='nessun binario GUI'
