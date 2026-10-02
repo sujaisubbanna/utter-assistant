@@ -9,8 +9,16 @@ import {
 } from "react";
 
 import { api } from "../lib/api";
+import { de } from "./de";
 import { en, type Messages } from "./en";
 import { es } from "./es";
+import { fr } from "./fr";
+import { it } from "./it";
+import { ja } from "./ja";
+import { ko } from "./ko";
+import { pt } from "./pt";
+import { ru } from "./ru";
+import { zh } from "./zh";
 
 /**
  * Tiny, dependency-free i18n.
@@ -24,13 +32,24 @@ import { es } from "./es";
  *   it is never written to config.toml.
  */
 
-export const LOCALES = { en, es } as const;
+export const LOCALES = { en, es, de, fr, it, pt, zh, ja, ko, ru } as const;
 export type Lang = keyof typeof LOCALES;
 export type LangPref = Lang | "system";
-export const LANGS: Lang[] = ["en", "es"];
+export const LANGS: Lang[] = ["en", "es", "de", "fr", "it", "pt", "zh", "ja", "ko", "ru"];
 
 /** Native names, so a user can always find their own language. */
-export const LANG_NAMES: Record<Lang, string> = { en: "English", es: "Español" };
+export const LANG_NAMES: Record<Lang, string> = {
+  en: "English",
+  es: "Español",
+  de: "Deutsch",
+  fr: "Français",
+  it: "Italiano",
+  pt: "Português",
+  zh: "中文",
+  ja: "日本語",
+  ko: "한국어",
+  ru: "Русский",
+};
 
 const STORAGE_KEY = "utter.lang";
 
