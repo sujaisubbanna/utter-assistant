@@ -74,7 +74,7 @@ At each prompt, press **Enter** for the recommended default, or answer
 | `q` | quit **without making any changes** |
 | Enter | the recommended default shown in `[Y/n]` / `[y/N]` |
 
-The nine steps, in order:
+The ten steps, in order:
 
 1. **System deps** — probes `python3`, systemd `--user`, PipeWire, `ydotool`
    (+`ydotoold`), `wtype`, `grim`, `wl-clipboard`, the Tauri v2 WebKit runtime
@@ -87,27 +87,38 @@ The nine steps, in order:
    `$PREFIX/bin/assistant`. PyYAML and requests are installed into a per-user
    venv at `$PREFIX/share/utter/.venv-agent`, so the CLI and the plugin run
    without a system-wide install. Recommended.
-3. **systemd user units** — installs `utter-runner.service` and runs
+3. **Language** — shows the detected system language (from
+   `LC_ALL`/`LC_MESSAGES`/`LANG`, normalised like `en_GB.UTF-8` → `en-GB`) and lets
+   you keep **English (default)** or pick another language. English ships inline
+   and needs **no downloads**. For a non-English language the step *offers*
+   (default No) the matching multilingual STT model (~480 MB / ~1.6 GB), a TTS
+   voice and a UI localization pack when one is configured — each with its size —
+   and downloads nothing unless you accept. Never sudo, never forced. With
+   `--yes` it stays English and prints the one-line `assistant models pull`
+   command to add a language later. The choice is saved to `[stt] language` /
+   `[tts] language` (and `[tts] voice`) in `config.toml`.
+4. **systemd user units** — installs `utter-runner.service` and runs
    `daemon-reload`; a **separate question** asks whether to `enable --now`
    (recommended: no — start it when you are ready).
-4. **Models** — presents the `assistant recommend` tiers (STT / decision head /
+5. **Models** — presents the `assistant recommend` tiers (STT / decision head /
    vision) with the model and estimated footprint, and asks **per tier**.
    Declining any tier skips it cleanly; nothing is downloaded unless you opt in
    and provide a source (see the env matrix).
-5. **GUI** — the Tauri app. AppImage (no sudo) to `$PREFIX/bin/utter-gui`
+6. **GUI** — the Tauri app. AppImage (no sudo) to `$PREFIX/bin/utter-gui`
    plus a `.desktop` entry; if `$PREFIX/bin` is not on `PATH` and Noctalia is
    present, an optional `~/.local/bin/utter-gui` symlink is created so the
    widget's left-click finds it.
-6. **STT backend** — detects a whisper backend; if none, advises how to add one.
+7. **STT backend** — detects a whisper backend; if none, advises how to add one.
    Advisory only.
-7. **Perception** (vision server deps) — detects a UI-TARS/vLLM/transformers
+8. **Perception** (vision server deps) — detects a UI-TARS/vLLM/transformers
    stack; advises how to serve it. Advisory only.
-8. **Noctalia widget** — optional. If Noctalia is **not** detected, prints a
+9. **Noctalia widget** — optional. If Noctalia is **not** detected, prints a
    one-line hint and skips. If accepted, runs the bundled
    `widgets/noctalia/install.sh --yes` from the extracted core tree.
-9. **Config** — writes `~/.config/utter/config.toml` from the shipped
-   default if absent; if it already exists it **asks before overwriting**
-   (recommended: keep).
+10. **Config** — writes `~/.config/utter/config.toml` from the shipped
+    default if absent; if it already exists it **asks before overwriting**
+    (recommended: keep). When a non-English language was chosen, the language
+    values are written into `config.toml` here.
 
 After the walk the installer prints a **plan review** (what installs, what is
 skipped, whether sudo is involved), asks for a final confirm, then executes with
@@ -119,7 +130,7 @@ per-step progress and a final summary with next steps.
 |---|---|
 | `--appimage` | install the AppImage (no sudo; default) |
 | `--package` | install the native `.deb`/`.rpm` via the package manager (sudo) |
-| `--only <csv>` | only offer these components (`deps,core,units,models,gui,stt,perception,noctalia,config`) |
+| `--only <csv>` | only offer these components (`deps,core,lang,units,models,gui,stt,perception,noctalia,config`) |
 | `--skip <csv>` | never offer these components |
 | `--with-noctalia` | mark the optional Noctalia widget as recommended |
 | `--dry-run` | run the walk, print the plan, change nothing |
@@ -140,6 +151,10 @@ per-step progress and a final summary with next steps.
 | `UTTER_MODEL_STT` | — | source to pull if the STT tier is accepted (`hf:org/repo[:file]`, `https://…`, `file://…`) |
 | `UTTER_MODEL_DECISION` | — | source to pull if the decision-head tier is accepted |
 | `UTTER_MODEL_VISION` | — | source to pull if the vision tier is accepted |
+| `UTTER_MODEL_STT_<LANG>` | — | per-language multilingual STT source offered by the language step (e.g. `UTTER_MODEL_STT_DE_DE`); falls back to `UTTER_MODEL_STT` |
+| `UTTER_MODEL_TTS` / `UTTER_MODEL_TTS_<LANG>` | — | TTS voice model/path offered by the language step |
+| `UTTER_TTS_VOICE` / `UTTER_TTS_VOICE_<LANG>` | — | voice written to `[tts] voice` for the chosen language (default: the language code) |
+| `UTTER_LOCALE_PACK` / `UTTER_LOCALE_PACK_<LANG>` | — | UI localization pack source; only offered when configured |
 
 Example — install a specific version into a custom prefix, non-interactively:
 

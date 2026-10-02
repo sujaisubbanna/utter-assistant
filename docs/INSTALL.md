@@ -15,18 +15,25 @@ install/install.sh --yes --no-deps   # skip distro packages, only wire the servi
 What it does:
 1. Detects the distro from `/etc/os-release` (`ID`/`ID_LIKE`) → **pacman / apt / dnf / zypper**
    (falls back to `command -v`).
-2. Installs the system dependencies (name-mapped per distro): `wtype`, `ydotool` (+`ydotoold`),
+2. Asks which **spoken language** you use. **English ships inline** (the default STT model
+   `distil-small.en` and the English UI strings) and needs **no downloads**; press Enter to keep
+   it. Other languages are opt-in: the installer offers the matching multilingual STT model,
+   a TTS voice and (when configured) a UI localization pack, showing sizes, and downloads
+   nothing unless you accept. The choice is written to `[stt] language` / `[tts] language`
+   (and `[tts] voice`) in `config.toml`. With `--yes` it stays English and prints the
+   `assistant models pull` command to add a language later.
+3. Installs the system dependencies (name-mapped per distro): `wtype`, `ydotool` (+`ydotoold`),
    `grim`, `wl-clipboard`, `pipewire`, `webkit2gtk-4.1` and `libsoup-3.0` (the Tauri v2 WebKit
    runtime; the old GTK4/libadwaita window is gone), optional `keyd`.
    Accessibility (reading the focused element via AT-SPI) additionally needs PyGObject
    (`python-gobject`) and `at-spi2-core`; these are **optional** — a11y degrades gracefully
    when absent, so the installer does not require them.
-3. Checks the `input` group and `/dev/uinput`; **prints** the `usermod -aG input` + udev + re-login
+4. Checks the `input` group and `/dev/uinput`; **prints** the `usermod -aG input` + udev + re-login
    steps (it never silently changes groups).
-4. Installs and (with `--yes`) enables the **user** service `utter-runner.service`, bound to
+5. Installs and (with `--yes`) enables the **user** service `utter-runner.service`, bound to
    the graphical session via the `scripts/utter-wayland-ready.sh` wrapper.
-5. Records what it did in `$XDG_STATE_HOME/utter/install.json` (reversible).
-6. Runs `python -m assistant doctor --json` (or `recommend --json`) to verify.
+6. Records what it did in `$XDG_STATE_HOME/utter/install.json` (reversible).
+7. Runs `python -m assistant doctor --json` (or `recommend --json`) to verify.
 
 Uninstall:
 ```bash
@@ -80,6 +87,27 @@ $XDG_DATA_HOME/utter/models/      # override with UTTER_MODELS
 
 Models are **the user's choice** — the installer never downloads one. `assistant recommend`
 suggests a profile for the machine's GPU/RAM; you pull what you want.
+
+### Spoken language and downloads
+
+The installer's **Language** step writes the spoken language to `[stt] language` and
+`[tts] language` (plus `[tts] voice`) in `config.toml`. `"auto"` (the config default) resolves
+from `LC_ALL`/`LC_MESSAGES`/`LANG`; the installer records an explicit code instead. English is
+the only inline locale — **no downloads are needed for English** — and the default STT model
+`distil-small.en` is English-only.
+
+For another language the installer *offers* (default No) the matching downloads and never fetches
+them unless you accept:
+
+| Download | Size | Source env |
+|---|---|---|
+| Multilingual STT model | ~480 MB (`small`) / ~1.6 GB (`large-v3-turbo`) | `UTTER_MODEL_STT_<LANG>` → `UTTER_MODEL_STT_<LANG2>` → `UTTER_MODEL_STT` |
+| TTS voice | varies | `UTTER_MODEL_TTS_<LANG>` → `UTTER_MODEL_TTS` (voice name via `UTTER_TTS_VOICE_<LANG>`, default = the language code) |
+| UI localization pack | typically < 5 MB | `UTTER_LOCALE_PACK_<LANG>` → `UTTER_LOCALE_PACK` |
+
+`<LANG>` is the uppercased language with `-` → `_` (`de-DE` → `DE_DE`, then `DE`). Every accepted
+download goes through the normal model store (`assistant models pull <src>`); if no source is
+configured the installer prints that command for you to run later. Nothing uses `sudo`.
 
 ### GPU planning (VRAM & latency)
 
