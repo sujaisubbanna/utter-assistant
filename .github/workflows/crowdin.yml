@@ -1,18 +1,19 @@
 name: crowdin
 
 # Build-time translation sync. Crowdin is NOT a runtime dependency: translators
-# work in Crowdin, and finished strings land here as committed locale files.
+# work in Crowdin, finished strings are downloaded here, converted into the real
+# locale files (gui-tauri/src/i18n/*.ts, install/i18n/*.sh) and opened as a PR.
 #
 # No-op unless BOTH repository secrets exist:
 #   CROWDIN_PROJECT_ID, CROWDIN_PERSONAL_TOKEN
-# Without them this workflow exits 0 without touching anything, so forks and
-# the default repo never fail. See docs/TRANSLATING.md.
+# Without them this workflow exits 0 without touching anything, so forks and the
+# default repo never fail. See docs/TRANSLATING.md.
 on:
   push:
     branches: [main]
     paths:
       - "gui-tauri/src/i18n/en.ts"
-      - "install/i18n/en.sh"
+      - "install/i18n/*.sh"
       - ".crowdin.yml"
       - ".github/workflows/crowdin.yml"
   workflow_dispatch:
@@ -28,6 +29,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-24.04
+    if: ${{ github.repository_owner == 'sujaisubbanna' }}
     steps:
       - name: Check for Crowdin credentials
         id: guard
@@ -44,7 +46,19 @@ jobs:
         if: steps.guard.outputs.configured == 'true'
         uses: actions/checkout@v4
 
-      - name: Upload English sources to Crowdin
+      - name: Set up Python
+        if: steps.guard.outputs.configured == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 1. Bake the current English sources into crowdin/*-en.json and push them
+      #    up so translators always see the latest keys.
+      - name: Export English sources to JSON
+        if: steps.guard.outputs.configured == 'true'
+        run: python scripts/i18n_crowdin.py export
+
+      - name: Upload sources to Crowdin
         if: steps.guard.outputs.configured == 'true'
         uses: crowdin/github-action@v2
         with:
@@ -56,19 +70,47 @@ jobs:
           CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
           CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
 
-      - name: Download translations into a pull request
+      # 2. Download every translation into crowdin/<name>-<lang>.json (Crowdin's
+      #    file format). These are generated artifacts and are gitignored.
+      - name: Download translations from Crowdin
         if: steps.guard.outputs.configured == 'true'
         uses: crowdin/github-action@v2
         with:
           upload_sources: false
           download_translations: true
-          create_pull_request: true
-          localization_branch_name: chore/crowdin-translations
-          pull_request_title: "chore(i18n): update translations from Crowdin"
-          pull_request_body: "Automated Crowdin translation sync. Review before merging; machine drafts still need a fluent speaker."
-          pull_request_base_branch_name: main
-          commit_message: "chore(i18n): update translations from Crowdin"
+          create_pull_request: false
         env:
           CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
           CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+
+      # 3. Convert the JSON back into the shipped locale files, so the PR carries
+      #    ready-to-use .ts/.sh rather than Crowdin's intermediate JSON.
+      - name: Import translations into locale files
+        if: steps.guard.outputs.configured == 'true'
+        run: python scripts/i18n_crowdin.py import
+
+      # 4. Open a PR only when the shipped locale files actually changed.
+      - name: Create pull request
+        if: steps.guard.outputs.configured == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/crowdin-translations
+          base: main
+          title: "chore(i18n): update translations from Crowdin"
+          commit-message: "chore(i18n): update translations from Crowdin"
+          body: |
+            Automated Crowdin translation sync.
+
+            This PR contains the locale files regenerated from Crowdin by
+            `scripts/i18n_crowdin.py import` — `gui-tauri/src/i18n/*.ts` and
+            `install/i18n/*.sh`. Intermediate `crowdin/*.json` artifacts are
+            gitignored and not included.
+
+            Machine-drafted entries still need a fluent speaker to review before
+            merging. See `docs/TRANSLATING.md`.
+          add-paths: |
+            gui-tauri/src/i18n/*.ts
+            install/i18n/*.sh
+          delete-branch: true
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
