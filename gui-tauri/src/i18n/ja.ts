@@ -351,8 +351,10 @@ export const ja: Messages = {
   setup: {
     title: "Mac をセットアップする",
     description: "Utter は、リッスン、入力、および動作する前に、いくつかの権限が必要です。一度許可してください。このページではそれらをライブでチェックします。",
-    linuxDescription: "このページは macOS 用です。",
-    linuxNote: "Linux では、インストーラーと systemd ユニットがセットアップを処理します。ここでは何もすることはありません。",
+    linuxTitle: "Linux をセットアップ",
+    linuxDescription: "インストーラーが Utter ランナーをバックグラウンドサービスとして設定します。ここで確認し、実行されていなければ起動してください。",
+    linuxNote: "ランナーがここから起動しない場合は、ターミナルで次を実行してください: systemctl --user enable --now utter-runner.service",
+    linuxInstallBody: "Utter はプロジェクトリポジトリの install/install.sh でインストールおよび更新されます。",
     hero: {
       title: "アクセスするにはいくつかの許可が必要です",
       body: "macOS は、初回にそれぞれを要求します。プロンプトが表示されない場合は、その行からシステム設定を開き、Utter をオンにします。",

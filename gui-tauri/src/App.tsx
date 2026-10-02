@@ -11,7 +11,7 @@ import { PlatformProvider, usePlatform } from "./lib/platform";
 import { RunnerStatusProvider } from "./lib/status";
 import { ThemeProvider } from "./lib/theme";
 import { isPageId, PAGES } from "./pages";
-import { setupSeen } from "./pages/Setup";
+import { LINUX_AGENT_UNITS, setupSeen } from "./pages/Setup";
 
 function routeFromHash(): string {
   const id = window.location.hash.replace(/^#\/?/, "");
@@ -69,12 +69,16 @@ function Shell() {
       .catch(() => {});
   }, [navigate]);
 
-  // On a Mac, open Set up on launch whenever the assistant is not usable:
-  // the first-run flag OR any required privacy permission still missing. The
-  // flag alone is not enough — it persists across reinstalls, so a fresh
-  // install with no grants would otherwise land on General.
+  // Open Set up on launch whenever the assistant is not usable:
+  //  - any platform, first run: the seen flag is not set yet;
+  //  - macOS: the flag is set but a required privacy permission is still
+  //    missing (the flag persists across reinstalls, so a fresh install with
+  //    no grants would otherwise land on General);
+  //  - Linux: the flag is set but the runner user unit is not active.
+  // The service check runs once per launch and only while the default route is
+  // showing, so it never yanks the user back after they navigate away.
   useEffect(() => {
-    if (!platformReady || !isMac) return;
+    if (!platformReady) return;
     // Respect an explicit route (deep link / dev override).
     if (window.location.hash && routeFromHash() !== "general") return;
     const goSetup = () => {
@@ -85,12 +89,23 @@ function Shell() {
       return;
     }
     let cancelled = false;
-    api
-      .macosPermissions()
-      .then((report) => {
-        if (!cancelled && report && !report.all_granted) goSetup();
-      })
-      .catch(() => {});
+    if (isMac) {
+      api
+        .macosPermissions()
+        .then((report) => {
+          if (!cancelled && report && !report.all_granted) goSetup();
+        })
+        .catch(() => {});
+    } else {
+      api
+        .systemctlShow(LINUX_AGENT_UNITS)
+        .then((statuses) => {
+          if (cancelled) return;
+          const runner = statuses.find((status) => status.id === "utter-runner") ?? statuses[0];
+          if (runner?.active_state !== "active") goSetup();
+        })
+        .catch(() => {});
+    }
     return () => {
       cancelled = true;
     };

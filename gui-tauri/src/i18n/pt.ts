@@ -351,8 +351,10 @@ export const pt: Messages = {
   setup: {
     title: "Configure o seu Mac",
     description: "Utter precisa de algumas permissões antes de poder ouvir, digitar e agir. Conceda-os uma vez; esta página os verifica ao vivo.",
-    linuxDescription: "Esta página é para macOS.",
-    linuxNote: "Em Linux o instalador e as unidades systemd cuidam da configuração. Nada para fazer aqui.",
+    linuxTitle: "Configurar o Linux",
+    linuxDescription: "O instalador configura o runner do Utter como serviço em segundo plano. Verifique-o aqui e inicie-o se não estiver em execução.",
+    linuxNote: "Se o runner não iniciar aqui, execute isto num terminal: systemctl --user enable --now utter-runner.service",
+    linuxInstallBody: "O Utter é instalado e atualizado a partir do repositório do projeto com install/install.sh.",
     hero: {
       title: "Algumas permissões para ir",
       body: "macOS pergunta por cada um na primeira vez. Se um prompt não aparecer, abra Configurações do sistema na linha e ative Utter.",

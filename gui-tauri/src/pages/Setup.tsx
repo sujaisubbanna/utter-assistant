@@ -5,7 +5,7 @@ import { PageBody, PageHeader, PageNote } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
-import { Row, Tile } from "../components/ui/Row";
+import { Row, Tile, Value } from "../components/ui/Row";
 import { SkeletonRows } from "../components/ui/Skeleton";
 import { StatusDot, type DotTone } from "../components/ui/StatusDot";
 import { useToast } from "../components/ui/Toast";
@@ -16,7 +16,7 @@ import { useTauriEvent } from "../lib/events";
 import { usePoll } from "../lib/hooks";
 import { displayMacKey } from "../lib/keys";
 import { usePlatform } from "../lib/platform";
-import type { InstallStatus, PermissionItem, PermissionReport, UnitStatus } from "../lib/types";
+import type { AppInfo, InstallStatus, PermissionItem, PermissionReport, UnitStatus } from "../lib/types";
 
 /**
  * macOS onboarding, in the spirit of Raycast's first run: one screen that
@@ -65,7 +65,11 @@ const PROMPTS = new Set(["microphone", "speech_recognition", "input_monitoring",
  *  agents must be restarted when either flips to granted. */
 const RESTART_ON_GRANT = ["input_monitoring", "accessibility"];
 
-const AGENT_UNITS = ["utter-runner", "utter-bridge"];
+// macOS runs two launchd agents. On Linux the installer only installs the
+// runner user unit (`install/utter-runner.service`); the old utter-bridge and
+// friends are legacy units the installer removes, so they are not shown.
+const MAC_AGENT_UNITS = ["utter-runner", "utter-bridge"];
+export const LINUX_AGENT_UNITS = ["utter-runner"];
 const SETUP_SEEN = "utter.setup.seen";
 
 export function markSetupSeen(): void {
@@ -141,6 +145,7 @@ function PermissionRow({
 
 function AgentRow({ unit, status, onStart, busy }: { unit: string; status?: UnitStatus; onStart: () => void; busy: boolean }) {
   const { t } = useI18n();
+  const { isMac } = usePlatform();
   const installed = status && status.load_state !== "not-found" && Boolean(status.load_state);
   const running = status?.active_state === "active";
   const tone: DotTone = !status ? "unknown" : running ? "ok" : installed ? "muted" : "warn";
@@ -156,7 +161,9 @@ function AgentRow({ unit, status, onStart, busy }: { unit: string; status?: Unit
             ? t("setup.agent.running")
             : installed
               ? t("setup.agent.stopped")
-              : t("setup.agent.notInstalled")
+              : isMac
+                ? t("setup.agent.notInstalled")
+                : t("general.services.notInstalled")
       }
     >
       <StatusDot tone={tone} pulse={running} />
@@ -248,9 +255,15 @@ export function SetupPage() {
   const [requesting, setRequesting] = useState<string | null>(null);
   const [agents, setAgents] = useState<Record<string, UnitStatus>>({});
   const [starting, setStarting] = useState<string | null>(null);
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  const units = isMac ? MAC_AGENT_UNITS : LINUX_AGENT_UNITS;
 
   useEffect(() => {
     markSetupSeen();
+  }, []);
+
+  useEffect(() => {
+    api.appInfo().then(setInfo).catch(() => {});
   }, []);
 
   useTauriEvent<{ stage: string; message: string }>(
@@ -295,46 +308,48 @@ export function SetupPage() {
   }, [isMac, runInstall]);
 
   const refresh = useCallback(async () => {
-    if (!isMac) return;
-    try {
-      const next = await api.macosPermissions();
-      if (next && Array.isArray(next.permissions)) {
-        const nowGranted = new Set(
-          next.permissions.filter((item) => item.status === "granted").map((item) => item.id),
-        );
-        const previous = grantedRef.current;
-        grantedRef.current = nowGranted;
-        // Restart once on a false→true transition (never on the first report):
-        // Input Monitoring / Accessibility only apply to newly started processes.
-        if (previous && RESTART_ON_GRANT.some((id) => nowGranted.has(id) && !previous.has(id))) {
-          void api
-            .macosRestartAgents()
-            .then(() => toast(t("plugins.restarted"), "ok"))
-            .catch((err) => console.warn("utter: restarting agents after grant failed", err));
+    if (isMac) {
+      try {
+        const next = await api.macosPermissions();
+        if (next && Array.isArray(next.permissions)) {
+          const nowGranted = new Set(
+            next.permissions.filter((item) => item.status === "granted").map((item) => item.id),
+          );
+          const previous = grantedRef.current;
+          grantedRef.current = nowGranted;
+          // Restart once on a false→true transition (never on the first report):
+          // Input Monitoring / Accessibility only apply to newly started processes.
+          if (previous && RESTART_ON_GRANT.some((id) => nowGranted.has(id) && !previous.has(id))) {
+            void api
+              .macosRestartAgents()
+              .then(() => toast(t("plugins.restarted"), "ok"))
+              .catch((err) => console.warn("utter: restarting agents after grant failed", err));
+          }
+          setReport(next);
+          setError(null);
+        } else {
+          setError(String(next?.error ?? t("common.somethingWrong")));
         }
-        setReport(next);
-        setError(null);
-      } else {
-        setError(String(next?.error ?? t("common.somethingWrong")));
+      } catch (err) {
+        setError(String(err));
       }
-    } catch (err) {
-      setError(String(err));
     }
     try {
-      const statuses = await api.systemctlShow(AGENT_UNITS);
+      const statuses = await api.systemctlShow(units);
       setAgents(Object.fromEntries(statuses.map((status) => [status.id, status])));
     } catch {
       /* the agent rows just stay unknown */
     }
-  }, [isMac, t, toast]);
+  }, [isMac, units, t, toast]);
 
   useEffect(() => {
     if (!installing) void refresh();
   }, [refresh, installing]);
 
-  // Live re-check while the user flips switches in System Settings.
+  // Live re-check: on macOS while the user flips switches in System Settings,
+  // on Linux so a service started elsewhere shows up without a reload.
   const allGranted = Boolean(report?.all_granted);
-  usePoll(() => refresh(), allGranted ? 15000 : 3000, isMac && !installing);
+  usePoll(() => refresh(), allGranted ? 15000 : 3000, ready && !installing);
 
   const request = async (id: string) => {
     setRequesting(id);
@@ -359,10 +374,10 @@ export function SetupPage() {
     }
   };
 
-  const start = async (unit: string) => {
+  const start = async (unit: string, action: "start" | "restart" = "start") => {
     setStarting(unit);
     try {
-      const result = await api.systemctl("start", unit);
+      const result = await api.systemctl(action, unit);
       if (!result.ok) toast(t("setup.agent.startFailed", { detail: (result.stderr || result.stdout).trim() }), "error");
       await refresh();
     } catch (err) {
@@ -379,10 +394,76 @@ export function SetupPage() {
   const progress = useMemo(() => (total ? Math.round((granted / total) * 100) : 0), [granted, total]);
 
   if (ready && !isMac) {
+    const runner = agents[LINUX_AGENT_UNITS[0]];
+    const running = runner?.active_state === "active";
+    const runnerInstalled = Boolean(runner && runner.load_state !== "not-found" && runner.load_state);
     return (
       <>
-        <PageHeader title={t("setup.title")} description={t("setup.linuxDescription")} />
+        <PageHeader title={t("setup.linuxTitle")} description={t("setup.linuxDescription")} />
         <PageBody>
+          {/* status hero */}
+          <section className="relative overflow-hidden rounded-lg bg-card p-5 shadow-card" aria-live="polite">
+            <div className="flex items-center gap-4">
+              <span
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+                style={{
+                  color: running ? "var(--success)" : "var(--primary)",
+                  background: `color-mix(in oklab, ${running ? "var(--success)" : "var(--primary)"} 13%, transparent)`,
+                }}
+              >
+                <Icon name={running ? "check" : "power"} size={22} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold text-foreground">
+                  {!runner
+                    ? t("general.hero.checkingTitle")
+                    : running
+                      ? t("general.hero.runningTitle")
+                      : t("general.hero.stoppedTitle")}
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {!runner
+                    ? t("general.hero.checkingBody")
+                    : running
+                      ? t("general.hero.runningBody")
+                      : t("general.hero.stoppedBody")}
+                </p>
+              </div>
+              {runnerInstalled && (
+                <Button
+                  size="sm"
+                  variant={running ? "secondary" : "primary"}
+                  icon={running ? "refresh" : "play"}
+                  loading={starting === LINUX_AGENT_UNITS[0]}
+                  onClick={() => void start(LINUX_AGENT_UNITS[0], running ? "restart" : "start")}
+                >
+                  {running ? t("general.hero.restart") : t("general.hero.start")}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" icon="refresh" onClick={() => void refresh()}>
+                {t("common.refresh")}
+              </Button>
+            </div>
+          </section>
+
+          <Section title={t("general.services.title")} description={t("general.services.description")}>
+            {LINUX_AGENT_UNITS.map((unit) => (
+              <AgentRow key={unit} unit={unit} status={agents[unit]} onStart={() => void start(unit)} busy={starting === unit} />
+            ))}
+          </Section>
+
+          <Section title={t("about.runtime.title")} description={t("setup.linuxInstallBody")}>
+            <Row leading={<Tile icon="folder" />} title={t("about.runtime.repo")}>
+              <Value>{info?.repo || "—"}</Value>
+            </Row>
+            <Row leading={<Tile icon="terminal" />} title={t("about.runtime.python")}>
+              <Value>{info?.python || "—"}</Value>
+            </Row>
+            <Row leading={<Tile icon="sliders" />} title={t("about.runtime.config")}>
+              <Value>{info?.config_path || "—"}</Value>
+            </Row>
+          </Section>
+
           <PageNote>{t("setup.linuxNote")}</PageNote>
         </PageBody>
       </>
@@ -461,7 +542,7 @@ export function SetupPage() {
         </Section>
 
         <Section title={t("setup.agent.title")} description={t("setup.agent.description")}>
-          {AGENT_UNITS.map((unit) => (
+          {MAC_AGENT_UNITS.map((unit) => (
             <AgentRow key={unit} unit={unit} status={agents[unit]} onStart={() => void start(unit)} busy={starting === unit} />
           ))}
         </Section>

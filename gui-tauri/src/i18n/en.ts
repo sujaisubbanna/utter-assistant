@@ -346,8 +346,10 @@ export const en = {
   setup: {
     title: "Set up your Mac",
     description: "Utter needs a few permissions before it can listen, type and act. Grant them once; this page checks them live.",
-    linuxDescription: "This page is for macOS.",
-    linuxNote: "On Linux the installer and systemd units handle setup. Nothing to do here.",
+    linuxTitle: "Set up Linux",
+    linuxDescription: "The installer sets up the Utter runner as a background service. Check it here and start it if it isn't running.",
+    linuxNote: "If the runner won't start here, run this in a terminal: systemctl --user enable --now utter-runner.service",
+    linuxInstallBody: "Utter is installed and updated from the project repo with install/install.sh.",
     hero: {
       title: "A few permissions to go",
       body: "macOS asks for each one the first time. If a prompt doesn't appear, open System Settings from the row and switch Utter on.",
