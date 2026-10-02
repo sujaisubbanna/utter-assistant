@@ -43,8 +43,11 @@ if [[ -z "$binary" ]]; then
   if command -v cargo >/dev/null 2>&1; then
     echo "utter-gui: first run — building the app (this takes a minute)…" >&2
     (cd "$HERE" && pnpm install >/dev/null 2>&1 || true)
-    (cd "$HERE" && pnpm build >/dev/null 2>&1 || true)
-    (cd "$SRC_TAURI" && cargo build --release >/dev/null 2>&1)
+    # Use the Tauri CLI, not `cargo build --release`: the CLI embeds the built
+    # frontend (`frontendDist`). A plain cargo build leaves the dev URL
+    # (http://localhost:1420) baked in, so the window renders black with no
+    # dev server running. `--no-bundle` skips installers; we only want the binary.
+    (cd "$HERE" && pnpm tauri build --no-bundle >/dev/null 2>&1 || true)
     binary="$SRC_TAURI/target/release/utter"
   fi
 fi
