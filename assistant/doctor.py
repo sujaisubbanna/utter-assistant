@@ -72,12 +72,23 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
         "connected": False,
     }
 
-    client = RunnerClient(sock or util.runner_sock_path(), timeout=timeout)
+    sock_path = sock or util.runner_sock_path()
+    client = RunnerClient(sock_path, timeout=timeout)
     try:
         client.connect()
+    except FileNotFoundError:
+        report["ok"] = False
+        report["error"] = (
+            f"the runner isn't running: no socket at {sock_path}. "
+            "Start it with: systemctl --user start utter-runner.service"
+        )
+        report["socket"] = sock_path
+        report["drift"] = _drift(runner_info)
+        return report
     except OSError as exc:
         report["ok"] = False
-        report["error"] = f"runner socket unavailable: {exc}"
+        report["error"] = f"couldn't reach the runner at {sock_path}: {exc}"
+        report["socket"] = sock_path
         report["drift"] = _drift(runner_info)
         return report
 
