@@ -419,6 +419,35 @@ pub async fn macos_reinstall_agents(app: AppHandle, state: State<'_, AppState>) 
     Ok(status(&app, &state))
 }
 
+/// Restart both launchd agents in place. macOS only applies Input Monitoring
+/// and Accessibility grants to freshly started processes, so after the user
+/// flips either switch in System Settings the already-running daemon has to be
+/// restarted to rebuild its event tap. `kickstart -k` is the normal path;
+/// fall back to `bootstrap` when the agent was not loaded yet.
+#[tauri::command]
+pub fn macos_restart_agents(app: AppHandle, state: State<AppState>) -> Result<InstallStatus, String> {
+    if !IS_MACOS {
+        return Err("only macOS".to_string());
+    }
+    let domain = format!("gui/{}", uid());
+    for label in [ASSISTANT_LABEL, RUNNER_LABEL] {
+        let target = format!("{domain}/{label}");
+        let restarted = Command::new("/bin/launchctl")
+            .args(["kickstart", "-k", &target])
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false);
+        if !restarted {
+            let plist = agents_dir().join(format!("{label}.plist"));
+            run(Command::new("/bin/launchctl")
+                .args(["bootstrap", &domain])
+                .arg(&plist))
+            .map_err(|error| format!("launchctl restart {label}: {error}"))?;
+        }
+    }
+    Ok(status(&app, &state))
+}
+
 // --------------------------------------------------------------------------- //
 // `utter --daemon` / `utter --runner`: supervise the python child
 // --------------------------------------------------------------------------- //

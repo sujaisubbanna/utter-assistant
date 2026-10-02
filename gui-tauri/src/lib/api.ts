@@ -79,6 +79,9 @@ export const api = {
   macosInstallStatus: () => invoke<InstallStatus>("macos_install_status"),
   macosInstall: () => invoke<InstallStatus>("macos_install"),
   macosReinstallAgents: () => invoke<InstallStatus>("macos_reinstall_agents"),
+  // Restart the agents when a TCC grant transitions to granted: those only
+  // take effect for newly started processes.
+  macosRestartAgents: () => invoke<InstallStatus>("macos_restart_agents"),
 
   getThemePalette: () => invoke<Palette>("get_theme_palette"),
   exportBundle: (dest?: string) =>

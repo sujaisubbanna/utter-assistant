@@ -61,6 +61,10 @@ const WHY_KEY: Record<string, MessageKey> = {
 /** Prompt-able permissions: macOS shows a dialog for these on request. */
 const PROMPTS = new Set(["microphone", "speech_recognition", "input_monitoring", "accessibility", "screen_recording"]);
 
+/** Grants that only take effect for newly started processes, so the launchd
+ *  agents must be restarted when either flips to granted. */
+const RESTART_ON_GRANT = ["input_monitoring", "accessibility"];
+
 const AGENT_UNITS = ["utter-runner", "utter-bridge"];
 const SETUP_SEEN = "utter.setup.seen";
 
@@ -237,6 +241,9 @@ export function SetupPage() {
   const [installProgress, setInstallProgress] = useState<string | null>(null);
   const autoInstalled = useRef(false);
   const [report, setReport] = useState<PermissionReport | null>(null);
+  // Granted ids from the previous report; `null` until the first one, so an
+  // already-granted permission on load is never mistaken for a transition.
+  const grantedRef = useRef<Set<string> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requesting, setRequesting] = useState<string | null>(null);
   const [agents, setAgents] = useState<Record<string, UnitStatus>>({});
@@ -292,6 +299,19 @@ export function SetupPage() {
     try {
       const next = await api.macosPermissions();
       if (next && Array.isArray(next.permissions)) {
+        const nowGranted = new Set(
+          next.permissions.filter((item) => item.status === "granted").map((item) => item.id),
+        );
+        const previous = grantedRef.current;
+        grantedRef.current = nowGranted;
+        // Restart once on a false→true transition (never on the first report):
+        // Input Monitoring / Accessibility only apply to newly started processes.
+        if (previous && RESTART_ON_GRANT.some((id) => nowGranted.has(id) && !previous.has(id))) {
+          void api
+            .macosRestartAgents()
+            .then(() => toast(t("plugins.restarted"), "ok"))
+            .catch((err) => console.warn("utter: restarting agents after grant failed", err));
+        }
         setReport(next);
         setError(null);
       } else {
@@ -306,7 +326,7 @@ export function SetupPage() {
     } catch {
       /* the agent rows just stay unknown */
     }
-  }, [isMac, t]);
+  }, [isMac, t, toast]);
 
   useEffect(() => {
     if (!installing) void refresh();

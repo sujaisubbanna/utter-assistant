@@ -267,6 +267,7 @@ pub fn run() {
             macos_setup::macos_install_status,
             macos_setup::macos_install,
             macos_setup::macos_reinstall_agents,
+            macos_setup::macos_restart_agents,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
