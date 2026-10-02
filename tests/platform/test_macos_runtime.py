@@ -114,8 +114,8 @@ class TestMacosRuntime(unittest.TestCase):
 
                     # STT role
                     self.assertIn("stt", rep)
-                    self.assertEqual(rep["stt"]["primary"], "apple_speech")
-                    self.assertEqual(rep["stt"]["fallback"], "whisper_cpp")
+                    self.assertEqual(rep["stt"]["primary"], "whisper_cpp")
+                    self.assertEqual(rep["stt"]["fallback"], "apple_speech")
 
                     # TTS role
                     self.assertIn("tts", rep)
