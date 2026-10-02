@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Callable, Optional
 
+from . import platform
 from .types import Action, ActionResult, Context, Plan, Step, Tier
 
 log = logging.getLogger("utter.executor")
@@ -35,6 +36,15 @@ class Executor:
             res = self.execute_step(step)
             results.append(res)
             if not res.ok:
+                # A Linux-only desktop action (niri compositor command, MPRIS
+                # media, ``foot`` terminal) cannot run on macOS. Report it, but
+                # keep going: later steps may still work, and aborting would
+                # turn a useful partial success into a whole-plan failure.
+                # Linux is unchanged: any failure still stops the plan.
+                if res.unsupported and platform.is_macos():
+                    log.info("step unsupported on macOS, continuing: %s (%s)",
+                             step.action.value, res.detail)
+                    continue
                 log.warning("step failed: %s (%s)", step.action.value, res.detail)
                 break
             time.sleep(0.05)
@@ -67,6 +77,20 @@ class Executor:
     def _do_focus_app(self, step: Step) -> ActionResult:
         from .context import desktop
         app = step.args["app"]
+        if platform.is_macos():
+            # macOS reports bundle ids (``com.apple.Safari``) while profile ids
+            # may differ. Reuse the same tolerant, profile-aware resolution that
+            # ``ensure_app`` uses (``_windows_for_app`` -> candidate app_ids +
+            # ``desktop.find_windows`` substring match) instead of exact-match.
+            windows = self._windows_for_app(app)
+            if not windows:
+                return ActionResult(False, step.action, Tier.APP, f"{app} not running")
+            windows.sort(key=lambda w: (not getattr(w, "is_focused", False),
+                                        getattr(w, "workspace_id", 0),
+                                        getattr(w, "id", 0)))
+            target = windows[0]
+            ok = desktop.focus_window(target.id)
+            return ActionResult(ok, step.action, Tier.APP, f"focus {app}")
         for win in _list_windows():
             if win.get("app_id") == app:
                 ok = desktop.focus_window(win["id"])
@@ -530,6 +554,13 @@ class Executor:
                 keyboard.send_key("Return")
             return ActionResult(True, Action.TERMINAL, Tier.APP, f"terminal: {cmd}")
         from .actions import launch
+        if platform.is_macos():
+            # ``foot`` is Linux-only. Rather than spawn a missing binary, report
+            # a clear unsupported result (the plan keeps going). A focused
+            # terminal still takes the typing path above.
+            return ActionResult(False, Action.TERMINAL, Tier.APP,
+                                "terminal is not supported on macOS (no terminal focused)",
+                                unsupported=True)
         res = launch.launch_app(["foot", "-e", "bash", "-lc", cmd])
         return ActionResult(res.ok, Action.TERMINAL, Tier.APP, f"opened terminal: {cmd}")
 
@@ -545,6 +576,12 @@ class Executor:
         out = compositor.active().run_action(step.args["command"], step.args.get("args", []))
         res = ActionResult(out.ok, step.action, Tier.APP, out.detail)
         res.unsupported = bool(out.unsupported)
+        if res.unsupported and platform.is_macos():
+            # The macOS fallback backend reports the same structured outcome;
+            # replace its internal wording with something user-clear. It stays
+            # ``unsupported`` so ``execute_plan`` reports it without aborting.
+            res.detail = (f"'{step.args['command']}' is a niri/Linux compositor action, "
+                          "not available on macOS")
         return res
 
     def _do_media(self, step: Step) -> ActionResult:
@@ -698,6 +735,13 @@ def _select_mpris(names: list, candidate_ids=None):
 
 def _mpris(command: str, candidate_ids=None) -> ActionResult:
     """Control the active MPRIS media player (Cine/Plezy/mpv/browser) over DBus."""
+    if platform.is_macos():
+        # MPRIS is a Linux/freedesktop D-Bus interface; PyGObject (``gi``) is
+        # absent on macOS, so return a clear unsupported result instead of an
+        # import error. ``unsupported`` lets a plan continue past it.
+        return ActionResult(False, Action.MEDIA, Tier.APP,
+                            "media control is not supported on macOS",
+                            unsupported=True)
     method = {
         "play-pause": "PlayPause", "toggle": "PlayPause", "resume": "Play",
         "play": "Play", "pause": "Pause", "stop": "Stop",
@@ -726,6 +770,10 @@ _BROWSERS = {
     "zen", "zen-browser", "zen-browser-bin", "firefox", "google-chrome", "chrome",
     "com.google.Chrome", "chromium", "chromium-browser", "brave", "brave-browser",
     "org.mozilla.firefox", "vivaldi", "opera", "tor browser", "torbrowser", "helium",
+    # macOS browsers. ``_is_browser_app`` lowercases the window's app_id before
+    # the membership test, so these are stored lowercased.
+    "com.apple.safari", "com.apple.safaritechnologypreview",
+    "company.thebrowser.browser", "com.google.chrome.canary",
 }
 
 

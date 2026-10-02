@@ -148,10 +148,16 @@ class _Osd:
         self.em = None
         self.watcher = None
         self._native = native
+        self._lane = "assistant"
         self._sleep_hooked = False
         try:
             from .voice.osd import OsdEmitter
-            self.em = OsdEmitter(cfg=getattr(cfg, "osd", None), audio_source=audio_source)
+            self.em = OsdEmitter(
+                cfg=getattr(cfg, "osd", None),
+                audio_source=audio_source,
+                config=cfg,
+                on_partial=self._on_partial,
+            )
         except Exception:
             log.exception("could not initialise OSD emitter")
         self._init_model_loading(cfg)
@@ -167,7 +173,33 @@ class _Osd:
             log.debug("OSD %s failed", method, exc_info=True)
 
     def listening(self, mode: str = "assistant") -> None:
+        self._lane = "dictation" if mode == "dictation" else "assistant"
         self._emit("listening", mode)
+
+    def loading(self, text: str = "") -> None:
+        """Show ``loading`` on the emitter *and* the native overlay.
+
+        The model-loading watcher is constructed with ``self`` (the ``_Osd``),
+        so its ``loading``/``ready`` calls drive both the JSON document and the
+        native macOS panel. Either side may be absent; both are best-effort.
+        """
+        self._emit("loading", text)
+        native = getattr(self, "_native", None)
+        if native is not None:
+            try:
+                native.loading(text)
+            except Exception:  # noqa: BLE001 - never break voice
+                log.debug("native OSD loading failed", exc_info=True)
+
+    def _on_partial(self, text) -> None:
+        """Mirror the live partial transcript onto the native overlay."""
+        native = getattr(self, "_native", None)
+        if native is None:
+            return
+        try:
+            native.listening(text or "", lane=self._lane)
+        except Exception:  # noqa: BLE001 - best-effort only
+            log.debug("native OSD partial failed", exc_info=True)
 
     def level(self, value) -> None:
         self._emit("level", value)
@@ -198,12 +230,14 @@ class _Osd:
     def _init_model_loading(self, cfg) -> None:
         sc = getattr(cfg, "sleep", None)
         services = list(getattr(sc, "services", []) or [])
-        if self.em is None or not services:
+        if not services:
             return
         try:
             from .voice import model_loading as ml
+            # Pass ``self`` (not the emitter) so the watcher's ready()/timeout
+            # path runs ``_Osd.ready()`` and clears the native overlay too.
             self.watcher = ml.ModelLoadingWatcher(
-                self.em,
+                self,
                 ml.probes_for_services(services, cfg),
                 timeout_s=getattr(sc, "model_ready_timeout_s", ml.DEFAULT_TIMEOUT_S),
             )
@@ -213,7 +247,15 @@ class _Osd:
 
     def begin_loading(self) -> None:
         """Show ``loading`` until the model services report ready (cold/wake)."""
-        if self.watcher is None or not self.enabled:
+        native = getattr(self, "_native", None)
+        # Re-assert the native panel even when the JSON emitter is disabled or
+        # has no watcher; never early-return before notifying the native side.
+        self.loading("Models are coming up…")
+        if self.watcher is None:
+            return
+        if not self.enabled and native is None:
+            # Preserve the previous Linux behaviour: a disabled emitter with no
+            # native overlay starts no polling thread.
             return
         try:
             self.watcher.begin()
@@ -449,20 +491,38 @@ class Utter:
         from . import sleep as _sleep
 
         mc = self.cfg.macos
-        try:
-            from .macos import permissions
-            # Probe only: requesting (prompting) from the daemon can SIGABRT
-            # under TCC when the responsible process has no usage description
-            # in its Info.plist. Prompts belong to the Setup tab / `macos-permissions
-            # --request`, which run attributed to utter.app.
-            doc = permissions.status_all(request=False)
-            missing = [p["label"] for p in doc["permissions"] if p["status"] != permissions.GRANTED]
-            if missing:
-                log.warning("macOS permissions missing: %s (System Settings -> Privacy & Security)",
-                            ", ".join(missing))
-                _notify("Utter needs permissions: " + ", ".join(missing), mc)
-        except Exception as e:  # noqa: BLE001 - never block startup on the probe
-            log.debug("permission probe failed: %s", e)
+
+        # Permission state is probed at startup and re-checked lazily on each
+        # PTT press, so granting a permission takes effect without a restart.
+        # Startup is INFO only (no banner): a notification for permissions the
+        # user already knows about was the "random error" popup.
+        perm_state: dict = {"missing": set()}
+
+        def _probe_permissions(announce: bool) -> None:
+            try:
+                from .macos import permissions
+                # Probe only: requesting (prompting) from the daemon can SIGABRT
+                # under TCC when the responsible process has no usage description
+                # in its Info.plist. Prompts belong to the Setup tab / `macos-permissions
+                # --request`, which run attributed to utter.app.
+                doc = permissions.status_all(request=False)
+                missing = {
+                    p["label"] for p in doc["permissions"]
+                    if p["status"] != permissions.GRANTED
+                }
+            except Exception as e:  # noqa: BLE001 - never block startup on the probe
+                log.debug("permission probe failed: %s", e)
+                return
+            previous = perm_state["missing"]
+            perm_state["missing"] = missing
+            if missing and announce:
+                log.info("macOS permissions missing: %s (System Settings -> Privacy & Security)",
+                         ", ".join(sorted(missing)))
+            # Clear the logged missing set once everything is granted.
+            if previous and not missing:
+                log.info("macOS permissions granted: %s", ", ".join(sorted(previous)))
+
+        _probe_permissions(announce=True)
         stt = Transcriber.for_platform(self.cfg)
         log.info("macOS voice: stt chain=%s dictation=%s assistant=%s hotkeys=%s",
                  [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)
@@ -480,9 +540,12 @@ class Utter:
                    native=native)
         osd.begin_loading()
         osd.watch_sleep(sleeper)
-        native.loading("Models are coming up…")
 
         def start(mode: str) -> None:
+            # Lazy permission re-check: once the user grants Accessibility /
+            # Screen Recording the state refreshes without a daemon restart.
+            if perm_state["missing"]:
+                _probe_permissions(announce=False)
             with rec_lock:
                 if session["stream"] is not None:
                     return

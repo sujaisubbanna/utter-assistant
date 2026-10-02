@@ -17,17 +17,24 @@ import logging
 import math
 import threading
 import time
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Linux Noctalia twin: brand yellow bars, teal loading, green/red verdicts.
-YELLOW = (0.969, 0.788, 0.282)
-BLUE = (0.549, 0.784, 1.0)
-OK = (0.298, 0.765, 0.541)
-ERROR = (0.949, 0.467, 0.478)
-LOADING = (0.482, 0.831, 0.769)
-INK = (0.925, 0.925, 0.925)
-MUTED = (0.612, 0.612, 0.612)
+# These are the exact hex values from widgets/noctalia/osd.luau, converted to
+# sRGB floats (they are drawn in the sRGB color space, never *calibrated*).
+YELLOW = (0xF7 / 255.0, 0xC9 / 255.0, 0x48 / 255.0)   # #f7c948
+BLUE = (0x8C / 255.0, 0xC8 / 255.0, 0xFF / 255.0)     # #8cc8ff
+OK = (0x4C / 255.0, 0xC3 / 255.0, 0x8A / 255.0)       # #4cc38a
+ERROR = (0xF2 / 255.0, 0x77 / 255.0, 0x7A / 255.0)    # #f2777a
+LOADING = (0x7B / 255.0, 0xD4 / 255.0, 0xC4 / 255.0)  # #7bd4c4
+INK = (0xEC / 255.0, 0xEC / 255.0, 0xEC / 255.0)      # #ececec
+MUTED = (0x9C / 255.0, 0x9C / 255.0, 0x9C / 255.0)    # #9c9c9c
+
+# Utter logo mark (copied from widgets/noctalia/assets/utter-mark.png).
+MARK_PATH = Path(__file__).resolve().parent / "assets" / "utter-mark.png"
+MARK_SIZE = 26.0
 
 BARS = 17
 BAR_W = 3.0
@@ -249,6 +256,23 @@ try:
     import Cocoa  # type: ignore[import-not-found]
     from Cocoa import NSView
 
+    _MARK_CACHE = {"image": None, "tried": False}
+
+    def _mark_image():
+        """Load the Utter logo mark once; return None if it can't be read."""
+        if not _MARK_CACHE["tried"]:
+            _MARK_CACHE["tried"] = True
+            try:
+                img = Cocoa.NSImage.alloc().initWithContentsOfFile_(
+                    str(MARK_PATH))
+                if img is not None and img.isValid():
+                    _MARK_CACHE["image"] = img
+                else:
+                    logger.debug("overlay mark not loaded: %s", MARK_PATH)
+            except Exception:
+                logger.debug("overlay mark load failed", exc_info=True)
+        return _MARK_CACHE["image"]
+
     class _OverlayView(NSView):
         def initWithFrame_owner_(self, frame, owner):
             self = self.initWithFrame_(frame)
@@ -293,9 +317,10 @@ try:
             bounds = self.bounds()
             W, H = bounds.size.width, bounds.size.height
 
-            def rgb(c):
-                return NSColor.colorWithCalibratedRed_green_blue_alpha_(
-                    c[0], c[1], c[2], 1.0)
+            def rgb(c, a=1.0):
+                # sRGB (not calibrated) so the hex values match the Linux panel.
+                return NSColor.colorWithSRGBRed_green_blue_alpha_(
+                    c[0], c[1], c[2], a)
 
             def draw_text(s, font, color, x, y, max_w=0):
                 if not s:
@@ -313,8 +338,8 @@ try:
                 return ns.sizeWithAttributes_(attrs).width
 
             accent = BLUE if lane == "dictation" else YELLOW
-            # Rounded dark pill.
-            bg = NSColor.colorWithWhite_alpha_(0.10, 0.94)
+            # Rounded dark pill (kept muted, now sRGB).
+            bg = rgb((0.10, 0.10, 0.10), 0.94)
             pill = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
                 bounds, 18.0, 18.0)
             bg.set()
@@ -349,17 +374,25 @@ try:
                     tail = tail[cut + 1:]
                 title = "…" + tail
 
-            # Utter mark (yellow U) + text column (left), waveform (right).
+            # Utter logo mark (image) + text column (left), waveform (right).
             pad = 18.0
             wave_w = BARS * BAR_W + (BARS - 1) * BAR_GAP
-            mark_font = Cocoa.NSFont.boldSystemFontOfSize_(26.0)
-            draw_text("U", mark_font, rgb(YELLOW), pad, H - 62.0)
-            tx = pad + 34.0
-            text_w = W - tx - wave_w - 12.0 - pad
+            img = _mark_image()
+            if img is not None:
+                img.drawInRect_(Cocoa.NSMakeRect(
+                    pad, (H - MARK_SIZE) / 2.0, MARK_SIZE, MARK_SIZE))
+            else:
+                # Never crash on a missing asset: a small neutral dot.
+                rgb(MUTED).set()
+                NSBezierPath.bezierPathWithOvalInRect_(
+                    ((pad + MARK_SIZE / 2.0 - 4.0, H / 2.0 - 4.0),
+                     (8.0, 8.0))).fill()
+            tx = pad + MARK_SIZE + 12.0
+            text_w = min(214.0, W - tx - wave_w - 12.0 - pad)
             title_font = Cocoa.NSFont.boldSystemFontOfSize_(14.0)
             status_font = Cocoa.NSFont.systemFontOfSize_(11.0)
             status_color = (rgb(color) if mode in ("final", "loading")
-                            else rgb(MUTED))
+                            or lane == "dictation" else rgb(MUTED))
             draw_text(title, title_font, rgb(INK), tx, H - 44.0, text_w)
             sx = tx
             if glyph:
@@ -387,7 +420,8 @@ try:
                 x = base_x + i * (BAR_W + BAR_GAP)
                 rect = ((x, mid_y - h / 2.0), (BAR_W, h))
                 r, g, b = bar_color
-                NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, 1.0).set()
+                NSColor.colorWithSRGBRed_green_blue_alpha_(
+                    r, g, b, 1.0).set()
                 NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
                     rect, 2.0, 2.0).fill()
 
@@ -418,12 +452,13 @@ try:
             bounds = self.bounds()
             W, H = bounds.size.width, bounds.size.height
 
-            def rgb(c):
-                return NSColor.colorWithCalibratedRed_green_blue_alpha_(
-                    c[0], c[1], c[2], 1.0)
+            def rgb(c, a=1.0):
+                # sRGB (not calibrated) so the hex values match the Linux panel.
+                return NSColor.colorWithSRGBRed_green_blue_alpha_(
+                    c[0], c[1], c[2], a)
 
             accent = BLUE if lane == "dictation" else YELLOW
-            bg = NSColor.colorWithWhite_alpha_(0.08, 0.95)
+            bg = rgb((0.08, 0.08, 0.08), 0.95)
             pill = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
                 bounds, 20.0, 20.0)
             bg.set()
