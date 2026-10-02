@@ -113,6 +113,12 @@ class _NativeOverlay:
     def listening(self, text: str = "") -> None:
         self._call("listening", text)
 
+    def loading(self, text: str = "") -> None:
+        self._call("loading", text)
+
+    def clear_loading(self) -> None:
+        self._call("clear_loading")
+
     def level(self, value: float) -> None:
         self._call("level", value)
 
@@ -137,9 +143,10 @@ class _Osd:
     raise into the audio/recognition path.
     """
 
-    def __init__(self, cfg, audio_source=None):
+    def __init__(self, cfg, audio_source=None, native=None):
         self.em = None
         self.watcher = None
+        self._native = native
         self._sleep_hooked = False
         try:
             from .voice.osd import OsdEmitter
@@ -169,6 +176,15 @@ class _Osd:
 
     def idle(self) -> None:
         self._emit("idle")
+
+    def ready(self) -> None:
+        self._emit("ready")
+        native = getattr(self, "_native", None)
+        if native is not None:
+            try:
+                native.clear_loading()
+            except Exception:
+                pass
 
     def close(self) -> None:
         self._emit("close")
@@ -404,6 +420,7 @@ class Utter:
                     except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                         osd.idle()
                         raise
+                    _play("detected" if ok else "not_detected")
                     # ``final`` schedules its own dismiss after [osd] dismiss_ms.
                     osd.final(text, bool(ok))
                 else:
@@ -453,14 +470,16 @@ class Utter:
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
-        # Additive OSD for both dictation and assistant keys.
-        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock))
-        osd.begin_loading()
-        osd.watch_sleep(sleeper)
         # Native system-wide overlay (macOS twin of the Linux Noctalia panel):
         # assistant lane only, driven directly (no file polling).
         native = _NativeOverlay()
         dismiss_ms = _osd_dismiss_ms(self.cfg)
+        # Additive OSD for both dictation and assistant keys.
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock),
+                   native=native)
+        osd.begin_loading()
+        osd.watch_sleep(sleeper)
+        native.loading("Models are coming up…")
 
         def start(mode: str) -> None:
             with rec_lock:
@@ -513,9 +532,12 @@ class Utter:
                     log.error("transcription failed: %s", e)
                     osd.idle()
                     if mode == "assistant":
+                        native.clear_loading()
                         native.idle()
                     _notify(f"Transcription failed: {e}", mc)
                     return
+                if mode == "assistant":
+                    native.clear_loading()
                 log.info("transcript (%s): %r", mode, text)
                 if not text:
                     osd.idle()
@@ -543,6 +565,7 @@ class Utter:
                     if mode == "assistant":
                         native.idle()
                     raise
+                _play("detected" if ok else "not_detected")
                 osd.final(text, bool(ok))
                 if mode == "assistant":
                     native.final(text, bool(ok), dismiss_ms)
