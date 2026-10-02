@@ -69,10 +69,31 @@ function Shell() {
       .catch(() => {});
   }, [navigate]);
 
-  // First launch on a Mac: start on the Set up page until it has been seen once.
+  // On a Mac, open Set up on launch whenever the assistant is not usable:
+  // the first-run flag OR any required privacy permission still missing. The
+  // flag alone is not enough — it persists across reinstalls, so a fresh
+  // install with no grants would otherwise land on General.
   useEffect(() => {
-    if (!platformReady || !isMac || setupSeen()) return;
-    if (!window.location.hash || routeFromHash() === "general") navigate("setup");
+    if (!platformReady || !isMac) return;
+    // Respect an explicit route (deep link / dev override).
+    if (window.location.hash && routeFromHash() !== "general") return;
+    const goSetup = () => {
+      if (routeFromHash() === "general") navigate("setup");
+    };
+    if (!setupSeen()) {
+      goSetup();
+      return;
+    }
+    let cancelled = false;
+    api
+      .macosPermissions()
+      .then((report) => {
+        if (!cancelled && report && !report.all_granted) goSetup();
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [platformReady, isMac, navigate]);
 
   useEffect(() => {

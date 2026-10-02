@@ -3,7 +3,7 @@ title: "Introduction"
 description: "What Utter is, what it does, and the ideas behind it: rules first, a model that only chooses, and a desktop that never phones home."
 ---
 
-Utter is a **local, context-aware voice → desktop-action assistant for Linux on Wayland**.
+Utter is a **local, context-aware voice → desktop-action assistant for Linux on Wayland and macOS**.
 You hold a key, say what you want, and Utter turns it into something your desktop does:
 open an app or a website, focus or close a window, switch workspace, play or pause media,
 press an app's own shortcut, click a button it can see, or type your words into the focused field.
@@ -102,5 +102,5 @@ See [Architecture](/reference/architecture/) for the full picture and the
 Utter is young software built with the help of AI coding assistants and reviewed by a human.
 Read the code before trusting it with anything important, and please
 [report anything that looks wrong](https://github.com/sujaisubbanna/utter-assistant/issues).
-Linux x86_64 on Wayland is the primary supported platform. A macOS port is available but
-**experimental** (see [macOS](/guides/macos/)). Windows is not supported.
+Linux x86_64 on Wayland and macOS are supported platforms (see [macOS](/guides/macos/)).
+Windows is not supported.

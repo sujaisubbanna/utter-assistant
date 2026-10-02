@@ -1,8 +1,8 @@
 # utter → plug-and-play assistant — architecture plan (v2)
 
 Modular, open-source, plug-and-play local assistant: a tiny **runner** plus swappable
-**plugins** (any language). Linux/Wayland first — **niri** and **KDE Plasma (KWin)** are
-first-class, other compositors get partial support; **macOS is experimental**. Name: **utter**.
+**plugins** (any language). Linux/Wayland — **niri** and **KDE Plasma (KWin)** are
+first-class, other compositors get partial support; **macOS is natively supported**. Name: **utter**.
 License: **Apache-2.0** (runner + plugin SDK). Vocalinux bridge: **removed** (Utter uses
 whisper.cpp / faster-whisper everywhere; see §6).
 

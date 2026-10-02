@@ -14,6 +14,12 @@ cask "utter" do
 
   app "utter.app"
 
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-cr", "#{appdir}/utter.app"],
+                   sudo: false
+  end
+
   zap trash: [
     "~/.config/utter",
     "~/Library/Application Support/utter",

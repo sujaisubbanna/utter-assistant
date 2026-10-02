@@ -109,7 +109,43 @@ Flags:
   --dry-run          run the walk, print the plan, change nothing
   --uninstall        menu of installed components (per-component install-state)
   --yes, -y          accept all recommended defaults, no prompts
-  -h, --help         show this help
+    -h, --help         show this help
+USAGE
+}
+
+# macOS has a much smaller install path than the Linux wizard: a single .dmg
+# whose app self-installs its runtime on first launch. Its usage is separate so
+# `curl … | bash --help` documents the macOS flags on a Mac.
+macos_usage() {
+    cat <<'USAGE'
+utter installer (macOS)
+
+  curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
+  curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
+
+Downloads the utter-gui .dmg for this Mac (Apple Silicon or Intel), verifies it
+against the release checksums, installs utter.app to /Applications (or
+~/Applications when /Applications is not writable), re-signs it with a stable
+identity so macOS privacy grants persist, and launches it. The app's Set up page
+then unpacks its runtime and asks for Microphone, Speech Recognition, Input
+Monitoring, Accessibility and Screen Recording.
+
+Flags:
+  (none)         install (this is the default)
+  --uninstall    remove the app, runtime, logs and launchd agents; keep config
+  --dry-run      print the plan (version, arch, URLs, target) and change nothing
+  --yes, -y      accept defaults / confirm removal without prompting
+  -h, --help     show this help
+
+Defaults:
+  install path   /Applications/utter.app (fallback ~/Applications/utter.app)
+  runtime        ~/Library/Application Support/utter/runtime
+  config         ~/.config/utter (kept on uninstall)
+
+Environment:
+  UTTER_REPO      GitHub repo "owner/name" (default: sujaisubbanna/utter-assistant)
+  UTTER_VERSION   release tag (default: latest)
+  UTTER_BASE_URL  override the download base (use http://127.0.0.1:PORT for tests)
 USAGE
 }
 
@@ -128,11 +164,335 @@ while [[ $# -gt 0 ]]; do
         --dry-run)        DRY_RUN=1 ;;
         --uninstall)      UNINSTALL=1 ;;
         --yes|-y)         ASSUME_YES=1 ;;
-        -h|--help)        usage; exit 0 ;;
+        -h|--help)
+            if [[ "$(uname -s)" == "Darwin" ]]; then macos_usage; else usage; fi
+            exit 0 ;;
         *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
 done
+
+# --------------------------------------------------------------------------- #
+# section: macOS (Darwin) install path
+# --------------------------------------------------------------------------- #
+# macOS gets a much smaller path than the Linux wizard: a single .dmg whose app
+# self-installs its runtime on first launch. It is dispatched HERE, before the
+# i18n/UI sections, because a stock Mac runs bash 3.2 (`/bin/bash`) which cannot
+# even parse the `declare -A` used by the Linux wizard. This block is
+# self-contained and bash-3.2 compatible; the Linux code path below is untouched.
+#
+# Released macOS assets (per tag):
+#   utter-gui_<ver>_<arch>.dmg        arch: aarch64 | x86_64
+#   sha256sums-macos-<arch>.txt
+#
+# Release resolution mirrors the Linux resolve_release() below so the
+# UTTER_VERSION / UTTER_BASE_URL overrides and the GitHub `releases/latest`
+# lookup behave identically.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+
+MAC_ARCH=""
+MAC_DMG=""
+MAC_SUMS=""
+MAC_APP_NAME="utter.app"
+MAC_IDENT="org.utter.settings"
+MAC_TMP="$(mktemp -d "${TMPDIR:-/tmp}/utter-install.XXXXXX")"
+MAC_MOUNT=""
+
+macos_note() { printf '  note: %s\n' "$*"; }
+macos_warn() { printf '  WARNING: %s\n' "$*" >&2; }
+macos_die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+macos_cleanup() {
+    if [[ -n "${MAC_MOUNT:-}" ]]; then
+        hdiutil detach "$MAC_MOUNT" -quiet 2>/dev/null || true
+    fi
+    rm -rf "$MAC_TMP" 2>/dev/null || true
+}
+
+macos_detect_arch() {
+    case "$(uname -m)" in
+        arm64)  MAC_ARCH="aarch64" ;;
+        x86_64) MAC_ARCH="x86_64" ;;
+        *) macos_die "unsupported macOS architecture: $(uname -m) (expected arm64 or x86_64)" ;;
+    esac
+}
+
+# macos_target — preferred utter.app destination (/Applications, else ~/Applications)
+macos_target() {
+    if [[ -d /Applications && -w /Applications ]]; then
+        printf '%s' "/Applications/$MAC_APP_NAME"
+    else
+        printf '%s' "$HOME/Applications/$MAC_APP_NAME"
+    fi
+}
+
+# macos_resolve_release — mirrors resolve_release() (see the Linux section below)
+macos_resolve_release() {
+    local api
+    if [[ -n "$UTTER_BASE_URL" ]]; then
+        MAC_BASE_URL="${UTTER_BASE_URL%/}"
+        [[ "$UTTER_VERSION" == "latest" ]] && \
+            macos_die "UTTER_BASE_URL is set but UTTER_VERSION=latest; set UTTER_VERSION"
+        MAC_VER="$UTTER_VERSION"
+    else
+        if [[ "$UTTER_VERSION" == "latest" ]]; then
+            if (( DRY_RUN )); then
+                MAC_VER="<latest>"
+            else
+                api="https://api.github.com/repos/$UTTER_REPO/releases/latest"
+                printf '  querying: %s\n' "$api"
+                MAC_VER="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
+                [[ -n "$MAC_VER" ]] || macos_die "could not resolve the latest release for $UTTER_REPO"
+            fi
+        else
+            MAC_VER="$UTTER_VERSION"
+        fi
+        MAC_BASE_URL="https://github.com/$UTTER_REPO/releases/download/$MAC_VER"
+    fi
+    MAC_VER_NUM="${MAC_VER#v}"
+}
+
+macos_asset_names() {
+    MAC_DMG="utter-gui_${MAC_VER_NUM}_${MAC_ARCH}.dmg"
+    MAC_SUMS="sha256sums-macos-${MAC_ARCH}.txt"
+}
+
+# macos_download <url> <dest> — curl with retries; DRY_RUN only prints
+macos_download() {
+    local url="$1" dest="$2"
+    if (( DRY_RUN )); then
+        printf '  [dry-run] download %s\n' "$url"
+        return 0
+    fi
+    printf '  [get] %s\n' "$url"
+    curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url" \
+        || macos_die "download failed: $url"
+}
+
+# macos_verify <asset> <sums-file> — trust `shasum -a 256`, never GNU sha256sum
+macos_verify() {
+    local asset="$1" sums="$2" want got
+    if (( DRY_RUN )); then
+        printf '  [dry-run] verify sha256 of %s against %s\n' "$asset" "$(basename "$sums")"
+        return 0
+    fi
+    [[ -f "$sums" ]] || macos_die "missing checksums $(basename "$sums") (cannot verify $asset)"
+    # Release checksums are generated with `shasum -a 256 ./*`, so the path
+    # field carries a "./" prefix; match on the basename.
+    want="$(awk -v a="$asset" '{ n=$2; sub(/^\*/, "", n); sub(/^\.\//, "", n); if (n==a) { print $1; exit } }' "$sums")"
+    [[ -n "$want" ]] || macos_die "$asset not listed in $(basename "$sums")"
+    got="$(shasum -a 256 "$MAC_TMP/$asset" | awk '{print $1}')"
+    [[ "$want" == "$got" ]] \
+        || macos_die "sha256 mismatch for $asset: want $want got $got"
+    printf '  [ok] sha256 %s... %s\n' "${got:0:16}" "$asset"
+}
+
+# macos_re_sign <app> — explicit identifier-based designated requirement (no
+# certificate). Keeps TCC (Microphone/Speech/Accessibility/…) grants valid
+# across updates; without it ad-hoc signatures change cdhash on every build.
+macos_re_sign() {
+    local app="$1"
+    if ! command -v codesign >/dev/null 2>&1; then
+        macos_warn "codesign not found; skipping re-sign (macOS privacy grants may not persist)"
+        return 0
+    fi
+    printf '  re-signing with a stable identifier so privacy grants persist\n'
+    codesign --force --sign - --identifier "$MAC_IDENT" \
+        --requirements "=designated => identifier \"$MAC_IDENT\"" \
+        --timestamp=none "$app" \
+        || macos_warn "re-sign failed; privacy grants may not persist across updates"
+}
+
+macos_plan() {
+    local dmg_url="${MAC_BASE_URL}/${MAC_DMG}"
+    local sums_url="${MAC_BASE_URL}/${MAC_SUMS}"
+    local dest; dest="$(macos_target)"
+    printf '\n== plan (dry run) ==\n'
+    printf '  os:         macOS (%s)\n' "$(uname -m)"
+    printf '  version:    %s\n' "$MAC_VER"
+    printf '  arch:       %s\n' "$MAC_ARCH"
+    printf '  dmg:        %s\n' "$dmg_url"
+    printf '  checksums:  %s\n' "$sums_url"
+    printf '  target:     %s\n' "$dest"
+    printf '\nThis is a dry run: nothing will be downloaded, installed or changed.\n'
+    printf 'Without --dry-run this downloads and verifies the .dmg, copies utter.app\n'
+    printf 'to the target above, re-signs it with a stable identity and launches it.\n'
+    printf "The app's Set up page then unpacks the runtime and asks for permissions.\n"
+}
+
+macos_install() {
+    local dmg_url="${MAC_BASE_URL}/${MAC_DMG}"
+    local sums_url="${MAC_BASE_URL}/${MAC_SUMS}"
+    local dest src
+
+    printf '\n== install ==\n'
+    printf '  version:    %s\n' "$MAC_VER"
+    printf '  arch:       %s\n' "$MAC_ARCH"
+    printf '  dmg:        %s\n' "$MAC_DMG"
+
+    macos_download "$dmg_url" "$MAC_TMP/$MAC_DMG"
+    macos_download "$sums_url" "$MAC_TMP/$MAC_SUMS"
+    macos_verify "$MAC_DMG" "$MAC_TMP/$MAC_SUMS"
+
+    dest="$(macos_target)"
+    if [[ "$dest" != "/Applications/$MAC_APP_NAME" ]]; then
+        macos_note "/Applications is not writable; installing to $dest instead"
+    fi
+
+    if (( DRY_RUN )); then
+        printf '  [dry-run] hdiutil attach %s\n' "$MAC_TMP/$MAC_DMG"
+        printf '  [dry-run] ditto utter.app -> %s\n' "$dest"
+        printf '  [dry-run] xattr -cr; codesign --force --sign - --identifier %s\n' "$MAC_IDENT"
+        printf '  [dry-run] open %s\n' "$dest"
+        return 0
+    fi
+
+    MAC_MOUNT="$(mktemp -d "$MAC_TMP/dmg.XXXXXX")"
+    hdiutil attach -nobrowse -quiet -mountpoint "$MAC_MOUNT" "$MAC_TMP/$MAC_DMG" \
+        || macos_die "could not mount $MAC_DMG"
+
+    src=""
+    if [[ -d "$MAC_MOUNT/$MAC_APP_NAME" ]]; then
+        src="$MAC_MOUNT/$MAC_APP_NAME"
+    else
+        src="$(find "$MAC_MOUNT" -maxdepth 1 -type d -name '*.app' 2>/dev/null | head -1)"
+    fi
+    if [[ -z "$src" ]]; then
+        hdiutil detach "$MAC_MOUNT" -quiet 2>/dev/null || true
+        MAC_MOUNT=""
+        macos_die "no .app bundle found in $MAC_DMG"
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    if [[ -e "$dest" ]]; then
+        printf '  removing previous %s\n' "$dest"
+        rm -rf "$dest"
+    fi
+    if ! ditto "$src" "$dest"; then
+        hdiutil detach "$MAC_MOUNT" -quiet 2>/dev/null || true
+        MAC_MOUNT=""
+        macos_die "could not copy utter.app to $dest"
+    fi
+    hdiutil detach "$MAC_MOUNT" -quiet 2>/dev/null \
+        || macos_warn "could not detach $MAC_DMG (it may still be mounted)"
+    MAC_MOUNT=""
+
+    xattr -cr "$dest" 2>/dev/null || true
+    macos_re_sign "$dest"
+
+    printf '\n'
+    printf 'Installed %s\n' "$dest"
+    open "$dest" || macos_warn "could not launch utter; open $dest manually"
+
+    printf '\n== next steps ==\n'
+    printf 'utter should open to its Set up page. On first launch it unpacks the\n'
+    printf 'bundled runtime into ~/Library/Application Support/utter/runtime/ and\n'
+    printf 'writes the com.utter.assistant / com.utter.runner launchd agents.\n'
+    printf 'Grant Microphone, Speech Recognition, Input Monitoring, Accessibility and\n'
+    printf 'Screen Recording when macOS asks, so the assistant can hear and act.\n'
+}
+
+macos_remove_path() {
+    local p="$1"
+    if (( DRY_RUN )); then
+        printf '  [dry-run] remove %s\n' "$p"
+    elif [[ -e "$p" || -L "$p" ]]; then
+        rm -rf "$p"
+        printf '  removed   %s\n' "$p"
+    else
+        printf '  not present: %s\n' "$p"
+    fi
+}
+
+macos_uninstall() {
+    local uid label ans
+    uid="$(id -u)"
+
+    printf '\n== uninstall (macOS) ==\n'
+    printf 'This removes:\n'
+    printf '  /Applications/utter.app (and ~/Applications/utter.app)\n'
+    printf '  ~/Library/Application Support/utter (runtime, models, state)\n'
+    printf '  ~/Library/Logs/utter\n'
+    printf '  ~/Library/LaunchAgents/com.utter.assistant.plist\n'
+    printf '  ~/Library/LaunchAgents/com.utter.runner.plist\n'
+    printf 'This keeps your config: ~/.config/utter (remove it manually if you want).\n\n'
+
+    if (( ! ASSUME_YES && ! DRY_RUN )); then
+        if [[ ! -t 0 ]]; then
+            printf 'stdin is not a terminal; nothing was removed.\n'
+            printf 'Re-run with: bash install.sh --uninstall --yes\n'
+            return 0
+        fi
+        printf 'Remove the items above? [y/N] '
+        IFS= read -r ans || ans=""
+        case "$ans" in
+            [yY]|[yY][eE][sS]) ;;
+            *) printf 'Aborted; nothing removed.\n'; return 0 ;;
+        esac
+    fi
+
+    for label in com.utter.assistant com.utter.runner; do
+        if (( DRY_RUN )); then
+            printf '  [dry-run] launchctl bootout gui/%s/%s\n' "$uid" "$label"
+        else
+            launchctl bootout "gui/$uid/$label" 2>/dev/null || true
+        fi
+    done
+
+    if (( DRY_RUN )); then
+        printf '  [dry-run] quit utter if running\n'
+    else
+        osascript -e 'tell application "utter" to quit' >/dev/null 2>&1 || true
+        pkill -f '/utter.app/Contents/MacOS' 2>/dev/null || true
+    fi
+
+    macos_remove_path "/Applications/$MAC_APP_NAME"
+    macos_remove_path "$HOME/Applications/$MAC_APP_NAME"
+    macos_remove_path "$HOME/Library/Application Support/utter"
+    macos_remove_path "$HOME/Library/Logs/utter"
+    macos_remove_path "$HOME/Library/LaunchAgents/com.utter.assistant.plist"
+    macos_remove_path "$HOME/Library/LaunchAgents/com.utter.runner.plist"
+
+    if (( DRY_RUN )); then
+        printf '\nDry run: nothing was actually removed.\n'
+    else
+        printf '\nUninstalled. Your config at ~/.config/utter was kept.\n'
+    fi
+}
+
+macos_main() {
+    macos_detect_arch
+
+    if (( UNINSTALL )); then
+        macos_uninstall
+        return 0
+    fi
+
+    # --only/--skip/--with-noctalia/--appimage/--package are Linux-only.
+    if [[ "$MODE" == "package" ]]; then
+        macos_die "--package is Linux-only; on macOS the installer always uses the .dmg"
+    fi
+    if [[ -n "$ONLY_CSV" || -n "$SKIP_CSV" || "$WITH_NOCTALIA" == "1" ]]; then
+        macos_note "--only/--skip/--with-noctalia/--appimage/--package are Linux-only; ignored on macOS"
+    fi
+
+    macos_resolve_release
+    macos_asset_names
+
+    if (( DRY_RUN )); then
+        macos_plan
+        return 0
+    fi
+
+    macos_install
+    return 0
+}
+
+trap 'macos_cleanup' EXIT
+macos_main
+exit 0
+
+fi  # Darwin
 
 # --------------------------------------------------------------------------- #
 # section: i18n — installer UI language (English inline; locale files are data)
@@ -916,11 +1276,10 @@ run_install_phase() {
     return 0
 }
 
-# This wizard installs the Linux (Wayland/systemd) stack. macOS has its own,
-# much smaller path: the .dmg from the release page plus macos/setup.sh.
-if [[ "$(uname -s)" == "Darwin" ]]; then
-    die "this installer is for Linux. On macOS: open the utter-gui .dmg from the release page and run macos/setup.sh from the core tarball (see docs/MACOS.md)."
-fi
+# macOS has its own, much smaller path: the .dmg from the release page plus the
+# self-installing app. It is dispatched near the top of this script (before the
+# i18n/UI sections, so it also runs under macOS's bash 3.2); the code below is
+# the Linux (Wayland/systemd) wizard and is never reached on Darwin.
 
 # --- spinner + downloads --------------------------------------------------- #
 

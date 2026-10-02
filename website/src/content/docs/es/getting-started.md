@@ -9,9 +9,9 @@ Esta página da por hecho que Utter está instalado. Si no lo está, empieza por
 
 ## Requisitos
 
-- Linux en **Wayland**. **niri** y **KDE Plasma (KWin)** son compatibles de primera clase; otros compositores
-  tienen soporte parcial (dictado, escritura, inicio; sin acciones de ventana). **macOS es experimental.**
-- **PipeWire** para el audio.
+- **Linux en Wayland** y **macOS**. En Linux, **niri** y **KDE Plasma (KWin)** son compatibles de primera
+  clase; otros compositores tienen soporte parcial (dictado, escritura, inicio; sin acciones de ventana).
+- **PipeWire** para el audio (Linux).
 - **Python 3.12 o posterior**.
 - Se recomienda una GPU NVIDIA para los modelos más grandes, pero no es obligatoria. Utter funciona sin
   ningún modelo y con reconocimiento de voz solo por CPU.

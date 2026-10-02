@@ -5,7 +5,7 @@ banner:
   content: 'Maschinell übersetzt, nicht geprüft. <a href="https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRANSLATING.md">So hilfst du bei der Übersetzung</a>.'
 ---
 
-Utter ist ein **lokaler, kontextbewusster Sprach-zu-Desktop-Aktions-Assistent für Linux unter Wayland**.
+Utter ist ein **lokaler, kontextbewusster Sprach-zu-Desktop-Aktions-Assistent für Linux unter Wayland und macOS**.
 Du hältst eine Taste gedrückt, sagst, was du willst, und Utter macht daraus etwas, das dein Desktop tut:
 eine App oder Website öffnen, ein Fenster fokussieren oder schließen, den Arbeitsbereich wechseln, Medien
 abspielen oder pausieren, ein App-eigenes Kürzel drücken, auf eine Schaltfläche klicken, die es sieht, oder deine Worte in das fokussierte Feld tippen.
@@ -104,5 +104,5 @@ Siehe [Architektur](/reference/architecture/) für das vollständige Bild und da
 Utter ist junge Software, die mit Hilfe von KI-Programmierassistenten erstellt und von einem Menschen geprüft wurde.
 Lies den Code, bevor du ihm etwas Wichtiges anvertraust, und bitte
 [melde alles, was falsch aussieht](https://github.com/sujaisubbanna/utter-assistant/issues).
-Linux x86_64 unter Wayland ist die primär unterstützte Plattform. Ein macOS-Port ist verfügbar, aber
-**experimentell** (siehe [macOS](/guides/macos/)). Windows wird nicht unterstützt.
+Linux x86_64 unter Wayland und macOS sind unterstützte Plattformen (siehe [macOS](/guides/macos/)).
+Windows wird nicht unterstützt.

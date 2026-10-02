@@ -185,7 +185,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   on stdout and diagnostics on stderr, a documented exit-code and error-code contract, and a
   packaged Draft 2020-12 JSON Schema (`utter/data/cli.schema.json`). `--dry-run` previews a
   route without executing; acting requires `--confirm`. See `docs/CLI.md`.
-- **macOS support (experimental).** A platform layer (`utter/platform.py`) selects native
+- **macOS support.** A platform layer (`utter/platform.py`) selects native
   backends on Darwin while leaving every Linux path untouched: Apple `Speech.framework`
   speech-to-text with a whisper.cpp fallback (and an optional VocaMac file-transcription
   backend), `say`/`AVSpeechSynthesizer` replies, Quartz event-tap push-to-talk keys,
@@ -194,9 +194,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   New `[macos]` config section, `macos/setup.sh` with launchd agents, and a Raycast-style
   **Set up** onboarding page that lists the Microphone, Speech Recognition, Input Monitoring,
   Accessibility and Screen Recording permissions with live status and deep links. A
-  `build-macos` CI job produces an **unsigned** `.app`/`.dmg` (arm64 and x86_64) plus a macOS
+  `build-macos` CI job produces `.app`/`.dmg` bundles (arm64 and x86_64) plus a macOS
   core tarball, and a Homebrew formula/cask is included. Docs: `docs/MACOS.md`.
-  **Untested on real Apple hardware.**
 - **A documentation site** (Astro Starlight) published to GitHub Pages — introduction, install,
   configuration, apps, models, plugins, trust & safety, KDE Plasma, macOS, troubleshooting, FAQ,
   CLI and architecture reference — with full-text search. The hosted installer stays at
@@ -208,7 +207,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remote (`curl | bash`) and build-from-source.
 - Platform documentation now reflects reality: **niri and KDE Plasma (KWin) are first-class**,
   other Wayland compositors get partial support (dictation, typing, launching; no window
-  actions), and macOS is experimental.
+  actions), and macOS is natively supported.
 - Settings app: the status and General polls run every 15 s instead of 4–5 s, never overlap a
   run that is still in flight, and pause entirely while the window is in the background.
 - Settings app: scrolling no longer repaints the entire panel on every frame (the panel shadow

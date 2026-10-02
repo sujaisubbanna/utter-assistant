@@ -5,7 +5,7 @@ banner:
   content: 'Traducción automática sin revisar. <a href="https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRANSLATING.md">Cómo contribuir a la traducción</a>.'
 ---
 
-Utter es un **asistente local y consciente del contexto que convierte tu voz en acciones de escritorio para Linux en Wayland**.
+Utter es un **asistente local y consciente del contexto que convierte tu voz en acciones de escritorio para Linux en Wayland y macOS**.
 Mantienes pulsada una tecla, dices lo que quieres y Utter lo convierte en algo que hace tu escritorio:
 abrir una aplicación o un sitio web, enfocar o cerrar una ventana, cambiar de espacio de trabajo,
 reproducir o pausar contenido multimedia, pulsar un atajo propio de la aplicación, hacer clic en un
@@ -105,5 +105,5 @@ Consulta [Arquitectura](/reference/architecture/) para ver el panorama completo 
 Utter es software joven creado con la ayuda de asistentes de programación de IA y revisado por una persona.
 Lee el código antes de confiarle algo importante y, por favor,
 [informa de cualquier cosa que parezca incorrecta](https://github.com/sujaisubbanna/utter-assistant/issues).
-Linux x86_64 en Wayland es la plataforma principal compatible. Hay un port para macOS, pero es
-**experimental** (consulta [macOS](/guides/macos/)). Windows no es compatible.
+Linux x86_64 en Wayland y macOS son plataformas compatibles (consulta [macOS](/guides/macos/)).
+Windows no es compatible.

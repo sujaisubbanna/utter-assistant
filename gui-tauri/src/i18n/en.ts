@@ -732,8 +732,8 @@ export const en = {
       timeout: "Focus time-out",
       timeoutHint: "How long to wait for the target window to take focus. Advanced.",
       macNote:
-        "On macOS, the assistant posts keys directly to the target app's process without changing focus. This is keyboard-only and experimental.",
-      otherNote: "App targeting is available on Linux and experimental on macOS.",
+        "On macOS, the assistant posts keys directly to the target app's process without changing focus. This is keyboard-only.",
+      otherNote: "App targeting is available on both Linux and macOS.",
       wayland: {
         title: "Wayland",
         description:

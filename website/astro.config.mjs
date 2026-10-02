@@ -108,7 +108,7 @@ export default defineConfig({
             { ...label('Theming', 'Temas', 'Theming', 'テーマ'), slug: 'guides/theming' },
             { ...label('Noctalia widget and OSD', 'Widget de Noctalia y OSD', 'Noctalia-Widget und OSD', 'Noctalia ウィジェットと OSD'), slug: 'guides/noctalia' },
             { ...label('KDE Plasma', 'KDE Plasma', 'KDE Plasma', 'KDE Plasma'), slug: 'guides/kde-plasma' },
-            { ...label('macOS (experimental)', 'macOS (experimental)', 'macOS (experimentell)', 'macOS(実験的)'), slug: 'guides/macos' },
+            { ...label('macOS', 'macOS', 'macOS', 'macOS'), slug: 'guides/macos' },
           ],
         },
         {

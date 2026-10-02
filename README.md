@@ -13,7 +13,7 @@
 **Hands-free, private and completely offline.** Hold a key, say what you want, and Utter does it — or drive the same actions from the command line.
 
 ![Platform: Linux](https://img.shields.io/badge/platform-Linux%20(Wayland%3A%20niri%20%7C%20KDE%20Plasma)-f7c948)
-![macOS: beta](https://img.shields.io/badge/macOS-beta-8a8f98)
+![macOS: supported](https://img.shields.io/badge/macOS-supported-4cc38a)
 ![Runs offline](https://img.shields.io/badge/runs-100%25%20offline-20a05a)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f1f1f)
 ![Languages: English · Español](https://img.shields.io/badge/UI-English%20·%20Español-6b6b70)
@@ -38,7 +38,7 @@
 
 ## Features
 
-Utter is a context-aware desktop assistant for **Linux (Wayland)** — niri and KDE Plasma first-class ([docs/PLASMA.md](docs/PLASMA.md)) — plus an **experimental macOS port** ([docs/MACOS.md](docs/MACOS.md)).
+Utter is a context-aware desktop assistant, natively supported on **Linux (Wayland)** — niri and KDE Plasma first-class ([docs/PLASMA.md](docs/PLASMA.md)) — and on **macOS** ([docs/MACOS.md](docs/MACOS.md)).
 
 | Feature | What it does |
 |---|---|
@@ -125,7 +125,7 @@ A tiny **runner** supervises swappable **plugins** over one versioned protocol. 
 
 ## Install
 
-Linux on Wayland — niri and KDE Plasma first-class — plus PipeWire and Python 3.12+. macOS is experimental and untested on real hardware. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
+Natively supported on Linux on Wayland — niri and KDE Plasma first-class, plus PipeWire — and on macOS, both with Python 3.12+. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
 
 - **Clone:** `git clone https://github.com/sujaisubbanna/utter-assistant.git && cd utter-assistant && ./install.sh` (`--dry-run` previews). Minimal package install: `install/install.sh --yes`; undo with `install/uninstall.sh --yes`.
 - **Remote:** `curl -fsSL https://utter.sujaisubbanna.com/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
@@ -141,13 +141,12 @@ Utter is a small runner supervising swappable plugins (STT, decision, LLM, perce
 
 ## Roadmap
 
-Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and an experimental macOS port. Recent changes: [CHANGELOG.md](CHANGELOG.md). Everything below is still open.
+Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and macOS support. Recent changes: [CHANGELOG.md](CHANGELOG.md). Everything below is still open.
 
 **Command understanding**
 - [ ] **Actions, not just commands** *(most important)* — handle whole requests rather than single commands: ask for an outcome and Utter works out the steps (for example, *"Play some jazz"* opens Spotify and starts jazz).
 
 **Platforms and performance**
-- [ ] **macOS: finish and verify** — the port landed with a Metal-native runtime; it needs real-hardware testing, a signed app and launchd controls ([docs/MACOS.md](docs/MACOS.md)).
 - [ ] **Windows version.**
 - [ ] **Run well on less memory** — smaller default models, quantised builds and one shared GPU, so 8 GB cards and CPU-only machines work.
 
