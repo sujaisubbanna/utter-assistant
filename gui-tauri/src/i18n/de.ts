@@ -351,8 +351,10 @@ export const de: Messages = {
   setup: {
     title: "Richten Sie Ihren Mac ein",
     description: "Utter benötigt einige Berechtigungen, bevor es zuhören, tippen und handeln kann. Gewähre ihnen einmal; Diese Seite prüft sie live.",
-    linuxDescription: "Diese Seite ist für macOS.",
-    linuxNote: "Auf Linux übernehmen das Installationsprogramm und die Einheiten systemd die Einrichtung. Hier gibt es nichts zu tun.",
+    linuxTitle: "Linux einrichten",
+    linuxDescription: "Das Installationsprogramm richtet den Utter-Runner als Hintergrunddienst ein. Prüfen Sie ihn hier und starten Sie ihn, falls er nicht läuft.",
+    linuxNote: "Wenn der Runner hier nicht startet, führen Sie dies in einem Terminal aus: systemctl --user enable --now utter-runner.service",
+    linuxInstallBody: "Utter wird aus dem Projekt-Repository mit install/install.sh installiert und aktualisiert.",
     hero: {
       title: "Noch ein paar Genehmigungen",
       body: "macOS fragt beim ersten Mal nach jedem einzelnen. Wenn keine Eingabeaufforderung angezeigt wird, öffnen Sie die Systemeinstellungen in der Zeile und aktivieren Sie Utter.",

@@ -351,8 +351,10 @@ export const zh: Messages = {
   setup: {
     title: "设置您的 Mac",
     description: "Utter 需要一些权限才能侦听、键入和执行操作。授予它们一次；此页面实时查看它们。",
-    linuxDescription: "此页适用于 macOS。",
-    linuxNote: "在 Linux 上，安装程序和 systemd 单元处理安装。这里没什么可做的。",
+    linuxTitle: "设置 Linux",
+    linuxDescription: "安装程序会将 Utter 运行器设置为后台服务。在此检查，如果未运行请启动它。",
+    linuxNote: "如果运行器在此无法启动，请在终端中运行：systemctl --user enable --now utter-runner.service",
+    linuxInstallBody: "Utter 通过仓库中的 install/install.sh 安装和更新。",
     hero: {
       title: "需要一些权限",
       body: "macOS 第一次询问每一个。如果未出现提示，请从该行打开“系统设置”并打开 Utter。",

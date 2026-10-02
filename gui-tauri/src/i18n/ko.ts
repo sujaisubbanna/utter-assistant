@@ -351,8 +351,10 @@ export const ko: Messages = {
   setup: {
     title: "Mac 설정",
     description: "Utter이(가) 듣고, 입력하고, 작동하려면 몇 가지 권한이 필요합니다. 한 번만 부여하십시오. 이 페이지에서는 실시간으로 확인합니다.",
-    linuxDescription: "이 페이지는 macOS용입니다.",
-    linuxNote: "Linux에서는 설치 프로그램과 systemd 장치가 설정을 처리합니다. 여기서는 할 일이 없습니다.",
+    linuxTitle: "Linux 설정",
+    linuxDescription: "설치 프로그램이 Utter 러너를 백그라운드 서비스로 설정합니다. 여기에서 확인하고 실행 중이 아니면 시작하세요.",
+    linuxNote: "러너가 여기에서 시작되지 않으면 터미널에서 다음을 실행하세요: systemctl --user enable --now utter-runner.service",
+    linuxInstallBody: "Utter는 프로젝트 저장소의 install/install.sh로 설치 및 업데이트됩니다.",
     hero: {
       title: "갈 수 있는 몇 가지 권한",
       body: "macOS는 처음으로 각각에 대해 요청합니다. 프롬프트가 나타나지 않으면 행에서 시스템 설정을 열고 Utter를 켜십시오.",
