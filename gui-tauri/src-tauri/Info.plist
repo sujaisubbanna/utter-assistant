@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged by Tauri into utter.app's Info.plist (macOS bundle).
+     Without these, any mic / speech-recognition access from the app (or a
+     child attributed to it) is killed by TCC with SIGABRT instead of showing
+     a permission prompt. -->
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Utter listens to your voice only while you hold a push-to-talk key, to transcribe it on-device.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Utter turns your speech into text with Apple's on-device recogniser. Nothing leaves this Mac.</string>
+</dict>
+</plist>

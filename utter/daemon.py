@@ -386,7 +386,11 @@ class Utter:
         mc = self.cfg.macos
         try:
             from .macos import permissions
-            doc = permissions.status_all(request=True)
+            # Probe only: requesting (prompting) from the daemon can SIGABRT
+            # under TCC when the responsible process has no usage description
+            # in its Info.plist. Prompts belong to the Setup tab / `macos-permissions
+            # --request`, which run attributed to utter.app.
+            doc = permissions.status_all(request=False)
             missing = [p["label"] for p in doc["permissions"] if p["status"] != permissions.GRANTED]
             if missing:
                 log.warning("macOS permissions missing: %s (System Settings -> Privacy & Security)",
