@@ -96,6 +96,8 @@ class OsdEmitter:
         audio_source: Optional[Callable[[], List[bytes]]] = None,
         transcriber=None,
         transcriber_factory: Optional[Callable[[], object]] = None,
+        config=None,
+        on_partial: Optional[Callable[[str], None]] = None,
         clock: Callable[[], float] = time.time,
         mono: Callable[[], float] = time.monotonic,
     ):
@@ -125,6 +127,11 @@ class OsdEmitter:
         self._audio_source = audio_source
         self._transcriber = transcriber
         self._transcriber_factory = transcriber_factory
+        # Full configuration (used to build a platform-correct windowed STT
+        # transcriber); optional so existing callers keep the default loader.
+        self._config = config
+        # Best-effort hook for a native overlay to mirror the partial text.
+        self._on_partial = on_partial
 
         # cached document state
         self._state = "idle"
@@ -198,8 +205,18 @@ class OsdEmitter:
                     return
                 self._text = text or ""
                 self._write_locked()
+                partial_text = self._text
         except Exception:  # pragma: no cover - defensive
             logger.debug("osd partial() failed", exc_info=True)
+            return
+        # Mirror the partial text to an optional native overlay. Best-effort:
+        # a broken callback must never escape into the decode worker.
+        callback = self._on_partial
+        if callback is not None:
+            try:
+                callback(partial_text)
+            except Exception:  # pragma: no cover - defensive
+                logger.debug("osd partial callback failed", exc_info=True)
 
     def final(self, text, activated=None) -> None:
         """Utterance resolved: show final text + whether a command activated."""
@@ -431,7 +448,10 @@ class OsdEmitter:
         try:
             from . import stt as _stt
 
-            self._transcriber = _stt.Transcriber()
+            # Platform-correct chain: on macOS this picks the native backend
+            # (whisper.cpp / Apple Speech) instead of the Linux faster_whisper
+            # default, which is not installed in the macOS bundle.
+            self._transcriber = _stt.Transcriber.for_platform(self._config)
         except Exception:
             logger.debug("osd: windowed STT unavailable", exc_info=True)
             return None

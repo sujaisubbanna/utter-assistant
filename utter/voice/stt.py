@@ -133,6 +133,32 @@ def _candidate_model_paths(model: str) -> list:
     return unique
 
 
+def _pywhispercpp_cached_path(name: str) -> Optional[Path]:
+    """Return a cached pywhispercpp ggml path for ``name`` if one exists.
+
+    pywhispercpp stores downloaded models as ``ggml-<name>.bin`` in its own
+    ``MODELS_DIR`` (e.g. ``ggml-base.en.bin``). Our directory scan does not look
+    there, so a cached model was misreported as "will download". The import is
+    lazy because the pywhispercpp native extension is heavy and optional.
+    """
+    if not name:
+        return None
+    raw = Path(name).expanduser()
+    if raw.is_file():
+        return raw
+    try:
+        from pywhispercpp.constants import MODELS_DIR
+    except Exception:  # noqa: BLE001 - pywhispercpp is an optional backend
+        return None
+    for cand in (MODELS_DIR / f"ggml-{name}.bin", MODELS_DIR / f"{name}.bin", MODELS_DIR / name):
+        try:
+            if cand.is_file():
+                return cand
+        except OSError:
+            continue
+    return None
+
+
 KNOWN_BACKENDS = ("whisper_cpp", "faster_whisper", "apple_speech", "vocamac", "none")
 MACOS_ONLY_BACKENDS = ("apple_speech", "vocamac")
 
@@ -279,9 +305,19 @@ class Transcriber:
         valid = {"tiny", "tiny.en", "base", "base.en", "small", "small.en",
                  "medium", "medium.en", "large", "large-v1", "large-v2", "large-v3"}
         if name in valid:
+            # pywhispercpp may already hold the model in its own cache even
+            # though our scan missed it; only warn when it is truly absent.
+            cached = _pywhispercpp_cached_path(name)
+            if cached is not None:
+                logger.debug("whisper.cpp model %r already cached at %s", name, cached)
+                return str(cached)
             logger.warning("no local model file for %r; pywhispercpp will download it", name)
             return name
         fallback = os.environ.get("UTTER_WHISPER_MODEL", "base.en")
+        cached = _pywhispercpp_cached_path(fallback)
+        if cached is not None:
+            logger.debug("whisper.cpp fallback model %r already cached at %s", fallback, cached)
+            return str(cached)
         logger.warning(
             "no local whisper.cpp model found (looked for %r); pywhispercpp will "
             "download %r", requested, fallback,

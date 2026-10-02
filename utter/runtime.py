@@ -323,8 +323,12 @@ def resolve_router(cfg=None, platform_name: Optional[str] = None):
     if plat != platform.MACOS:
         return cfg.router
 
-    # Build a resolved RouterConfig for macOS
+    # Already a RouterConfig (e.g. planner passes cfg.router): nothing to resolve.
     from utter.config import RouterConfig
+    if isinstance(cfg, RouterConfig):
+        return cfg
+
+    # Build a resolved RouterConfig for macOS
     mac_rt = getattr(cfg.macos, "runtime", None)
     base_url = getattr(mac_rt, "llm_base_url", getattr(cfg.macos, "llm_base_url", DEFAULT_MACOS_LLM_URL))
     model = getattr(mac_rt, "llm_model", getattr(cfg.macos, "llm_model", DEFAULT_MACOS_LLM_MODEL))

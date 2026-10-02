@@ -52,6 +52,9 @@ def _profiles():
 
 
 def _tts_engine():
+    import sys
+    if sys.platform == "darwin":
+        return shutil.which("say") or shutil.which("espeak-ng") or shutil.which("espeak")
     return shutil.which("espeak-ng") or shutil.which("espeak")
 
 

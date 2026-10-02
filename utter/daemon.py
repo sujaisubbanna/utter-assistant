@@ -83,6 +83,85 @@ def _pcm16_source(chunks, lock):
     return source
 
 
+def _model_service_reachable(cfg) -> bool:
+    """True when the model server for this platform is actually up.
+
+    On macOS the only model service is the local LLM (Ollama), which is
+    optional. A short probe lets the OSD skip the cold-start "loading" watcher
+    when there is nothing to wait for (no panel, no 30 s timeout warning).
+    On other platforms this is always True so behaviour is unchanged.
+    """
+    try:
+        from . import platform
+        if not platform.is_macos():
+            return True
+        from . import runtime as _runtime
+        resolved = _runtime.resolve_router(cfg)
+        base = (getattr(resolved, "llm_base_url", "") or "").rstrip("/")
+        if not base:
+            return False
+        import urllib.request
+        request = urllib.request.Request(base + "/models", method="GET")
+        with urllib.request.urlopen(request, timeout=0.6):
+            return True
+    except Exception:  # noqa: BLE001 - unavailable is a normal, non-fatal state
+        return False
+
+
+class _NativeOverlay:
+    """System-wide overlay facade (macOS native panel; no-op elsewhere).
+
+    Same rule as the Linux panel: assistant lane only. Every method is safe
+    to call from any thread and never raises.
+    """
+
+    def __init__(self) -> None:
+        self._ov = None
+        try:
+            from . import platform
+            if not platform.is_macos():
+                return
+            from .macos.overlay import Overlay
+            self._ov = Overlay()
+        except Exception:
+            self._ov = None
+
+    def _call(self, method: str, *args) -> None:
+        ov = self._ov
+        if ov is None:
+            return
+        try:
+            getattr(ov, method)(*args)
+        except Exception:
+            pass
+
+    def listening(self, text: str = "", lane: str = "assistant") -> None:
+        self._call("listening", text, lane)
+
+    def loading(self, text: str = "") -> None:
+        self._call("loading", text)
+
+    def clear_loading(self) -> None:
+        self._call("clear_loading")
+
+    def level(self, value: float) -> None:
+        self._call("level", value)
+
+    def final(self, text: str, ok: bool, dismiss_ms: int = 1200,
+              lane: str = "assistant") -> None:
+        self._call("final", text, ok, dismiss_ms, lane)
+
+    def idle(self) -> None:
+        self._call("idle")
+
+
+def _osd_dismiss_ms(cfg) -> int:
+    try:
+        return int(getattr(getattr(cfg, "osd", None), "dismiss_ms", 1200))
+    except (TypeError, ValueError):
+        return 1200
+
+
 class _Osd:
     """Best-effort OSD driver for the native voice lanes.
 
@@ -90,13 +169,20 @@ class _Osd:
     raise into the audio/recognition path.
     """
 
-    def __init__(self, cfg, audio_source=None):
+    def __init__(self, cfg, audio_source=None, native=None):
         self.em = None
         self.watcher = None
+        self._native = native
+        self._lane = "assistant"
         self._sleep_hooked = False
         try:
             from .voice.osd import OsdEmitter
-            self.em = OsdEmitter(cfg=getattr(cfg, "osd", None), audio_source=audio_source)
+            self.em = OsdEmitter(
+                cfg=getattr(cfg, "osd", None),
+                audio_source=audio_source,
+                config=cfg,
+                on_partial=self._on_partial,
+            )
         except Exception:
             log.exception("could not initialise OSD emitter")
         self._init_model_loading(cfg)
@@ -112,7 +198,33 @@ class _Osd:
             log.debug("OSD %s failed", method, exc_info=True)
 
     def listening(self, mode: str = "assistant") -> None:
+        self._lane = "dictation" if mode == "dictation" else "assistant"
         self._emit("listening", mode)
+
+    def loading(self, text: str = "") -> None:
+        """Show ``loading`` on the emitter *and* the native overlay.
+
+        The model-loading watcher is constructed with ``self`` (the ``_Osd``),
+        so its ``loading``/``ready`` calls drive both the JSON document and the
+        native macOS panel. Either side may be absent; both are best-effort.
+        """
+        self._emit("loading", text)
+        native = getattr(self, "_native", None)
+        if native is not None:
+            try:
+                native.loading(text)
+            except Exception:  # noqa: BLE001 - never break voice
+                log.debug("native OSD loading failed", exc_info=True)
+
+    def _on_partial(self, text) -> None:
+        """Mirror the live partial transcript onto the native overlay."""
+        native = getattr(self, "_native", None)
+        if native is None:
+            return
+        try:
+            native.listening(text or "", lane=self._lane)
+        except Exception:  # noqa: BLE001 - best-effort only
+            log.debug("native OSD partial failed", exc_info=True)
 
     def level(self, value) -> None:
         self._emit("level", value)
@@ -122,6 +234,15 @@ class _Osd:
 
     def idle(self) -> None:
         self._emit("idle")
+
+    def ready(self) -> None:
+        self._emit("ready")
+        native = getattr(self, "_native", None)
+        if native is not None:
+            try:
+                native.clear_loading()
+            except Exception:
+                pass
 
     def close(self) -> None:
         self._emit("close")
@@ -134,12 +255,22 @@ class _Osd:
     def _init_model_loading(self, cfg) -> None:
         sc = getattr(cfg, "sleep", None)
         services = list(getattr(sc, "services", []) or [])
-        if self.em is None or not services:
+        if not services:
+            return
+        # On macOS the only model service is the local LLM server (Ollama),
+        # which is optional: rules + whisper STT work without it. If nothing is
+        # actually listening there is nothing to wait for, so skip the watcher
+        # entirely — otherwise every cold start shows a "Models are coming up…"
+        # panel and logs a 30 s timeout warning for a server that isn't there.
+        if not _model_service_reachable(cfg):
+            log.debug("model loading: no reachable model service; skipping watcher")
             return
         try:
             from .voice import model_loading as ml
+            # Pass ``self`` (not the emitter) so the watcher's ready()/timeout
+            # path runs ``_Osd.ready()`` and clears the native overlay too.
             self.watcher = ml.ModelLoadingWatcher(
-                self.em,
+                self,
                 ml.probes_for_services(services, cfg),
                 timeout_s=getattr(sc, "model_ready_timeout_s", ml.DEFAULT_TIMEOUT_S),
             )
@@ -149,7 +280,15 @@ class _Osd:
 
     def begin_loading(self) -> None:
         """Show ``loading`` until the model services report ready (cold/wake)."""
-        if self.watcher is None or not self.enabled:
+        # Only show the loading state when a watcher exists to clear it again;
+        # otherwise the panel would be stuck on screen until the next PTT.
+        if self.watcher is None:
+            return
+        native = getattr(self, "_native", None)
+        self.loading("Models are coming up…")
+        if not self.enabled and native is None:
+            # Preserve the previous Linux behaviour: a disabled emitter with no
+            # native overlay starts no polling thread.
             return
         try:
             self.watcher.begin()
@@ -357,6 +496,7 @@ class Utter:
                     except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                         osd.idle()
                         raise
+                    _play("detected" if ok else "not_detected")
                     # ``final`` schedules its own dismiss after [osd] dismiss_ms.
                     osd.final(text, bool(ok))
                 else:
@@ -384,16 +524,38 @@ class Utter:
         from . import sleep as _sleep
 
         mc = self.cfg.macos
-        try:
-            from .macos import permissions
-            doc = permissions.status_all(request=True)
-            missing = [p["label"] for p in doc["permissions"] if p["status"] != permissions.GRANTED]
-            if missing:
-                log.warning("macOS permissions missing: %s (System Settings -> Privacy & Security)",
-                            ", ".join(missing))
-                _notify("Utter needs permissions: " + ", ".join(missing), mc)
-        except Exception as e:  # noqa: BLE001 - never block startup on the probe
-            log.debug("permission probe failed: %s", e)
+
+        # Permission state is probed at startup and re-checked lazily on each
+        # PTT press, so granting a permission takes effect without a restart.
+        # Startup is INFO only (no banner): a notification for permissions the
+        # user already knows about was the "random error" popup.
+        perm_state: dict = {"missing": set()}
+
+        def _probe_permissions(announce: bool) -> None:
+            try:
+                from .macos import permissions
+                # Probe only: requesting (prompting) from the daemon can SIGABRT
+                # under TCC when the responsible process has no usage description
+                # in its Info.plist. Prompts belong to the Setup tab / `macos-permissions
+                # --request`, which run attributed to utter.app.
+                doc = permissions.status_all(request=False)
+                missing = {
+                    p["label"] for p in doc["permissions"]
+                    if p["status"] != permissions.GRANTED
+                }
+            except Exception as e:  # noqa: BLE001 - never block startup on the probe
+                log.debug("permission probe failed: %s", e)
+                return
+            previous = perm_state["missing"]
+            perm_state["missing"] = missing
+            if missing and announce:
+                log.info("macOS permissions missing: %s (System Settings -> Privacy & Security)",
+                         ", ".join(sorted(missing)))
+            # Clear the logged missing set once everything is granted.
+            if previous and not missing:
+                log.info("macOS permissions granted: %s", ", ".join(sorted(previous)))
+
+        _probe_permissions(announce=True)
         stt = Transcriber.for_platform(self.cfg)
         log.info("macOS voice: stt chain=%s dictation=%s assistant=%s hotkeys=%s",
                  [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)
@@ -402,12 +564,21 @@ class Utter:
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
+        # Native system-wide overlay (macOS twin of the Linux Noctalia panel):
+        # assistant lane only, driven directly (no file polling).
+        native = _NativeOverlay()
+        dismiss_ms = _osd_dismiss_ms(self.cfg)
         # Additive OSD for both dictation and assistant keys.
-        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock))
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock),
+                   native=native)
         osd.begin_loading()
         osd.watch_sleep(sleeper)
 
         def start(mode: str) -> None:
+            # Lazy permission re-check: once the user grants Accessibility /
+            # Screen Recording the state refreshes without a daemon restart.
+            if perm_state["missing"]:
+                _probe_permissions(announce=False)
             with rec_lock:
                 if session["stream"] is not None:
                     return
@@ -417,7 +588,9 @@ class Utter:
                 def cb(indata, frames, t, status):
                     with rec_lock:
                         session["chunks"].append(indata.copy())
-                    osd.level(_rms(indata))
+                    level = _rms(indata)
+                    osd.level(level)
+                    native.level(level)
                 stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
                                         channels=self.cfg.audio.channels, dtype="float32",
                                         device=(self.cfg.audio.device or None), callback=cb)
@@ -429,6 +602,7 @@ class Utter:
                 _play("wake")
             _play("dictate" if mode == "dictation" else "start")
             osd.listening("dictation" if mode == "dictation" else "assistant")
+            native.listening(lane=mode)
             log.info("PTT down (%s) - listening", mode)
 
         def stop(mode: str) -> None:
@@ -444,17 +618,22 @@ class Utter:
                 if audio.size < self.cfg.audio.sample_rate * 0.2:
                     log.info("too short, ignoring")
                     osd.idle()
+                    native.idle()
                     return
                 try:
                     text = stt.transcribe(audio)
                 except Exception as e:  # noqa: BLE001
                     log.error("transcription failed: %s", e)
                     osd.idle()
+                    native.clear_loading()
+                    native.idle()
                     _notify(f"Transcription failed: {e}", mc)
                     return
+                native.clear_loading()
                 log.info("transcript (%s): %r", mode, text)
                 if not text:
                     osd.idle()
+                    native.idle()
                     return
                 if mode == "dictation":
                     from .actions import keyboard
@@ -462,20 +641,26 @@ class Utter:
                         res = keyboard.type_text(text)
                     except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                         osd.idle()
+                        native.idle()
                         raise
                     if res.ok:
                         _play("typed")
                     else:
+                        _play("not_detected")
                         log.warning("dictation typing failed: %s", res.detail)
                         _notify(f"Could not type text: {res.detail}", mc)
                     osd.final(text, bool(res.ok))
+                    native.final(text, bool(res.ok), dismiss_ms, lane=mode)
                     return
                 try:
                     ok = self.handle_utterance(text)
                 except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                     osd.idle()
+                    native.idle()
                     raise
+                _play("detected" if ok else "not_detected")
                 osd.final(text, bool(ok))
+                native.final(text, bool(ok), dismiss_ms, lane=mode)
             finally:
                 idle.end("listen")
 

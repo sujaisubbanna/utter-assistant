@@ -13,6 +13,7 @@ mod theme;
 mod zip;
 
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use state::AppState;
 
@@ -46,23 +47,83 @@ fn locate_repo() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
+/// True when `candidate` is a runnable Python >= 3.12 that can `import tomllib`.
+///
+/// The assistant imports `tomllib` at startup, but `pyproject.toml` requires
+/// `>=3.12`; on macOS a bare `python3` on `$PATH` is Apple's 3.9 stub, which has
+/// neither. One probe answers both questions.
+fn interpreter_ok(candidate: &Path) -> bool {
+    if !candidate.is_file() {
+        return false;
+    }
+    Command::new(candidate)
+        .arg("-c")
+        .arg("import sys, tomllib; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
 /// Resolve the interpreter that can run `python -m assistant`.
-fn locate_python(repo: &Path) -> String {
+///
+/// Every candidate — `$UTTER_PYTHON`, the checkouts' virtualenvs, the bundled
+/// runtime and only then `python3` on `$PATH` — must be Python >= 3.12 *and*
+/// import `tomllib`. Returning an older interpreter here is what produced the
+/// macOS launchd crash loop (Apple's `/usr/bin/python3` is 3.9). Callers choose
+/// what to do with the `Err` (the GUI keeps its window so the Set up page can
+/// install the runtime; the headless supervisor exits non-zero).
+fn locate_python(repo: &Path) -> Result<String, String> {
     if let Ok(value) = std::env::var("UTTER_PYTHON") {
-        if !value.is_empty() && Path::new(&value).exists() {
-            return value;
+        if !value.is_empty() {
+            let path = Path::new(&value);
+            if interpreter_ok(path) {
+                return Ok(value);
+            }
+            return Err(format!(
+                "UTTER_PYTHON={value} is not a Python >= 3.12 interpreter with tomllib"
+            ));
         }
     }
-    for candidate in [
-        repo.join(".venv-agent/bin/python"),
+    // The relocatable runtime the app unpacks is the blessed interpreter and
+    // comes first: <root>/core is the repo, <root>/python the interpreter
+    // (see scripts/build-macos-runtime.sh).
+    let mut candidates = vec![
+        repo.join("../python/bin/python3"),
+        repo.join("python/bin/python3"),
         repo.join(".venv-macos/bin/python"),
+        repo.join(".venv-agent/bin/python"),
         repo.join(".venv/bin/python"),
-    ] {
-        if candidate.exists() {
-            return candidate.to_string_lossy().into_owned();
+    ];
+    if let Ok(path_var) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path_var) {
+            candidates.push(dir.join("python3.12"));
+            candidates.push(dir.join("python3"));
         }
     }
-    "python3".to_string()
+
+    let mut rejected = Vec::new();
+    for candidate in &candidates {
+        if !candidate.exists() {
+            continue;
+        }
+        if interpreter_ok(candidate) {
+            return Ok(candidate.to_string_lossy().into_owned());
+        }
+        rejected.push(candidate.display().to_string());
+    }
+
+    let detail = if rejected.is_empty() {
+        "no python3 on $PATH".to_string()
+    } else {
+        format!(
+            "found {} but none is Python >= 3.12 with tomllib",
+            rejected.join(", ")
+        )
+    };
+    Err(format!("no usable Python interpreter: {detail}"))
 }
 
 fn home_dir() -> PathBuf {
@@ -100,26 +161,66 @@ fn theme_path() -> PathBuf {
 
 /// Headless supervisor used by the launchd agents (see main.rs).
 pub fn supervise(mode: &str) -> i32 {
-    let mut repo = locate_repo();
-    let mut python = locate_python(&repo);
-    if std::env::var("UTTER_REPO").is_err() {
-        if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
-            repo = core;
-            python = runtime_python;
+    // On macOS the unpacked runtime is the blessed interpreter: it is a
+    // relocatable CPython with all deps, while $PATH python3 may be Apple's
+    // stub (3.9, no tomllib). Prefer it whenever it is usable.
+    if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
+        if interpreter_ok(Path::new(&runtime_python)) {
+            return macos_setup::supervise_python(mode, &core, &runtime_python);
         }
+        eprintln!(
+            "utter: bundled interpreter {runtime_python} is not Python >= 3.12 with tomllib; \
+             reinstall the runtime from utter.app instead of launching it"
+        );
+        return 1;
     }
+    // An incomplete self-install (runtime core present, bundled python gone)
+    // must fail loudly. Falling back to system python3 here is what produced the
+    // endless launchd crash loop, because Apple's python3 lacks tomllib.
+    if let Some(core) = macos_setup::runtime_core_without_python() {
+        eprintln!(
+            "utter: found the runtime core at {} but its bundled Python is missing; \
+             reinstall the runtime from utter.app (refusing to fall back to system python3)",
+            core.display()
+        );
+        return 1;
+    }
+    let repo = locate_repo();
+    let python = match locate_python(&repo) {
+        Ok(python) => python,
+        Err(error) => {
+            eprintln!("utter: {error}");
+            return 1;
+        }
+    };
     macos_setup::supervise_python(mode, &repo, &python)
 }
 
 pub fn run() {
     let mut repo = locate_repo();
-    let mut python = locate_python(&repo);
+    let mut python = match locate_python(&repo) {
+        Ok(python) => python,
+        Err(error) => {
+            // The window must still open: on macOS the Set up page installs the
+            // bundled runtime, which fixes the interpreter. Commands that need
+            // python report a spawn error until then.
+            eprintln!("utter-gui: {error}; open the Set up page to install the runtime");
+            String::new()
+        }
+    };
     // macOS drag-and-drop install: prefer the runtime the app unpacked itself,
     // unless the developer pointed UTTER_REPO somewhere explicitly.
     if std::env::var("UTTER_REPO").is_err() {
         if let Some((core, runtime_python)) = macos_setup::installed_runtime() {
-            repo = core;
-            python = runtime_python;
+            if interpreter_ok(Path::new(&runtime_python)) {
+                repo = core;
+                python = runtime_python;
+            } else {
+                eprintln!(
+                    "utter-gui: bundled interpreter {runtime_python} is not Python >= 3.12 \
+                     with tomllib; leaving it unused"
+                );
+            }
         }
     }
     let state = AppState::new(repo, python, config_path(), theme_path());
@@ -166,6 +267,7 @@ pub fn run() {
             macos_setup::macos_install_status,
             macos_setup::macos_install,
             macos_setup::macos_reinstall_agents,
+            macos_setup::macos_restart_agents,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

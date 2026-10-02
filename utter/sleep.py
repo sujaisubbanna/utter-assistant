@@ -22,7 +22,11 @@ still lets Utter free the GPU. The watcher never fires while Utter is busy
 through the very same :meth:`SleepController.sleep`, so once asleep the two
 are indistinguishable and the same key press wakes both.
 
-State is published to ``$XDG_RUNTIME_DIR/utter/sleep.json`` for the UI.
+State is published to ``$XDG_RUNTIME_DIR/utter/sleep.json`` (or, on macOS,
+``~/Library/Application Support/utter/sleep.json``) for the UI.
+
+Model services are managed by systemd only on Linux; on macOS sleep/wake is a
+clean no-op for the services (the in-process speech unload/reload still runs).
 """
 from __future__ import annotations
 
@@ -31,6 +35,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -45,9 +50,17 @@ Runner = Callable[[List[str]], object]
 Clock = Callable[[], float]
 
 
+_IS_MACOS = sys.platform == "darwin"
+
+
 def state_path() -> Path:
-    base = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
-    return Path(base) / "utter" / "sleep.json"
+    base = os.environ.get("XDG_RUNTIME_DIR")
+    if base:
+        return Path(base) / "utter" / "sleep.json"
+    if _IS_MACOS:
+        # /run/user/<uid> does not exist on macOS; use the per-user app dir.
+        return Path.home() / "Library" / "Application Support" / "utter" / "sleep.json"
+    return Path(f"/run/user/{os.getuid()}") / "utter" / "sleep.json"
 
 
 def _words(text: str) -> list:
@@ -75,7 +88,18 @@ class SleepController:
         self.triggers = [_words(t) for t in triggers if _words(t)]
         self.services = [s for s in services if s]
         self.unload_speech = bool(unload_speech)
-        self._systemctl = systemctl or _default_systemctl
+        # Model services are systemd units on Linux only. On macOS the default
+        # is a clean no-op (nothing shells out); an explicitly injected runner
+        # is always honoured, which keeps tests and custom integrations working.
+        if systemctl is not None:
+            self._systemctl: Optional[Runner] = systemctl
+            self._manages_services = True
+        elif _IS_MACOS:
+            self._systemctl = None
+            self._manages_services = False
+        else:
+            self._systemctl = _default_systemctl
+            self._manages_services = True
         self._path = path or state_path()
         self._lock = threading.RLock()
         self._unload: List[Hook] = []
@@ -108,14 +132,21 @@ class SleepController:
             if self.asleep:
                 return True
             t0 = time.perf_counter()
-            for unit in self.services:
-                self._run(["stop", f"{unit}.service"])
+            if self._manages_services:
+                for unit in self.services:
+                    self._run(["stop", f"{unit}.service"])
             if self.unload_speech:
                 self._call(self._unload)
             self.asleep = True
             self._publish()
-            log.info("sleep: stopped %s, speech %s (%.0fms)", ", ".join(self.services) or "nothing",
-                     "unloaded" if self.unload_speech else "kept", (time.perf_counter() - t0) * 1000)
+            speech = "unloaded" if self.unload_speech else "kept"
+            ms = (time.perf_counter() - t0) * 1000
+            if self._manages_services:
+                log.info("sleep: stopped %s, speech %s (%.0fms)",
+                         ", ".join(self.services) or "nothing", speech, ms)
+            else:
+                log.info("sleep: macOS — model services are not managed by systemd; "
+                         "nothing to stop (speech %s, %.0fms)", speech, ms)
             self._notify()
             return True
 
@@ -126,18 +157,26 @@ class SleepController:
             t0 = time.perf_counter()
             if self.unload_speech:
                 self._call(self._reload)  # small + fast: needed for this very utterance
-            for unit in self.services:
-                # --no-block: never hold the key press while big models load
-                self._run(["start", "--no-block", f"{unit}.service"])
+            if self._manages_services:
+                for unit in self.services:
+                    # --no-block: never hold the key press while big models load
+                    self._run(["start", "--no-block", f"{unit}.service"])
             self.asleep = False
             self._publish()
-            log.info("wake: speech ready, starting %s (%.0fms)", ", ".join(self.services) or "nothing",
-                     (time.perf_counter() - t0) * 1000)
+            ms = (time.perf_counter() - t0) * 1000
+            if self._manages_services:
+                log.info("wake: speech ready, starting %s (%.0fms)",
+                         ", ".join(self.services) or "nothing", ms)
+            else:
+                log.info("wake: macOS — model services are not managed by systemd; "
+                         "speech ready (%.0fms)", ms)
             self._notify()
             return True
 
     # -- internals ---------------------------------------------------------------
     def _run(self, args: List[str]) -> None:
+        if self._systemctl is None:
+            return
         try:
             self._systemctl(args)
         except Exception:  # noqa: BLE001 - a failed unit must not break sleep/wake

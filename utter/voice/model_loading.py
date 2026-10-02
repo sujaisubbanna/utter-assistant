@@ -83,6 +83,27 @@ def probes_for_services(services: Iterable[str], cfg) -> List[Callable[[], bool]
     """
     vision = getattr(getattr(cfg, "vision", None), "base_url", None)
     llm = getattr(getattr(cfg, "router", None), "llm_base_url", None)
+
+    # On macOS the effective endpoints come from the runtime resolver (Ollama
+    # on 127.0.0.1:11434), not the Linux vLLM defaults baked into
+    # [vision]/[router] (:8000/:8001). Linux keeps the raw config unchanged.
+    try:
+        from utter import platform as _plat
+        if _plat.is_macos():
+            from utter import runtime as _runtime
+            try:
+                resolved_router = _runtime.resolve_router(cfg)
+                llm = getattr(resolved_router, "llm_base_url", llm) or llm
+            except Exception:  # noqa: BLE001 - fall back to the raw config
+                log.debug("model loading: could not resolve the macOS LLM endpoint", exc_info=True)
+            try:
+                resolved_vision = _runtime.resolve_vision(cfg)
+                vision = getattr(resolved_vision, "base_url", vision) or vision
+            except Exception:  # noqa: BLE001 - fall back to the raw config
+                log.debug("model loading: could not resolve the macOS vision endpoint", exc_info=True)
+    except Exception:  # noqa: BLE001 - platform probe must never break startup
+        pass
+
     probes: List[Callable[[], bool]] = []
     seen = set()
     for name in services or ():

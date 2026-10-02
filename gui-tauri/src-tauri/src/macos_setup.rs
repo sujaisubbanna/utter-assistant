@@ -86,6 +86,19 @@ pub fn installed_runtime() -> Option<(PathBuf, String)> {
     }
 }
 
+/// The app-managed runtime's core when its bundled interpreter is missing — an
+/// incomplete install. `None` when there is no runtime at all (the dev layout
+/// from `macos/setup.sh`), so that path is unaffected.
+pub fn runtime_core_without_python() -> Option<PathBuf> {
+    if !IS_MACOS {
+        return None;
+    }
+    let root = runtime_root();
+    let core = runtime_core(&root);
+    let python = runtime_python(&root);
+    (core.join("assistant").is_dir() && !python.exists()).then_some(core)
+}
+
 fn installed_version() -> Option<String> {
     fs::read_to_string(runtime_root().join("VERSION"))
         .ok()
@@ -121,19 +134,65 @@ fn launcher() -> Option<PathBuf> {
     std::env::current_exe().ok()
 }
 
-/// True when both agents exist *and* point at this app binary (older installs
-/// that launched python directly count as outdated and get rewritten).
-pub fn agents_installed() -> bool {
-    let dir = agents_dir();
-    let Some(launcher) = launcher() else {
-        return false;
+/// The `<string>` values inside a plist's `ProgramArguments` array, best-effort.
+/// Hand-rolled so we do not pull in a plist dependency just for this check.
+fn program_arguments(text: &str) -> Vec<String> {
+    let Some(key) = text.find("ProgramArguments") else {
+        return Vec::new();
     };
-    let launcher = launcher.to_string_lossy().into_owned();
-    AGENTS.iter().all(|(label, _, _)| {
-        fs::read_to_string(dir.join(format!("{label}.plist")))
-            .map(|text| text.contains(&launcher))
-            .unwrap_or(false)
-    })
+    let rest = &text[key..];
+    let Some(array) = rest.find("<array>") else {
+        return Vec::new();
+    };
+    let body = &rest[array + "<array>".len()..];
+    let Some(end) = body.find("</array>") else {
+        return Vec::new();
+    };
+    let mut cursor = &body[..end];
+    let mut args = Vec::new();
+    while let Some(open) = cursor.find("<string>") {
+        let after = &cursor[open + "<string>".len()..];
+        let Some(close) = after.find("</string>") else {
+            break;
+        };
+        args.push(after[..close].to_string());
+        cursor = &after[close + "</string>".len()..];
+    }
+    args
+}
+
+/// True when both agents exist *and* are coherent: each launches either this app
+/// binary (the current self-install, so TCC grants belong to utter.app) or the
+/// managed runtime's python/core (an install that launched python directly).
+/// Both must use the same mechanism; a half-rewritten pair does not count, and
+/// unrelated/stale agents are rewritten.
+pub fn agents_installed() -> bool {
+    if !IS_MACOS {
+        return false;
+    }
+    let dir = agents_dir();
+    let launcher = launcher().map(|path| path.to_string_lossy().into_owned());
+    let runtime = runtime_root();
+
+    let mut kinds = Vec::new();
+    for (label, _, _) in AGENTS {
+        let Ok(plist) = fs::read_to_string(dir.join(format!("{label}.plist"))) else {
+            return false;
+        };
+        let args = program_arguments(&plist);
+        let Some(program) = args.first() else {
+            return false;
+        };
+        let kind = if launcher.as_deref() == Some(program.as_str()) {
+            "app"
+        } else if Path::new(program).starts_with(&runtime) {
+            "runtime"
+        } else {
+            return false;
+        };
+        kinds.push(kind);
+    }
+    kinds.iter().all(|kind| *kind == kinds[0])
 }
 
 fn xml_escape(text: &str) -> String {
@@ -357,6 +416,35 @@ pub async fn macos_reinstall_agents(app: AppHandle, state: State<'_, AppState>) 
     tauri::async_runtime::spawn_blocking(move || install_agents(&handle, &core, &python))
         .await
         .map_err(|error| error.to_string())??;
+    Ok(status(&app, &state))
+}
+
+/// Restart both launchd agents in place. macOS only applies Input Monitoring
+/// and Accessibility grants to freshly started processes, so after the user
+/// flips either switch in System Settings the already-running daemon has to be
+/// restarted to rebuild its event tap. `kickstart -k` is the normal path;
+/// fall back to `bootstrap` when the agent was not loaded yet.
+#[tauri::command]
+pub fn macos_restart_agents(app: AppHandle, state: State<AppState>) -> Result<InstallStatus, String> {
+    if !IS_MACOS {
+        return Err("only macOS".to_string());
+    }
+    let domain = format!("gui/{}", uid());
+    for label in [ASSISTANT_LABEL, RUNNER_LABEL] {
+        let target = format!("{domain}/{label}");
+        let restarted = Command::new("/bin/launchctl")
+            .args(["kickstart", "-k", &target])
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false);
+        if !restarted {
+            let plist = agents_dir().join(format!("{label}.plist"));
+            run(Command::new("/bin/launchctl")
+                .args(["bootstrap", &domain])
+                .arg(&plist))
+            .map_err(|error| format!("launchctl restart {label}: {error}"))?;
+        }
+    }
     Ok(status(&app, &state))
 }
 

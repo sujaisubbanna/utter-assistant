@@ -148,11 +148,14 @@ class MacosConfig:
     Nothing here changes Linux behaviour: the section only selects which native
     backend is used when ``sys.platform == "darwin"``.
     """
-    # Speech-to-text: "apple_speech" (Speech.framework via PyObjC) first, then
-    # the local whisper.cpp fallback. "vocamac" uses an installed VocaMac.app's
-    # file-transcription CLI. Any of the Linux [stt] backends is also accepted.
-    stt_backend: str = "apple_speech"
-    stt_fallback: str = "whisper_cpp"
+    # Speech-to-text: "whisper_cpp" (local whisper.cpp, reliable, ~150MB model
+    # downloaded on first use) first, then Apple's Speech.framework. Apple is
+    # faster when it works but hangs on some machines/locales (30s+ with no
+    # callback), so it stays as fallback, not primary. "vocamac" uses an
+    # installed VocaMac.app's file-transcription CLI. Any of the Linux [stt]
+    # backends is also accepted.
+    stt_backend: str = "whisper_cpp"
+    stt_fallback: str = "apple_speech"
     speech_locale: str = "en-US"
     # Keep recognition on the device (no Apple servers). Requires a locale with
     # an on-device model; otherwise the request fails and whisper.cpp is used.

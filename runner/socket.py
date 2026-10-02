@@ -119,7 +119,11 @@ class SocketServer:
         sock = writer.get_extra_info("socket")
         creds = self._peer_creds(sock)
         if creds is None:
-            await self._reject(writer, "SO_PEERCRED unavailable")
+            mechanism = (
+                "LOCAL_PEERPID/LOCAL_PEERCRED" if sys.platform == "darwin"
+                else "SO_PEERCRED"
+            )
+            await self._reject(writer, f"peer credentials unavailable ({mechanism})")
             return
         pid, uid, _gid = creds
         exe = self._exe(pid)

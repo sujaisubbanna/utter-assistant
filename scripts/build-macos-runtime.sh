@@ -54,6 +54,11 @@ if [[ -z "$VERSION" ]]; then
     VERSION="$(git -C "$REPO" describe --tags --always --dirty 2>/dev/null || echo 0.0.0)"
 fi
 VERSION="${VERSION#v}"
+# Never emit an empty version: the app treats an empty runtime.version as "no
+# version" and would re-offer the same install on every launch.
+if [[ -z "$VERSION" ]]; then
+    VERSION="0.0.0"
+fi
 mkdir -p "$OUT_DIR"
 OUT_DIR="$(cd -- "$OUT_DIR" && pwd)"
 
@@ -69,7 +74,11 @@ echo "resolving python-build-standalone ($PY_SERIES, $PBS_ARCH)"
 API="https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
 AUTH=()
 [[ -n "${GITHUB_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
-PBS_URL="$(curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" "$API" \
+# bash 3.2 (macOS system bash) + `set -u`: expanding an empty array with
+# "${AUTH[@]}" errors as unbound, so expand conditionally.
+AUTH_EXPAND=()
+[[ ${#AUTH[@]} -gt 0 ]] && AUTH_EXPAND=("${AUTH[@]}")
+PBS_URL="$(curl -fsSL ${AUTH_EXPAND[@]+"${AUTH_EXPAND[@]}"} -H "Accept: application/vnd.github+json" "$API" \
     | python3 -c "
 import json, sys
 series, arch = sys.argv[1], sys.argv[2]
@@ -127,10 +136,24 @@ find "$RT/python" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/nu
 printf '%s\n' "$VERSION" > "$RT/VERSION"
 
 # --------------------------------------------------------------------------- #
-# 4. pack
+# 3b. stable ad-hoc code identity: TCC keys grants to the designated requirement,
+#     and the default linker cdhash DR changes on every build. Sign the payload
+#     before packing so runtime.tar.gz already carries the stable identity the
+#     live app will use (see docs/MACOS.md, scripts/sign-macos.sh).
+# --------------------------------------------------------------------------- #
+echo "signing runtime with stable TCC identity"
+"$SCRIPT_DIR/sign-macos.sh" runtime "$RT"
+
+# --------------------------------------------------------------------------- #
+# 4. pack (atomically: a partial run must not leave a truncated artifact behind)
 # --------------------------------------------------------------------------- #
 echo "packing runtime.tar.gz"
-COPYFILE_DISABLE=1 tar -czf "$OUT_DIR/runtime.tar.gz" -C "$STAGE" runtime
-printf '%s\n' "$VERSION" > "$OUT_DIR/runtime.version"
+TMP_TARBALL="$OUT_DIR/.runtime.tar.gz.$$"
+TMP_VERSION="$OUT_DIR/.runtime.version.$$"
+trap 'rm -rf "$STAGE"; rm -f "$TMP_TARBALL" "$TMP_VERSION"' EXIT
+COPYFILE_DISABLE=1 tar -czf "$TMP_TARBALL" -C "$STAGE" runtime
+printf '%s\n' "$VERSION" > "$TMP_VERSION"
+mv -f "$TMP_TARBALL" "$OUT_DIR/runtime.tar.gz"
+mv -f "$TMP_VERSION" "$OUT_DIR/runtime.version"
 ls -lh "$OUT_DIR/runtime.tar.gz"
-echo "runtime version: $VERSION"
+echo "runtime version: $VERSION (written to runtime/VERSION and runtime.version)"
