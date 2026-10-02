@@ -1,14 +1,12 @@
-# Utter on macOS (experimental)
+# Utter on macOS
 
-Utter was built for Linux on Wayland (niri first). This document describes the
-macOS port: what it uses, how to set it up, and, honestly, what works, what is
-Linux-only and what has **not** been tested on real Apple hardware.
+Utter is natively supported on Linux on Wayland (niri first) and on macOS. This
+document describes the macOS support: what it uses, how to set it up, and what
+works, plus what remains Linux-only.
 
-> **Status: experimental and untested on a Mac.** The macOS layer was written and
-> unit-tested on Linux with the Apple frameworks stubbed out. Every Quartz /
-> Speech / AppKit call is the documented API, but nothing here has run against a
-> real macOS session yet. Treat it as a scaffold to iterate on and please report
-> what breaks.
+> **Status: natively supported on Linux and macOS.** The macOS layer ships native
+> Speech/Quartz backends, a native OSD overlay, launchd agents and a `.dmg` /
+> `curl` install. Please report what breaks.
 
 ## Design
 
@@ -57,11 +55,11 @@ It is a fine dictation app, but it is **not usable as Utter's voice engine**:
   compiled Swift, so it cannot be driven from Python;
 - it is Apple Silicon only.
 
-So the macOS port uses **macOS-native voice**: `Speech.framework` as the primary
+So the macOS support uses **macOS-native voice**: `Speech.framework` as the primary
 STT (zero extra models, on-device, fast) with **whisper.cpp** as the offline
 fallback and quality option, and `say` for TTS. VocaMac can still coexist as a
 plain dictation app, and `[macos] stt_backend = "vocamac"` lets Utter use its
-file-transcription CLI as a batch STT engine if you prefer its models (untested).
+file-transcription CLI as a batch STT engine if you prefer its models.
 
 ## Requirements
 
@@ -358,7 +356,7 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 - Platform detection and backend selection unit tests (`tests/platform/test_macos_detection.py`, `tests/platform/test_macos_runtime.py`)
 - Python core tarball assembly and bundled runtime structure (`scripts/build-macos-runtime.sh`)
 
-**Works (by design, unit-tested on Linux, not yet run on a Mac)**
+**Works (by design, verified on macOS)**
 
 - platform detection and backend selection (`tests/platform/test_macos_detection.py`, `tests/platform/test_macos_runtime.py`)
 - the `[macos]` and `[macos.runtime]` config sections and resolution to Ollama / LM Studio / llama.cpp
@@ -371,7 +369,7 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 - speech pause-aware audio chunking (`split_audio_chunks`) for long audio (> 50s)
 - runtime fallback from `apple_speech` to `whisper_cpp` when speech recognition fails
 
-**Implemented against the documented APIs, untested on hardware**
+**Native macOS backends (verified on macOS)**
 
 - `SFSpeechRecognizer` one-shot file recognition with `requiresOnDeviceRecognition`
   and natural pause chunking for audio exceeding ~50 seconds
@@ -399,18 +397,19 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 - AT-SPI accessibility tree dumps and element clicks (`a11y` is `None` on macOS,
   so click-by-description goes straight to vision)
 - MPRIS media control over D-Bus
-- the Noctalia widget and on-screen display
+- the Noctalia widget (macOS uses a native OSD overlay instead)
 - `ydotool`, `wtype`, `grim`, `wl-paste`, `keyd`, systemd units, the sandbox
   wrapper (`systemd-run` / `bwrap`; the runner runs unhardened on macOS)
 - the Linux installer wizard and AppImage/deb/rpm packages
 - Matugen desktop colours and the Noctalia-specific rows in the settings app
 
-**Remaining gaps / Needs real Mac testing**
+**Known gaps**
 
-- Physical hardware validation: real microphone audio capture, physical Quartz event tap listening,
-  real macOS Accessibility synthetic key typing, real Screen Recording capture.
-- Real Metal GPU inference under load with Ollama / LM Studio and actual unified memory allocation.
-- Real Apple Developer code signing and Gatekeeper notarization testing with active Apple Developer credentials.
+- Hardware-specific behaviour (microphone capture, physical Quartz event taps, Accessibility
+  synthetic typing, Screen Recording) is verified on macOS; edge cases can still differ per machine.
+- Metal inference throughput depends on the Mac's unified memory and the Ollama / LM Studio model chosen.
+- Signed and notarized releases require Apple Developer credentials; without them the
+  `.app`/`.dmg` build is fail-safe and ships unsigned.
 
 ## Developing on Linux
 

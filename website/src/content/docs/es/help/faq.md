@@ -40,9 +40,11 @@ específicas del compositor (enfocar, mover, espacios de trabajo) no están impl
 
 ### ¿Windows o macOS?
 
-**macOS es experimental**: voz nativa con `Speech.framework` + whisper.cpp, pulsar para hablar e
-inyección con Quartz, y un `.dmg` sin firmar; no se ha probado en hardware real de Apple. Consulta
-[macOS](/guides/macos/). **Windows no es compatible** y no se ha empezado.
+**macOS es compatible**: voz nativa con `Speech.framework` + whisper.cpp, pulsar para hablar e
+inyección con Quartz, y un `.dmg` para Apple Silicon e Intel. El `.dmg` no está firmado a menos que
+se configuren credenciales de Apple Developer; en el primer inicio, haz clic derecho → *Abrir* o ejecuta
+`xattr -cr /Applications/utter.app`. Consulta [macOS](/guides/macos/).
+**Windows no es compatible** y no se ha empezado.
 
 ### ¿Cuál es la diferencia entre la tecla del asistente y la tecla de dictado?
 

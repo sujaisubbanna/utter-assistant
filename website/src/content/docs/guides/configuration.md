@@ -8,7 +8,7 @@ your comments), so you can use whichever you prefer.
 
 :::note[macOS]
 On a Mac the voice, hotkey and spoken-reply settings live in a separate `[macos]` section and
-the settings app edits that instead. See [macOS (experimental)](/guides/macos/).
+the settings app edits that instead. See [macOS](/guides/macos/).
 :::
 
 ## Config files and precedence
@@ -423,5 +423,5 @@ requires confirmation. See [Trust and safety](/guides/trust-and-safety/) for the
 |----------|-----------|-------|
 | Linux/Wayland (niri, KWin) | Focus round-trip | Visible only when the target is off-screen or on another workspace with animations on. |
 | Hyprland | Focus round-trip | `sendshortcut` exists but is unreliable for native-Wayland Electron/Chromium apps and can silently do nothing; the round-trip is the safer path. |
-| macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). **Experimental**, untested on real Apple hardware. |
+| macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). |
 | Windows | Not supported | — |

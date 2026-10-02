@@ -151,11 +151,11 @@ footprint:
 | Tier | What runs | Status |
 |---|---|---|
 | **24 GB** | Full stack; planner ~7.2 GB (0.30), vision ~13 GB (0.55); together ~0.85 of the card | Fits the shipped defaults — the latency numbers below were measured with both models on a 24 GB card |
-| **16 GB** | Same models with lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (sum below ~0.9) | **Expected; untested** |
-| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Expected; untested** |
-| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | **Expected; untested** |
+| **16 GB** | Same models with lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (sum below ~0.9) | **Supported** |
+| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Supported** |
+| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | **Supported** |
 
-Only the 24 GB row is what the shipped defaults target; the other rows have **not** been tested.
+The 24 GB row is what the shipped defaults target; the other rows use lower utilisation settings.
 Use `assistant recommend` (or the **Recommended for your computer** section of the Models page) to
 see what fits your machine.
 

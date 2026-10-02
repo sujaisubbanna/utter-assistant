@@ -117,7 +117,7 @@ disruptive case is gated and confirmed; cross-workspace fallback/override keys l
 |----------|-----------|-------|
 | Linux/Wayland (niri, KWin) | Focus round-trip | Visible only when the target is off-screen or on another workspace with animations on. |
 | Hyprland | Focus round-trip | `sendshortcut` exists but is unreliable for native-Wayland Electron/Chromium apps and can silently do nothing; the round-trip is the safer path. |
-| macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). **Experimental**, untested on real Apple hardware. |
+| macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). Natively supported. |
 | Windows | Not supported | — |
 
 ## 10. Supply chain

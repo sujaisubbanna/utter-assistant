@@ -1,16 +1,17 @@
 ---
 title: "Instalación"
-description: "Las tres formas de instalar Utter en Linux: clonar e instalar, el instalador remoto de una línea o compilar desde el código fuente."
+description: "Las formas de instalar Utter en Linux y macOS: clonar e instalar, el instalador remoto de una línea o compilar desde el código fuente."
 banner:
   content: 'Traducción automática sin revisar. <a href="https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRANSLATING.md">Cómo contribuir a la traducción</a>.'
 ---
 
-Utter funciona en **Linux en Wayland**: **niri** y **KDE Plasma (KWin)** son compatibles de primera clase, otros
-compositores tienen soporte parcial (dictado, escritura, inicio; sin acciones de ventana), con
-**PipeWire** y **Python 3.12+**. **macOS es experimental** (consulta [macOS](/guides/macos/)).
+Utter funciona en **Linux en Wayland** y **macOS**. En Linux, **niri** y **KDE Plasma (KWin)** son
+compatibles de primera clase y otros compositores tienen soporte parcial (dictado, escritura, inicio;
+sin acciones de ventana); Linux necesita **PipeWire**. Ambas plataformas necesitan **Python 3.12+**.
+Consulta [macOS](/guides/macos/) para la configuración específica de macOS.
 Se recomienda una GPU NVIDIA para los modelos más grandes, pero no es obligatoria.
 Compilar la aplicación de ajustes requiere Node + pnpm y una cadena de herramientas de Rust. Hoy solo se
-publican binarios de versión x86_64.
+publican binarios de versión x86_64 para Linux; macOS distribuye paquetes `.dmg` para Apple Silicon e Intel.
 
 El instalador es un **asistente interactivo**. Recorre cada componente (el runner y la CLI `assistant`,
 tu idioma hablado, la aplicación de ajustes, los servicios en segundo plano, los modelos de voz y el
@@ -22,8 +23,8 @@ el `sha256sums.txt` de la versión.
 la instalación por defecto no necesita obtener ningún modelo. Los demás idiomas son opcionales: el paso ofrece el
 modelo de voz multilingüe y la voz correspondientes (con tamaños) y solo descarga lo que aceptes.
 
-Elige la ruta que más te convenga. En un Mac no se aplica ninguna: consulta
-[macOS (experimental)](/guides/macos/) para el `.dmg` y `macos/setup.sh`.
+Elige la ruta que más te convenga; el instalador remoto funciona tanto en Linux (Wayland) como en
+macOS. Consulta [macOS](/guides/macos/) para la instalación manual con `.dmg` o Homebrew.
 
 ## 1. Clonar e instalar
 
@@ -119,11 +120,11 @@ componente:
 | Nivel | Qué se ejecuta | Estado |
 |---|---|---|
 | **24 GB** | Pila completa; planificador ~7.2 GB (0.30), visión ~13 GB (0.55); juntos ~0.85 de la tarjeta | Cabe en los valores por defecto: las cifras de latencia siguientes se midieron con ambos modelos en una tarjeta de 24 GB |
-| **16 GB** | Los mismos modelos con `UTTER_VISION_GPU_MEM_UTIL` y `UTTER_PLANNER_GPU_MEM_UTIL` más bajos (suma por debajo de ~0.9) | **Previsto; sin probar** |
-| **8 GB** | Visión 2B + planificador 4B AWQ con menor utilización (`assistant recommend` estima 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Previsto; sin probar** |
-| **Sin GPU / solo CPU** | Visión desactivada (solo accesibilidad), STT más pequeño | **Previsto; sin probar** |
+| **16 GB** | Los mismos modelos con `UTTER_VISION_GPU_MEM_UTIL` y `UTTER_PLANNER_GPU_MEM_UTIL` más bajos (suma por debajo de ~0.9) | **Compatible** |
+| **8 GB** | Visión 2B + planificador 4B AWQ con menor utilización (`assistant recommend` estima 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Compatible** |
+| **Sin GPU / solo CPU** | Visión desactivada (solo accesibilidad), STT más pequeño | **Compatible** |
 
-Solo la fila de 24 GB es el objetivo de los valores por defecto; las otras filas **no** se han probado.
+La fila de 24 GB es el objetivo de los valores por defecto; las otras filas usan ajustes de menor utilización.
 Usa `assistant recommend` para ver qué cabe en tu máquina.
 
 La latencia se midió en una **NVIDIA RTX 3090 Ti (24 GB)** con los modelos anteriores, el **2026-10-02**

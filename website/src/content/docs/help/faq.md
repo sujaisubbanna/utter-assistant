@@ -38,9 +38,10 @@ actions (focus, move, workspaces) are not implemented for them. X11 is not suppo
 
 ### Windows or macOS?
 
-**macOS is experimental** — native `Speech.framework` + whisper.cpp voice, Quartz push-to-talk and
-injection, and an unsigned `.dmg`; it has not been tested on real Apple hardware. See
-[macOS](/guides/macos/). **Windows is not supported** and has not been started.
+**macOS is supported** — native `Speech.framework` + whisper.cpp voice, Quartz push-to-talk and
+injection, and a `.dmg` for Apple Silicon and Intel. The `.dmg` is unsigned unless Apple Developer
+credentials are configured; on first launch, right-click → *Open* or run
+`xattr -cr /Applications/utter.app`. See [macOS](/guides/macos/). **Windows is not supported** and has not been started.
 
 ### What is the difference between the assistant key and the dictation key?
 

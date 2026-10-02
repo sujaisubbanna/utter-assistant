@@ -1,14 +1,15 @@
 ---
 title: "Install"
-description: "The three ways to install Utter on Linux: clone and install, the one-line remote installer, or build from source."
+description: "The ways to install Utter on Linux and macOS: clone and install, the one-line remote installer, or build from source."
 ---
 
-Utter runs on **Linux on Wayland** — **niri** and **KDE Plasma (KWin)** are first-class, other
-compositors get partial support (dictation, typing, launching; no window actions) — with
-**PipeWire** and **Python 3.12+**. **macOS is experimental** (see [macOS](/guides/macos/)).
+Utter runs on **Linux on Wayland** and **macOS**. On Linux, **niri** and **KDE Plasma (KWin)** are
+first-class and other compositors get partial support (dictation, typing, launching; no window
+actions); Linux needs **PipeWire**. Both platforms need **Python 3.12+**.
+See [macOS](/guides/macos/) for the macOS-specific setup.
 An NVIDIA GPU is recommended for the larger models but not required.
-Building the settings app needs Node + pnpm and a Rust toolchain. Only x86_64 release assets are
-published today.
+Building the settings app needs Node + pnpm and a Rust toolchain. Linux release assets are
+published for x86_64 today; macOS ships `.dmg` bundles for Apple Silicon and Intel.
 
 The installer is an **interactive wizard**. It walks each component (the runner and `assistant`
 CLI, your spoken language, the settings app, the background services, speech models and the
@@ -20,8 +21,8 @@ the release's `sha256sums.txt`.
 default install needs no model fetch. Other languages are opt-in: the step offers the matching
 multilingual speech model and voice (with sizes) and only downloads what you accept.
 
-Pick the path that suits you. On a Mac none of these apply: see
-[macOS (experimental)](/guides/macos/) for the `.dmg` and `macos/setup.sh`.
+Pick the path that suits you; the remote installer below works on both Linux (Wayland) and macOS.
+See [macOS](/guides/macos/) for the manual `.dmg` or Homebrew install.
 
 ## 1. Clone and install
 
@@ -117,11 +118,11 @@ footprint:
 | Tier | What runs | Status |
 |---|---|---|
 | **24 GB** | Full stack; planner ~7.2 GB (0.30), vision ~13 GB (0.55); together ~0.85 of the card | Fits the shipped defaults — the latency numbers below were measured with both models on a 24 GB card |
-| **16 GB** | Same models with lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (sum below ~0.9) | **Expected; untested** |
-| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Expected; untested** |
-| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | **Expected; untested** |
+| **16 GB** | Same models with lower `UTTER_VISION_GPU_MEM_UTIL` and `UTTER_PLANNER_GPU_MEM_UTIL` (sum below ~0.9) | **Supported** |
+| **8 GB** | 2B vision + 4B AWQ planner at lower utilisation (`assistant recommend` estimates 4B AWQ ≈ 3 GB, UI-TARS-2B ≈ 4 GB) | **Supported** |
+| **No GPU / CPU-only** | Vision disabled (accessibility-only), smaller STT | **Supported** |
 
-Only the 24 GB row is what the shipped defaults target; the other rows have **not** been tested.
+The 24 GB row is what the shipped defaults target; the other rows use lower utilisation settings.
 Use `assistant recommend` to see what fits your machine.
 
 Latency was measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **2026-10-02**

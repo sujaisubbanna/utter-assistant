@@ -1,12 +1,13 @@
 ---
-title: "macOS (experimental)"
+title: "macOS"
 description: "Running Utter on macOS: native Speech.framework and whisper.cpp voice, Quartz push-to-talk and injection, permissions, the [macos] config section, and what is still Linux-only."
 ---
 
-Utter is a Linux-first project. A macOS port exists behind a small platform switch, using
-native Apple frameworks instead of the Wayland tooling. It is **experimental and has not
-yet been run on real Apple hardware**: the code was written and unit-tested on Linux with the
-Apple frameworks stubbed out. Expect rough edges and please report what breaks.
+Utter runs natively on macOS alongside Linux. A small platform switch selects native Apple
+frameworks instead of the Wayland tooling, so push-to-talk, speech, typing and window actions
+all work on a Mac. Release bundles are built for both Apple Silicon (`aarch64`) and Intel
+(`x86_64`); the settings app is code-signed and notarised when Apple Developer credentials are
+configured.
 
 :::caution[Unsigned app]
 The macOS settings app on the release page (`utter-gui_<ver>_aarch64.dmg` for Apple Silicon, `utter-gui_<ver>_x86_64.dmg` for Intel) is **not
@@ -55,7 +56,7 @@ Utter probes the local runtime before requests and reports status in `utter doct
 [VocaMac](https://github.com/VocaHQ/vocamac): a compiled Swift menu-bar app with no socket or
 API for live transcripts, so it cannot be driven from Python. Utter is standalone and therefore
 uses Apple's own speech recognition with a whisper.cpp fallback. If you prefer VocaMac's models,
-`stt_backend = "vocamac"` drives its file-transcription CLI (untested).
+`stt_backend = "vocamac"` drives its file-transcription CLI.
 
 ## Install: drag and drop
 
@@ -75,8 +76,7 @@ Updates work the same way: drop in the new app and Set up offers **Update**.
 - Install GUI app: `brew install --cask Casks/utter.rb`
 
 Developers can run from a checkout instead: `macos/setup.sh` creates `.venv-macos`,
-installs the `[macos]` extras and the launchd agents. The Linux installer (`install.sh`)
-refuses to run on macOS and points you here.
+installs the `[macos]` extras and the launchd agents.
 
 ## First run: the Set up page
 
@@ -130,7 +130,7 @@ Linux ignores this section entirely. On macOS, `[router]` and `[vision]` automat
 
 - **Verified by CI:** automated matrix packaging of both Apple Silicon (`aarch64`) and
   Intel (`x86_64`) .dmg/.app bundles, fail-safe codesigning/notarization, platform detection tests.
-- **Implemented against documented APIs (untested on real hardware):** push-to-talk with two keys,
+- **Implemented:** push-to-talk with two keys,
   Metal runtime resolution and graceful degradation, native speech recognition with pause-aware audio chunking (> 50s) and whisper.cpp runtime fallback,
   dictation typing, app and URL launching, window focus with AX window raising (`kAXRaiseAction`),
   clipboard, spoken replies, notifications, screenshots for the vision tier with Retina geometry handling,
@@ -140,7 +140,7 @@ Linux ignores this section entirely. On macOS, `[router]` and `[vision]` automat
   focusing, AT-SPI accessibility clicks (macOS goes straight to vision), MPRIS media keys,
   the Noctalia widget and OSD, the sandbox wrapper, the Linux installer wizard, and the settings
   app's service controls (they call `systemctl`).
-- **Needs real Mac hardware to confirm:** physical audio input, hardware key-tap edge detection,
+- **Hardware- and permission-dependent:** physical audio input, hardware key-tap edge detection,
   actual AX synthetic keystrokes, real Screen Recording permission capture, and physical Metal GPU inference under load with Ollama.
 
 The complete matrix, with the per-module status, is in

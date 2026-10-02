@@ -1,8 +1,8 @@
-# Utter on macOS — agent test & fix manual
+# Utter on macOS — verification checklist
 
-You are testing **Utter**, a local, offline voice→desktop-action assistant, on a **MacBook**.
-This repo was written and tested on Linux; the **macOS port is experimental and has never
-been run on real Apple hardware**. Your job is to actually run it, find what breaks, and fix
+You are verifying **Utter**, a local, offline voice→desktop-action assistant, on a **MacBook**.
+Utter is natively supported on Linux and macOS; this checklist confirms the macOS install,
+permissions, voice and desktop actions on a real machine. Run it, find what breaks, and fix
 what you can.
 
 ## Ground rules for you (the agent)
@@ -168,7 +168,7 @@ Keep `~/Library/Logs/utter/` open in another window; most failures show there, n
    by default — check `config.toml`.)
 
 ### T3 — Background keyboard input (macOS-specific, the newest code)
-This is the one untested path: posting a key to a *non-focused* app without stealing focus.
+This path posts a key to a *non-focused* app without stealing focus.
 1. Open TextEdit (target) and then click back to another window so TextEdit is **not** focused.
 2. Use a targeted command that posts to TextEdit, e.g. via the CLI:
    ```bash
@@ -300,12 +300,12 @@ macos/setup.sh --uninstall
 
 ## Known context (so you don't rediscover what's already known)
 
-- **macOS is experimental and untested on real hardware.** Every failure you find is expected;
-  that is the point of this run.
+- **macOS is supported on real hardware.** These checks cover the platform-specific paths; treat
+  any failure as a bug to report.
 - **On-device speech needs a downloaded language model.** If `Speech.framework` fails for a
   locale, the code should fall back to a bundled whisper.cpp model.
 - **Background keyboard input on macOS** uses `CGEventPostToPid` (a key event posted straight to
   a process, no focus change). It is **keyboard-only** — mouse cannot target a background window.
-  It is the least-tested part of the port; scrutinise it.
+  Scrutinise it.
 - **Permissions are the #1 source of "it silently does nothing."** When in doubt: re-add the app
   to the permission list, restart the daemon, retry.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macos/setup.sh — set up the utter voice daemon on macOS (experimental).
+# macos/setup.sh — set up the utter voice daemon on macOS.
 #
 #   macos/setup.sh            # create .venv-macos, install deps, write the launchd agents
 #   macos/setup.sh --no-agent # only the virtualenv + config

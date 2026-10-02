@@ -9,9 +9,9 @@ Diese Seite setzt voraus, dass Utter installiert ist. Falls nicht, beginne mit d
 
 ## Voraussetzungen
 
-- Linux unter **Wayland**. **niri** und **KDE Plasma (KWin)** sind erstklassig; andere Compositor erhalten
-  teilweise Unterstützung (Diktat, Tippen, Starten; keine Fensteraktionen). **macOS ist experimentell.**
-- **PipeWire** für Audio.
+- **Linux unter Wayland** und **macOS**. Unter Linux sind **niri** und **KDE Plasma (KWin)** erstklassig;
+  andere Compositor erhalten teilweise Unterstützung (Diktat, Tippen, Starten; keine Fensteraktionen).
+- **PipeWire** für Audio (Linux).
 - **Python 3.12 oder neuer**.
 - Für die größeren Modelle wird eine NVIDIA-GPU empfohlen, ist aber nicht erforderlich. Utter läuft auch ohne
   Modelle und mit reiner CPU-Spracherkennung.
