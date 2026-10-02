@@ -110,8 +110,8 @@ class _NativeOverlay:
         except Exception:
             pass
 
-    def listening(self, text: str = "") -> None:
-        self._call("listening", text)
+    def listening(self, text: str = "", lane: str = "assistant") -> None:
+        self._call("listening", text, lane)
 
     def loading(self, text: str = "") -> None:
         self._call("loading", text)
@@ -122,8 +122,9 @@ class _NativeOverlay:
     def level(self, value: float) -> None:
         self._call("level", value)
 
-    def final(self, text: str, ok: bool, dismiss_ms: int = 1200) -> None:
-        self._call("final", text, ok, dismiss_ms)
+    def final(self, text: str, ok: bool, dismiss_ms: int = 1200,
+              lane: str = "assistant") -> None:
+        self._call("final", text, ok, dismiss_ms, lane)
 
     def idle(self) -> None:
         self._call("idle")
@@ -493,8 +494,7 @@ class Utter:
                         session["chunks"].append(indata.copy())
                     level = _rms(indata)
                     osd.level(level)
-                    if mode == "assistant":
-                        native.level(level)
+                    native.level(level)
                 stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
                                         channels=self.cfg.audio.channels, dtype="float32",
                                         device=(self.cfg.audio.device or None), callback=cb)
@@ -506,8 +506,7 @@ class Utter:
                 _play("wake")
             _play("dictate" if mode == "dictation" else "start")
             osd.listening("dictation" if mode == "dictation" else "assistant")
-            if mode == "assistant":
-                native.listening()
+            native.listening(lane=mode)
             log.info("PTT down (%s) - listening", mode)
 
         def stop(mode: str) -> None:
@@ -523,26 +522,22 @@ class Utter:
                 if audio.size < self.cfg.audio.sample_rate * 0.2:
                     log.info("too short, ignoring")
                     osd.idle()
-                    if mode == "assistant":
-                        native.idle()
+                    native.idle()
                     return
                 try:
                     text = stt.transcribe(audio)
                 except Exception as e:  # noqa: BLE001
                     log.error("transcription failed: %s", e)
                     osd.idle()
-                    if mode == "assistant":
-                        native.clear_loading()
-                        native.idle()
+                    native.clear_loading()
+                    native.idle()
                     _notify(f"Transcription failed: {e}", mc)
                     return
-                if mode == "assistant":
-                    native.clear_loading()
+                native.clear_loading()
                 log.info("transcript (%s): %r", mode, text)
                 if not text:
                     osd.idle()
-                    if mode == "assistant":
-                        native.idle()
+                    native.idle()
                     return
                 if mode == "dictation":
                     from .actions import keyboard
@@ -550,25 +545,26 @@ class Utter:
                         res = keyboard.type_text(text)
                     except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                         osd.idle()
+                        native.idle()
                         raise
                     if res.ok:
                         _play("typed")
                     else:
+                        _play("not_detected")
                         log.warning("dictation typing failed: %s", res.detail)
                         _notify(f"Could not type text: {res.detail}", mc)
                     osd.final(text, bool(res.ok))
+                    native.final(text, bool(res.ok), dismiss_ms, lane=mode)
                     return
                 try:
                     ok = self.handle_utterance(text)
                 except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                     osd.idle()
-                    if mode == "assistant":
-                        native.idle()
+                    native.idle()
                     raise
                 _play("detected" if ok else "not_detected")
                 osd.final(text, bool(ok))
-                if mode == "assistant":
-                    native.final(text, bool(ok), dismiss_ms)
+                native.final(text, bool(ok), dismiss_ms, lane=mode)
             finally:
                 idle.end("listen")
 
