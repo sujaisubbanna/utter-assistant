@@ -95,6 +95,7 @@ export default defineConfig({
           items: [
             { ...label('Overview', 'Resumen', 'Überblick', '概要'), slug: 'install' },
             { ...label('Install from the web', 'Instalar desde la web', 'Aus dem Web installieren', 'Web からインストール'), slug: 'install/remote' },
+            { ...label('Agent-driven install', 'Instalación con un agente', 'Installation per Agent', 'エージェントによるインストール'), slug: 'install/agent' },
             { ...label('Clone and build from source', 'Clonar y compilar desde el código fuente', 'Aus dem Quellcode klonen und bauen', 'ソースからクローンしてビルド'), slug: 'install/from-source' },
           ],
         },

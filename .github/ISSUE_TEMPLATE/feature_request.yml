@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an idea or improvement for Utter.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Utter!
+
+        For anything large, please **start a
+        [Discussion](https://github.com/sujaisubbanna/utter-assistant/discussions) first** and wait
+        for a maintainer to approve the direction before writing code. Lead with the *problem*, not
+        just the solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and motivation
+      description: What problem are you trying to solve, and who does it affect?
+      placeholder: "I'm always frustrated when ..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches or workarounds you have thought about.
+    validations:
+      required: false
+  - type: textarea
+    id: who
+    attributes:
+      label: Who does this help?
+      description: Which users or use cases benefit?
+    validations:
+      required: false
