@@ -4,17 +4,17 @@ import starlight from '@astrojs/starlight';
 import rehypeBaseLinks from './src/plugins/rehype-base-links.mjs';
 
 const REPO = 'https://github.com/sujaisubbanna/utter-assistant';
-const BASE = '/utter-assistant';
-// Absolute origin + subpath, used for canonical-adjacent tags (OG image). The
-// site is served from a GitHub Pages project subpath, so fileWithBase() is not
-// enough here — social crawlers need a fully-qualified URL.
-const SITE = `https://sujaisubbanna.github.io${BASE}`;
+// Deployed as a static site on Vercel with the project root set to `website`,
+// so it is served from the domain root (no subpath). Override for another host
+// with SITE_URL / BASE_PATH (e.g. the GitHub Pages subpath).
+const SITE = (process.env.SITE_URL || 'https://utter-assistant.vercel.app').replace(/\/+$/, '');
+const BASE = process.env.BASE_PATH || '/';
 
-// The site is served by GitHub Pages from a project subpath, so every asset
-// and internal link must be prefixed with `base`. Starlight and Astro handle
-// that as long as both `site` and `base` are set here.
+// `base` must stay in sync with where the site is actually served from: the
+// absolute origin for canonical/OG tags, and the link prefix for assets and
+// internal links. A mismatch makes every asset 404.
 export default defineConfig({
-  site: 'https://sujaisubbanna.github.io',
+  site: SITE,
   base: BASE,
   trailingSlash: 'always',
   markdown: {
