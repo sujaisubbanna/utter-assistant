@@ -19,6 +19,8 @@
 #                       set to http://127.0.0.1:PORT for local testing)
 #   PREFIX              install prefix (default: $HOME/.local)
 #   UTTER_UI        terminal UI style: auto (default), gum, or plain
+#   UTTER_COLOR     color depth: auto (default), truecolor, 256, 16, or plain
+#   UTTER_NO_ANIM   set to disable the logo sweep / typewriter animation
 #   UTTER_PYTHON    python interpreter baked into the assistant wrapper
 #   UTTER_MODEL_STT / _DECISION / _VISION / _TTS
 #                       optional model source for a tier (hf:org/repo[:file],
@@ -132,8 +134,11 @@ done
 # section: ui — one canonical output set (colors, banners, tables, prompts)
 # --------------------------------------------------------------------------- #
 # Rendering adapts to the environment:
-#   UTTER_UI=auto|gum|plain   (default auto)
-#   NO_COLOR, TERM=dumb, non-tty stdin/stdout   -> plain ASCII, no animation
+#   UTTER_UI=auto|gum|plain        (default auto)
+#   UTTER_COLOR=auto|truecolor|256|16|plain   (default auto)
+#   UTTER_NO_ANIM=1                (disable the logo sweep / typewriter)
+#   NO_COLOR, TERM=dumb, non-tty stdout, --yes, --dry-run
+#       -> plain ASCII, no animation, zero escape bytes
 # In a real terminal `gum` is preferred for confirm/menu/spinner prompts when it
 # is already on PATH; the built-in UI is always the fallback. Nothing is ever
 # downloaded for the UI.
@@ -144,21 +149,56 @@ case "$UI_MODE" in
     *) UI_MODE="auto" ;;
 esac
 
-is_tty() { [[ -t 0 ]]; }                 # stdin is a terminal (wizard gate)
-ui_tty() { [[ -t 0 && -t 1 ]]; }         # both ends a terminal (styled output)
+# Terminal state is sampled once, at startup. Doing `-t 1` later inside a
+# command substitution would see the substitution pipe, not the real terminal.
+UI_OUT_TTY=0; [[ -t 1 ]] && UI_OUT_TTY=1
+UI_IN_TTY=0;  [[ -t 0 ]] && UI_IN_TTY=1
+is_tty() { (( UI_IN_TTY )); }            # stdin is a terminal (wizard/prompt gate)
+ui_tty() { (( UI_IN_TTY )) && (( UI_OUT_TTY )); }   # both ends (interactive prompt gate)
+ui_out_tty() { (( UI_OUT_TTY )); }       # stdout is a terminal (styling/animation gate)
 
-ui_color_ok() {
-    [[ "$UI_MODE" == "plain" ]] && return 1
-    [[ -n "${NO_COLOR:-}" ]] && return 1
-    [[ "${TERM:-}" == "dumb" ]] && return 1
-    ui_tty || return 1
-    return 0
+# --yes and --dry-run are fully plain (zero escape bytes), by design.
+ui_plain_forced() {
+    [[ "$UI_MODE" == "plain" ]] && return 0
+    (( ASSUME_YES )) && return 0
+    (( DRY_RUN )) && return 0
+    return 1
 }
 
+# ui_depth — color depth: 3=truecolor, 2=256, 1=16, 0=plain.
+ui_depth() {
+    # explicit overrides win (handy for tests), then the plain-forced cases.
+    case "${UTTER_COLOR:-auto}" in
+        truecolor|24bit|3) printf '3'; return 0 ;;
+        256|2)             printf '2'; return 0 ;;
+        16|1)              printf '1'; return 0 ;;
+        plain|0)           printf '0'; return 0 ;;
+    esac
+    case "${FORCE_COLOR:-}" in
+        3|truecolor)   printf '3'; return 0 ;;
+        2|256)         printf '2'; return 0 ;;
+        1|16)          printf '1'; return 0 ;;
+        0|plain|false) printf '0'; return 0 ;;
+    esac
+    ui_plain_forced && { printf '0'; return 0; }
+    [[ -n "${NO_COLOR:-}" ]] && { printf '0'; return 0; }
+    [[ "${TERM:-}" == "dumb" ]] && { printf '0'; return 0; }
+    ui_out_tty || { printf '0'; return 0; }
+    case "${COLORTERM:-}" in truecolor|24bit) printf '3'; return 0 ;; esac
+    case "${TERM:-}" in
+        *truecolor*|*-direct|xterm-kitty|alacritty|wezterm|foot|contour|ghostty) printf '3'; return 0 ;;
+        *256color*) printf '2'; return 0 ;;
+    esac
+    printf '1'
+}
+UI_DEPTH="$(ui_depth)"
+
+ui_color_ok() { [[ "$UI_DEPTH" -gt 0 ]]; }
+
 ui_unicode_ok() {
-    [[ "$UI_MODE" == "plain" ]] && return 1
+    ui_plain_forced && return 1
     [[ "${TERM:-}" == "dumb" ]] && return 1
-    ui_tty || return 1
+    ui_out_tty || return 1
     case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
         *[Uu][Tt][Ff]-8|*[Uu][Tt][Ff]8) return 0 ;;
     esac
@@ -166,103 +206,545 @@ ui_unicode_ok() {
 }
 
 ui_anim_ok() {
-    ui_tty || return 1
-    [[ "${TERM:-}" == "dumb" ]] && return 1
+    (( ASSUME_YES )) && return 1
+    (( DRY_RUN )) && return 1
+    [[ -n "${UTTER_NO_ANIM:-}" ]] && return 1
+    [[ -n "${NO_COLOR:-}" ]] && return 1
     [[ "$UI_MODE" == "plain" ]] && return 1
+    [[ "${TERM:-}" == "dumb" ]] && return 1
+    ui_out_tty || return 1
     return 0
 }
 
 ui_gum_ok() {
-    [[ "$UI_MODE" == "plain" ]] && return 1
+    ui_plain_forced && return 1
+    [[ "${TERM:-}" == "dumb" ]] && return 1
     ui_tty || return 1
     command -v gum >/dev/null 2>&1
 }
 
-if ui_color_ok; then
-    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
-    C_RED=$'\033[31m'; C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'
-    C_BLUE=$'\033[34m'; C_CYAN=$'\033[36m'
-else
-    C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""
-    C_YELLOW=""; C_BLUE=""; C_CYAN=""
-fi
+# --- palette --------------------------------------------------------------- #
+# Semantic roles. The legacy C_RED/C_GREEN/... names stay populated so existing
+# callers keep working; they are aliases of the semantic colours.
+C_RESET=""; C_BOLD=""; C_DIM=""
+C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_CYAN=""
+C_ACCENT=""; C_ACC_HI=""; C_ACC_LO=""; C_FG=""; C_MUTED=""; C_FAINT=""
+C_OK=""; C_WARN=""; C_ERR=""
+case "$UI_DEPTH" in
+    3)
+        C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+        C_ACCENT=$'\033[38;2;247;201;72m'; C_ACC_HI=$'\033[38;2;255;224;138m'
+        C_ACC_LO=$'\033[38;2;154;107;0m';   C_FG=$'\033[38;2;236;236;236m'
+        C_MUTED=$'\033[38;2;139;139;137m';  C_FAINT=$'\033[38;2;88;88;86m'
+        C_OK=$'\033[38;2;123;216;143m';     C_WARN=$'\033[38;2;242;194;48m'
+        C_ERR=$'\033[38;2;255;107;107m'
+        C_RED="$C_ERR"; C_GREEN="$C_OK"; C_YELLOW="$C_WARN"
+        C_BLUE=$'\033[38;2;122;162;247m'; C_CYAN="$C_ACCENT"
+        ;;
+    2)
+        C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+        C_ACCENT=$'\033[38;5;221m'; C_ACC_HI=$'\033[38;5;222m'
+        C_ACC_LO=$'\033[38;5;136m'; C_FG=$'\033[38;5;255m'
+        C_MUTED=$'\033[38;5;245m';  C_FAINT=$'\033[38;5;240m'
+        C_OK=$'\033[38;5;114m';     C_WARN=$'\033[38;5;221m'
+        C_ERR=$'\033[38;5;203m'
+        C_RED="$C_ERR"; C_GREEN="$C_OK"; C_YELLOW="$C_WARN"
+        C_BLUE=$'\033[38;5;111m'; C_CYAN="$C_ACCENT"
+        ;;
+    1)
+        C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+        C_ACCENT=$'\033[93m'; C_ACC_HI=$'\033[93m'; C_ACC_LO=$'\033[33m'
+        C_FG=$'\033[97m'; C_MUTED=$'\033[90m'; C_FAINT=$'\033[90m'
+        C_OK=$'\033[92m'; C_WARN=$'\033[93m'; C_ERR=$'\033[91m'
+        C_RED="$C_ERR"; C_GREEN="$C_OK"; C_YELLOW="$C_WARN"
+        C_BLUE=$'\033[94m'; C_CYAN=$'\033[93m'
+        ;;
+esac
 
 if ui_unicode_ok; then
-    GL_TL="╭"; GL_TR="╮"; GL_BL="╰"; GL_BR="╯"; GL_V="│"; GL_H="─"; GL_ELL="…"
+    GL_H="─"; GL_ELL="…"
     SPIN_FRAMES="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    RULE_CH="─"
+    TASK_PENDING="·"; TASK_DONE="✓"; TASK_FAIL="✗"; TASK_RUN="▸"
+    STEP_DONE="●"; STEP_TODO="○"
 else
-    GL_TL="+"; GL_TR="+"; GL_BL="+"; GL_BR="+"; GL_V="|"; GL_H=""; GL_ELL="..."
+    GL_H=""; GL_ELL="..."
     SPIN_FRAMES="|/-\\"
+    RULE_CH="-"
+    TASK_PENDING="."; TASK_DONE="ok"; TASK_FAIL="XX"; TASK_RUN=">"
+    STEP_DONE="#"; STEP_TODO="-"
 fi
 
 # --- core output ----------------------------------------------------------- #
 
-say() { printf '%s\n' "$*"; }
+say() {
+    local text="$*" cols
+    cols="$(ui_cols)"
+    if (( ${#text} <= cols )); then printf '%s\n' "$text"; return 0; fi
+    local indent="" rest="$text"
+    while [[ "$rest" == " "* ]]; do indent+=" "; rest="${rest# }"; done
+    ui_wrap "$indent" "$rest"
+}
 
-# field <key> <value> — aligned "  key   value" row (matches the historic layout)
-field() { printf '  %s%-9s%s%s\n' "$C_DIM" "$1" "$C_RESET" "$2"; }
+# field <key> <value> — aligned "  key   value" row; long values wrap to the
+# terminal width with a continuation indent aligned under the value column.
+field() {
+    local key="$1" value="$2" cols avail
+    cols="$(ui_cols)"; avail=$(( cols - 11 )); (( avail < 8 )) && avail=8
+    if (( ${#value} <= avail )); then
+        printf '  %s%-9s%s%s\n' "$C_MUTED" "$key" "$C_RESET" "$value"
+        return 0
+    fi
+    printf '  %s%-9s%s' "$C_MUTED" "$key" "$C_RESET"
+    ui_wrap_first "           " "$avail" "$value"
+}
 # sub <text> — continuation line, aligned under a field value
-sub() { printf '           %s\n' "$*"; }
+sub() { say "           $*"; }
 
-ok()   { printf '  %s[ok]%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
-note() { printf '  %snote:%s %s\n' "$C_DIM" "$C_RESET" "$*"; }
-warn() { printf '  %sWARNING:%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
-die()  { printf '%sERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; exit 1; }
+ok() {
+    printf '  %s[ok]%s ' "$C_OK" "$C_RESET"
+    ui_wrap_first "       " "$(( $(ui_cols) - 7 ))" "$*"
+}
+note() {
+    printf '  %snote:%s ' "$C_MUTED" "$C_RESET"
+    ui_wrap_first "        " "$(( $(ui_cols) - 8 ))" "$*"
+}
+warn() { printf '  %sWARNING:%s %s\n' "$C_WARN" "$C_RESET" "$*" >&2; }
+die()  { printf '%sERROR:%s %s\n' "$C_ERR" "$C_RESET" "$*" >&2; exit 1; }
+
+# ui_cols — terminal width, always a positive integer (COLUMNS, then tput, then 80)
+ui_cols() {
+    local n="${COLUMNS:-}"
+    case "${n:-}" in ''|*[!0-9]*) n="$(tput cols 2>/dev/null || true)" ;; esac
+    case "${n:-}" in ''|*[!0-9]*) n=80 ;; esac
+    (( n > 0 )) || n=80
+    printf '%s' "$n"
+}
+
+# ui_wrap <indent> <text> — print text word-wrapped, indent on every line.
+# In very narrow terminals (<40 cols) over-long tokens are hard-split so the
+# line never exceeds the width; at normal widths tokens are left intact.
+ui_wrap() {
+    local indent="$1" text="${2:-}" cols avail current="" tok
+    local -a words=(); local w
+    cols="$(ui_cols)"; avail=$(( cols - ${#indent} )); (( avail < 8 )) && avail=8
+    for w in $text; do
+        if (( cols < 40 )); then
+            while (( ${#w} > avail )); do words+=("${w:0:avail}"); w="${w:avail}"; done
+        fi
+        [[ -n "$w" ]] && words+=("$w")
+    done
+    for tok in "${words[@]:-}"; do
+        if [[ -z "$current" ]]; then current="$tok"
+        elif (( ${#current} + 1 + ${#tok} <= avail )); then current+=" $tok"
+        else printf '%s%s\n' "$indent" "$current"; current="$tok"; fi
+    done
+    [[ -n "$current" ]] && printf '%s%s\n' "$indent" "$current"
+    return 0
+}
+# ui_wrap_first <cont_indent> <avail> <text> — first line printed bare (the
+# caller already wrote a prefix); continuation lines get the indent.
+ui_wrap_first() {
+    local indent="$1" avail="$2" text="${3:-}" current="" tok first=1
+    local -a words=(); local w cols
+    cols="$(ui_cols)"
+    for w in $text; do
+        if (( cols < 40 )); then
+            while (( ${#w} > avail )); do words+=("${w:0:avail}"); w="${w:avail}"; done
+        fi
+        [[ -n "$w" ]] && words+=("$w")
+    done
+    for tok in "${words[@]:-}"; do
+        if [[ -z "$current" ]]; then current="$tok"
+        elif (( ${#current} + 1 + ${#tok} <= avail )); then current+=" $tok"
+        else
+            if (( first )); then printf '%s\n' "$current"; first=0
+            else printf '%s%s\n' "$indent" "$current"; fi
+            current="$tok"
+        fi
+    done
+    if (( first )); then printf '%s\n' "$current"
+    else printf '%s%s\n' "$indent" "$current"; fi
+    return 0
+}
+
+# ui_rule [width] — faint horizontal rule, clamped to the terminal
+ui_rule() {
+    local w="${1:-56}" cols s
+    cols="$(ui_cols)"
+    (( w > cols - 4 )) && w=$(( cols - 4 ))
+    (( w < 8 )) && w=8
+    printf -v s '%*s' "$w" ''; s="${s// /$RULE_CH}"
+    printf '  %s%s%s\n' "$C_FAINT" "$s" "$C_RESET"
+}
 
 # section <title> — phase banner
 section() {
-    local title="$*"
-    if [[ -z "$GL_H" ]]; then
-        printf '\n== %s ==\n' "$title"
+    local title="$*" cols pad rule hdr
+    if [[ "$RULE_CH" == "-" ]]; then
+        hdr="== $title =="
+        printf '\n'
+        if (( ${#hdr} <= $(ui_cols) )); then printf '%s\n' "$hdr"; else ui_wrap "" "$hdr"; fi
         return 0
     fi
-    local pad=$(( 60 - ${#title} - 3 )); (( pad < 4 )) && pad=4
-    local rule; printf -v rule '%*s' "$pad" ''; rule="${rule// /$GL_H}"
-    printf '\n%s%s %s%s %s%s\n' \
-        "$C_CYAN" "${GL_H}${GL_H}" "${C_BOLD}${title}" "$C_RESET" "${C_DIM}${rule}" "$C_RESET"
+    cols="$(ui_cols)"
+    pad=$(( cols - ${#title} - 4 )); (( pad < 4 )) && pad=4; (( pad > 56 )) && pad=56
+    printf -v rule '%*s' "$pad" ''; rule="${rule// /$RULE_CH}"
+    printf '\n%s%s %s%s%s %s%s\n' \
+        "$C_ACCENT" "${RULE_CH}${RULE_CH}" "$C_BOLD" "$title" "$C_RESET" \
+        "$C_FAINT" "$rule" "$C_RESET"
 }
 
-# step_header <n> <total> <label> — wizard step indicator
+# step_header <n> <total> <label> — wizard step indicator with a progress bar
 step_header() {
     local n="$1" total="$2" label="$3"
-    if [[ -z "$GL_H" ]]; then
-        printf '\n[%s/%s] %s\n' "$n" "$total" "$label"
+    local cols pfx cont maxdots dots="" i
+    cols="$(ui_cols)"
+    pfx="[${n}/${total}]"
+    cont="$(printf '%*s' "$(( ${#pfx} + 1 ))" '')"
+    if [[ "$RULE_CH" == "-" ]]; then
+        printf '\n%s ' "$pfx"
+        ui_wrap_first "$cont" "$(( cols - ${#pfx} - 1 ))" "$label"
         return 0
     fi
-    local done="" rest="" i
-    for ((i=1; i<=total; i++)); do
-        if (( i <= n )); then done+="$GL_H"; else rest+="$GL_H"; fi
+    maxdots=$(( cols - 2 ))
+    (( maxdots > total )) && maxdots=$total
+    for (( i=1; i<=maxdots; i++ )); do
+        if (( i <= n )); then dots+="$STEP_DONE"; else dots+="$STEP_TODO"; fi
     done
-    printf '\n%s[%s/%s]%s %s%s%s  %s%s%s%s\n' \
-        "$C_DIM" "$n" "$total" "$C_RESET" "$C_BOLD" "$label" "$C_RESET" \
-        "$C_CYAN" "$done" "$C_DIM" "${rest}${C_RESET}"
+    if (( ${#pfx} + ${#label} + ${#dots} + 3 <= cols )); then
+        printf '\n%s%s%s %s%s%s  %s%s%s\n' \
+            "$C_DIM" "$pfx" "$C_RESET" "$C_BOLD" "$label" "$C_RESET" \
+            "$C_ACCENT" "$dots" "$C_RESET"
+    else
+        printf '\n%s%s%s ' "$C_DIM" "$pfx" "$C_RESET"
+        ui_wrap_first "$cont" "$(( cols - ${#pfx} - 1 ))" "$label"
+        [[ -n "$dots" ]] && printf '  %s%s%s\n' "$C_ACCENT" "$dots" "$C_RESET"
+    fi
+    ui_rule
 }
 
-# ui_header <title> — boxed product header
-ui_header() {
-    local title="$*"
-    if [[ -z "$GL_H" ]]; then say "$title"; return 0; fi
-    local width=$(( ${#title} + 6 )); (( width < 46 )) && width=46
-    local inner=$(( width - 2 )) fill pad
-    printf -v fill '%*s' "$inner" ''; fill="${fill// /$GL_H}"
-    pad=$(( inner - 2 - ${#title} )); (( pad < 1 )) && pad=1
-    printf '%s%s%s%s%s\n' "$C_CYAN" "$GL_TL" "$fill" "$GL_TR" "$C_RESET"
-    printf '%s%s%s  %s%s%s%s%s%s\n' \
-        "$C_CYAN" "$GL_V" "$C_RESET" "$C_BOLD" "$title" "$C_RESET" \
-        "$(printf '%*s' "$pad" '')" "$C_CYAN" "${GL_V}${C_RESET}"
-    printf '%s%s%s%s%s\n' "$C_CYAN" "$GL_BL" "$fill" "$GL_BR" "$C_RESET"
+# ui_key_legend — the y/n/a/s/q line shown under a wizard question
+ui_key_legend() {
+    (( ASSUME_YES )) && return 0
+    printf '    %sy yes · n no · a all remaining · s skip remaining · q quit%s\n' "$C_MUTED" "$C_RESET"
 }
 
 # run <description> <command...> — execute, or print it under --dry-run
 run() {
     local desc="$1"; shift
     if (( DRY_RUN )); then
-        printf '  %s[dry-run]%s %s\n' "$C_DIM" "$C_RESET" "$desc"
-        printf '            $ %s\n' "$*"
+        say "  [dry-run] $desc"
+        say "            \$ $*"
     else
-        printf '  %s[run]%s %s\n' "$C_CYAN" "$C_RESET" "$desc"
+        say "  [run] $desc"
         "$@"
     fi
+}
+
+# --------------------------------------------------------------------------- #
+# section: logo + banner
+# --------------------------------------------------------------------------- #
+# Solid lowercase "utter", 6 rows. x-height letters (u/e/r) leave row 0 blank
+# for the ascender line; the two t's carry the crossbar on row 2. Rendered with
+# a per-column amber ramp (no rainbow) and an optional moving highlight, or an
+# ASCII fallback when the locale/terminal cannot show blocks.
+LOGO_ROWS=6
+LOGO_SEQ=(U T T E R)
+LOGO_U=('     ' '█   █' '█   █' '█   █' '█   █' ' ███ ')
+LOGO_T=(' ██  ' ' ██  ' '█████' ' ██  ' ' ██  ' ' ██  ')
+LOGO_E=('     ' '████ ' '█   █' '█████' '█    ' ' ███ ')
+LOGO_R=('     ' '████ ' '█   █' '█    ' '█    ' '█    ')
+LOGO_LINES=()
+LOGO_COLS=29
+LOGO_BASE=()
+LOGO_COL_SGR=()
+
+# ui_lerp_var <a> <b> <pct> — "r;g;b" mix into $REPL (no subshell)
+ui_lerp_var() {
+    local ar ag ab br bg bb
+    IFS=';' read -r ar ag ab <<<"$1"
+    IFS=';' read -r br bg bb <<<"$2"
+    REPL="$(( ar + (br-ar)*$3/100 ));$(( ag + (bg-ag)*$3/100 ));$(( ab + (bb-ab)*$3/100 ))"
+}
+# ui_sgr_var <r;g;b> — foreground SGR for the active depth into $SGRV
+ui_sgr_var() {
+    local r g b; IFS=';' read -r r g b <<<"$1"
+    case "$UI_DEPTH" in
+        3) SGRV=$'\033[38;2;'"$r;$g;$b"$'m' ;;
+        2) SGRV=$'\033[38;5;'"$(( 16 + 36*(r/43) + 6*(g/43) + (b/43) ))"$'m' ;;
+        1) if (( r > 220 )); then SGRV=$'\033[93m'; else SGRV=$'\033[33m'; fi ;;
+        *) SGRV="" ;;
+    esac
+}
+
+ui_logo_build() {
+    local row gi line gname
+    LOGO_LINES=()
+    for (( row=0; row<LOGO_ROWS; row++ )); do
+        line=""
+        for gi in "${!LOGO_SEQ[@]}"; do
+            gname="LOGO_${LOGO_SEQ[gi]}"
+            local -n g="$gname"
+            line+="${g[row]}"
+            (( gi < ${#LOGO_SEQ[@]} - 1 )) && line+=" "
+        done
+        LOGO_LINES[row]="$line"
+    done
+    LOGO_COLS="${#LOGO_LINES[0]}"
+}
+
+ui_logo_precompute() {
+    local x pct
+    LOGO_BASE=(); LOGO_COL_SGR=()
+    for (( x=0; x<LOGO_COLS; x++ )); do
+        pct=$(( x * 100 / (LOGO_COLS-1) ))
+        ui_lerp_var '154;107;0' '247;201;72' "$pct"; LOGO_BASE[x]="$REPL"
+        ui_sgr_var "$REPL"; LOGO_COL_SGR[x]="$SGRV"
+    done
+}
+
+# ui_logo [sweep_col] — print the wordmark; sweep_col adds the highlight band
+ui_logo() {
+    local sweep="${1:-}" row x ch line colr d
+    for (( row=0; row<LOGO_ROWS; row++ )); do
+        local src="${LOGO_LINES[row]}"
+        line=""
+        for (( x=0; x<LOGO_COLS; x++ )); do
+            ch="${src:x:1}"
+            [[ "$ch" == " " ]] && { line+=" "; continue; }
+            colr="${LOGO_COL_SGR[x]}"
+            if [[ -n "$sweep" ]]; then
+                d=$(( x - sweep )); (( d < 0 )) && d=$(( -d ))
+                if (( d < 6 )); then
+                    ui_lerp_var "${LOGO_BASE[x]}" '255;224;138' "$(( (6-d)*16 ))"
+                    ui_sgr_var "$REPL"; colr="$SGRV"
+                fi
+            fi
+            line+="${colr}${ch}"
+        done
+        if (( UI_DEPTH > 0 )); then printf '%s\033[0m\n' "$line"; else printf '%s\n' "$line"; fi
+    done
+}
+
+ui_ascii_logo() {
+    cat <<'ASCII'
+ _   _ _   _ _   _ _____ ____
+| | | | |_| | | | |_   _|  _ \
+| |_| |  _  | |_| | | | | |_) |
+ \__,_|_| |_|\__,_| |_| |  _ <
+                        |_| \_\
+ASCII
+}
+
+ui_compact_logo() {
+    printf '  %s%sutter%s\n' "$C_BOLD" "$C_ACCENT" "$C_RESET"
+}
+
+# ui_cursor_hide/show + exit restore — never leave the cursor hidden.
+UI_CURSOR_HIDDEN=0
+TICKER_PID=""
+ui_cursor_hide() {
+    ui_anim_ok || return 0
+    (( UI_CURSOR_HIDDEN )) && return 0
+    printf '\033[?25l'; UI_CURSOR_HIDDEN=1
+}
+ui_cursor_show() {
+    (( UI_CURSOR_HIDDEN )) || return 0
+    printf '\033[?25h'; UI_CURSOR_HIDDEN=0
+}
+ui_on_exit() {
+    ui_cursor_show
+    if [[ -n "${TICKER_PID:-}" ]]; then
+        kill "$TICKER_PID" 2>/dev/null || true
+        TICKER_PID=""
+    fi
+    return 0
+}
+
+# ui_logo_sweep — one-time shine across the wordmark, then settle.
+ui_logo_sweep() {
+    local p
+    if ! ui_anim_ok; then ui_logo; return 0; fi
+    if (( $(ui_cols) < LOGO_COLS + 2 )); then ui_logo; return 0; fi
+    ui_cursor_hide
+    ui_logo
+    for p in -3 0 3 6 9 12 15 18 21 24 27 30; do
+        printf '\033[%dA' "$LOGO_ROWS"
+        ui_logo "$p"
+        sleep 0.045
+    done
+    printf '\033[%dA' "$LOGO_ROWS"
+    ui_logo
+    ui_cursor_show
+}
+
+# ui_tagline — typewriter line under the logo (plain when not animating).
+ui_tagline() {
+    local text="local voice -> desktop actions" i ind=7
+    ui_unicode_ok && text="local voice → desktop actions"
+    (( $(ui_cols) < 40 )) && ind=0
+    if ui_anim_ok; then
+        printf '%*s' "$ind" ' '
+        for (( i=0; i<${#text}; i++ )); do printf '%s' "${text:i:1}"; sleep 0.012; done
+        printf '\n'
+    else
+        printf '%*s%s\n' "$ind" '' "$text"
+    fi
+}
+
+ui_banner() {
+    local cols; cols="$(ui_cols)"
+    if ui_unicode_ok; then
+        ui_logo_build
+        ui_logo_precompute
+        if (( cols >= LOGO_COLS + 2 )); then
+            ui_logo_sweep
+        elif (( cols >= 34 )); then
+            ui_ascii_logo
+        else
+            ui_compact_logo
+        fi
+    else
+        if (( cols >= 34 )); then ui_ascii_logo; else ui_compact_logo; fi
+    fi
+    printf '\n'
+    ui_tagline
+}
+
+# --------------------------------------------------------------------------- #
+# section: live task list
+# --------------------------------------------------------------------------- #
+# One row per selected component (pending/working/done/failed). In live mode the
+# block is redrawn in place with a background spinner; when live mode is not
+# supported (plain, --yes, --dry-run, non-tty, narrow) rows are appended instead
+# and no cursor movement is emitted.
+TASK_LABELS=(); TASK_STATES=(); TASK_START=()
+TASK_DRAWN=0; TASK_ACTIVE=0; TASK_W=24
+SPIN_GLYPH=""
+
+ui_tasks_supported() {
+    ui_anim_ok || return 1
+    (( UI_DEPTH > 0 )) || return 1
+    (( $(ui_cols) >= 50 )) || return 1
+    return 0
+}
+
+ui_tasks_init() {
+    TASK_LABELS=("$@"); TASK_STATES=(); TASK_START=()
+    local i w=0
+    for i in "${!TASK_LABELS[@]}"; do
+        TASK_STATES[i]=pending; TASK_START[i]=0
+        (( ${#TASK_LABELS[i]} > w )) && w=${#TASK_LABELS[i]}
+    done
+    (( w < 24 )) && w=24; TASK_W=$w
+    TASK_DRAWN=0; TASK_ACTIVE=1
+    ui_rule
+    ui_tasks_draw
+}
+
+ui_tasks_draw() {
+    local i st glyph status t pad
+    (( TASK_DRAWN )) && printf '\033[%dA' "${#TASK_LABELS[@]}"
+    for (( i=0; i<${#TASK_LABELS[@]}; i++ )); do
+        st="${TASK_STATES[i]}"
+        case "$st" in
+            pending) glyph="$TASK_PENDING"; status="${C_MUTED}pending${C_RESET}" ;;
+            running) glyph="${SPIN_GLYPH:-$TASK_RUN}"; status="${C_ACCENT}working${C_RESET}" ;;
+            done)    t=$(( SECONDS - TASK_START[i] ))
+                     glyph="$TASK_DONE"; status="${C_OK}done (${t}s)${C_RESET}" ;;
+            failed)  glyph="$TASK_FAIL"; status="${C_ERR}failed${C_RESET}" ;;
+            *)       glyph=" "; status="" ;;
+        esac
+        printf -v pad '%*s' "$(( TASK_W - ${#TASK_LABELS[i]} ))" ''
+        printf '\r\033[K  %s%-2s%s %s%s %s\n' \
+            "$C_ACCENT" "$glyph" "$C_RESET" "${TASK_LABELS[i]}" "$pad" "$status"
+    done
+    TASK_DRAWN=1
+}
+
+ui_task_ticker_start() {
+    ui_tasks_supported || return 0
+    (
+        trap 'exit 0' TERM INT
+        _tick=0
+        while :; do
+            SPIN_GLYPH="${SPIN_FRAMES:_tick%${#SPIN_FRAMES}:1}"
+            ui_tasks_draw
+            _tick=$(( _tick + 1 ))
+            sleep 0.12
+        done
+    ) &
+    TICKER_PID=$!
+}
+
+ui_task_ticker_stop() {
+    [[ -n "${TICKER_PID:-}" ]] || return 0
+    kill "$TICKER_PID" 2>/dev/null || true
+    wait "$TICKER_PID" 2>/dev/null || true
+    TICKER_PID=""
+    ui_tasks_draw
+}
+
+ui_task_dump_failure() {
+    local id="$1" label="$2" log="$3"
+    say ""
+    printf '  %s%s %s%s\n' "$C_ERR" "$TASK_FAIL" "$label" "$C_RESET"
+    printf '  %s--- last lines of the %s log ---%s\n' "$C_MUTED" "$id" "$C_RESET"
+    tail -n 12 "$log" 2>/dev/null | sed 's/^/    /' || true
+}
+
+# ui_task_run <index> <id> <label> — run one component, updating the list.
+ui_task_run() {
+    local idx="$1" id="$2" label="$3" log rc=0
+    TASK_STATES[idx]=running; TASK_START[idx]=$SECONDS
+    if ui_tasks_supported; then
+        ui_tasks_draw
+        ui_task_ticker_start
+        log="$TASK_LOG_DIR/$id.log"; : > "$log"
+        ( run_component "$id" ) >>"$log" 2>&1 || rc=$?
+        ui_task_ticker_stop
+        if (( rc == 0 )); then TASK_STATES[idx]=done; else TASK_STATES[idx]=failed; fi
+        ui_tasks_draw
+        if (( rc != 0 )); then
+            ui_task_dump_failure "$id" "$label" "$log"
+            return "$rc"
+        fi
+        return 0
+    fi
+    printf '  %s%s%s %s ...\n' "$C_ACCENT" "$TASK_RUN" "$C_RESET" "$label"
+    run_component "$id" || rc=$?
+    if (( rc == 0 )); then
+        printf '  %s%s%s %s\n' "$C_OK" "$TASK_DONE" "$C_RESET" "$label"
+        return 0
+    fi
+    printf '  %s%s%s %s\n' "$C_ERR" "$TASK_FAIL" "$C_RESET" "$label"
+    return "$rc"
+}
+
+run_install_phase() {
+    local -a ids=() labels=(); local i
+    for i in "${!COMP_IDS[@]}"; do
+        [[ "$(decision_of "${COMP_IDS[i]}")" == "yes" ]] || continue
+        ids+=("${COMP_IDS[i]}"); labels+=("${COMP_LABELS[i]}")
+    done
+    if (( ${#ids[@]} == 0 )); then
+        note "no components selected; nothing to install"
+        return 0
+    fi
+    if ui_tasks_supported; then
+        TASK_LOG_DIR="${TMP:-${TMPDIR:-/tmp}}/task-logs"
+        mkdir -p "$TASK_LOG_DIR"
+        ui_tasks_init "${labels[@]}"
+    fi
+    for i in "${!ids[@]}"; do
+        if ! ui_task_run "$i" "${ids[i]}" "${labels[i]}"; then
+            die "component failed: ${ids[i]}"
+        fi
+    done
+    TASK_ACTIVE=0
+    if ui_tasks_supported; then ui_rule; fi
+    return 0
 }
 
 # This wizard installs the Linux (Wayland/systemd) stack. macOS has its own,
@@ -276,11 +758,12 @@ fi
 SPIN_PID=""
 spin_start() {
     ui_anim_ok || return 0
+    (( TASK_ACTIVE )) && return 0     # the task list already shows progress
     local msg="$1" frames="$SPIN_FRAMES" i=0
     (
         trap 'exit 0' TERM INT
         while :; do
-            printf '\r%s%s%s %s' "$C_CYAN" "${frames:i:1}" "$C_RESET" "$msg" >&2
+            printf '\r%s%s%s %s' "$C_ACCENT" "${frames:i:1}" "$C_RESET" "$msg" >&2
             i=$(( (i + 1) % ${#frames} ))
             sleep 0.12
         done
@@ -306,6 +789,10 @@ ui_spin_run() {
         gum spin --spinner line --title "$msg" -- "$@" || grc=$?
         return "$grc"
     fi
+    if (( TASK_ACTIVE )); then
+        "$@"
+        return $?
+    fi
     spin_start "$msg"
     local rc=0
     "$@" || rc=$?
@@ -320,6 +807,11 @@ ui_download() {
         gum spin --spinner line --title "downloading $(basename "$url")" -- \
             curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url" || rc=$?
         return "$rc"
+    fi
+    if (( TASK_ACTIVE )); then
+        # The task list owns the screen; stay quiet so the log stays clean.
+        curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url"
+        return $?
     fi
     if ui_anim_ok; then
         curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$dest" "$url" >&2 || rc=$?
@@ -381,7 +873,8 @@ ICON_FILES=(
 )
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'ui_on_exit; rm -rf "$TMP"' EXIT
+trap 'ui_on_exit; exit 130' INT TERM
 
 # --------------------------------------------------------------------------- #
 # section: detection — arch + distro
@@ -779,22 +1272,25 @@ GUI_FETCHED=0
 GUI_ASSET=""
 
 fetch() {
-    # fetch <asset> — download to $TMP/<asset>
+    # fetch <asset> — download to $TMP/<asset>. A marker file makes the cache
+    # survive when components run in subshells (live task list).
     local asset="$1"
     local url="$BASE_URL/$asset"
     if (( DRY_RUN )); then
-        printf '  [dry-run] download %s\n' "$url"
+        say "  [dry-run] download $url"
         return 0
     fi
-    printf '  [get] %s\n' "$url"
+    [[ -f "$TMP/.fetched/$asset" ]] && return 0
+    say "  [get] $url"
     ui_download "$url" "$TMP/$asset" || die "download failed: $url"
+    mkdir -p "$TMP/.fetched"; : > "$TMP/.fetched/$asset"
 }
 
 verify() {
     # verify <asset> — check against sha256sums.txt
     local asset="$1"
     if (( DRY_RUN )); then
-        printf '  [dry-run] verify sha256 of %s against %s\n' "$asset" "$SUMS"
+        say "  [dry-run] verify sha256 of $asset against $SUMS"
         return 0
     fi
     [[ -f "$TMP/$SUMS" ]] || die "missing $SUMS (cannot verify $asset)"
@@ -847,7 +1343,12 @@ fetch_gui() {
 CORE_TMP_ROOT=""
 extract_core_tmp() {
     # Set CORE_TMP_ROOT to the extracted top-level directory (shared temp copy).
+    # The marker keeps the cache across components that run in subshells.
     [[ -n "$CORE_TMP_ROOT" ]] && return 0
+    if [[ -f "$TMP/.core-root" ]]; then
+        IFS= read -r CORE_TMP_ROOT < "$TMP/.core-root" || true
+        [[ -n "$CORE_TMP_ROOT" ]] && return 0
+    fi
     fetch_core
     if (( DRY_RUN )); then
         CORE_TMP_ROOT="$TMP/extract/<core>"
@@ -857,6 +1358,7 @@ extract_core_tmp() {
     ui_spin_run "extracting $CORE_TARBALL" tar -xzf "$TMP/$CORE_TARBALL" -C "$TMP/extract"
     CORE_TMP_ROOT="$(find "$TMP/extract" -mindepth 1 -maxdepth 1 -type d | head -1)"
     [[ -n "$CORE_TMP_ROOT" ]] || die "core tarball has no top-level directory"
+    printf '%s\n' "$CORE_TMP_ROOT" > "$TMP/.core-root"
 }
 
 ensure_core_context() {
@@ -881,6 +1383,13 @@ ask_yn() {
     # ask_yn <default y|n> <prompt> ; return 0 = yes, 1 = no; sets QUIT/ALL_*
     local def="$1" prompt="$2"
     local hint="[Y/n]"; [[ "$def" == "n" ]] && hint="[y/N]"
+    if (( UI_DEPTH > 0 )); then
+        if [[ "$def" == "y" ]]; then
+            hint="[${C_BOLD}${C_ACCENT}Y${C_RESET}${C_DIM}/n${C_RESET}]"
+        else
+            hint="[${C_DIM}y/${C_BOLD}${C_ACCENT}N${C_RESET}]"
+        fi
+    fi
     local ans=""
     if (( ALL_YES )); then printf '%s %s ' "$prompt" "$hint"; say "y (all remaining)"; return 0; fi
     if (( ALL_SKIP )); then printf '%s %s ' "$prompt" "$hint"; say "n (skip all remaining)"; return 1; fi
@@ -922,7 +1431,7 @@ record_component() {
     local id="$1" label="$2" version="$3" method="$4" sudo="$5" assistant="$6"
     local dir="$COMP_DIR/$id"
     if (( DRY_RUN )); then
-        printf '  [dry-run] record component %s -> %s\n' "$id" "$dir"
+        say "  [dry-run] record component $id -> $dir"
         return 0
     fi
     mkdir -p "$dir"
@@ -946,7 +1455,7 @@ record_component() {
 
 rebuild_install_json() {
     if (( DRY_RUN )); then
-        printf '  [dry-run] write %s\n' "$STATE_FILE"
+        say "  [dry-run] write $STATE_FILE"
         return 0
     fi
     command -v python3 >/dev/null 2>&1 || { warn "python3 missing; per-component state kept, install.json not regenerated"; return 0; }
@@ -1015,13 +1524,21 @@ PY
 # section: plan + banner
 # --------------------------------------------------------------------------- #
 print_banner() {
-    ui_header "utter installer"
+    ui_banner
+    local iver="${VER:-$UTTER_VERSION}"
+    if (( $(ui_cols) < 48 )); then
+        say "  installer · Linux (Wayland) · $iver"
+    else
+        printf '  %sinstaller%s · Linux (Wayland) · %s%s%s\n' \
+            "$C_BOLD" "$C_RESET" "$C_MUTED" "$iver" "$C_RESET"
+    fi
+    ui_rule
     field "distro" "$DISTRO_ID${DISTRO_LIKE:+ (like: $DISTRO_LIKE)}"
     field "arch" "$ARCH"
     field "prefix" "$PREFIX"
     field "pkg mgr" "$PKG_MGR"
     field "mode" "$MODE"
-    field "release" "$UTTER_VERSION"
+    field "release" "${VER:-$UTTER_VERSION}"
     field "python" "${UTTER_PYTHON:-auto-detected}"
 }
 
@@ -1038,17 +1555,24 @@ comp_label_width() {
 print_component_preview() {
     say ""
     say "Components (this installer walks them one by one):"
-    local i w; w="$(comp_label_width)"
-    if [[ -n "$GL_H" ]]; then
-        printf '  %s%-3s %-*s %s%s\n' "$C_DIM" "#" "$w" "component" "size" "$C_RESET"
-    else
-        printf '  %-3s %-*s %s\n' "#" "$w" "component" "size"
+    local i w def cols; w="$(comp_label_width)"; cols="$(ui_cols)"
+    if (( cols < 56 )); then
+        ui_rule "$(( cols - 2 ))"
+        for i in "${!COMP_IDS[@]}"; do
+            say "  $((i+1))   ${COMP_LABELS[i]}"
+        done
+        return 0
     fi
-    local rule; printf -v rule '%*s' "$(( w + 9 ))" ''; rule="${rule// /-}"
-    [[ -n "$GL_H" ]] && rule="${rule//-/─}"
-    printf '  %s%s%s\n' "$C_DIM" "$rule" "$C_RESET"
+    if [[ -n "$GL_H" ]]; then
+        printf '  %s%-3s %-*s %-*s %s%s\n' "$C_MUTED" "#" "$w" "component" 8 "default" "size" "$C_RESET"
+    else
+        printf '  %-3s %-*s %-*s %s\n' "#" "$w" "component" 8 "default" "size"
+    fi
+    ui_rule "$(( w + 24 ))"
     for i in "${!COMP_IDS[@]}"; do
-        printf '  %-3s %-*s %s\n' "$((i+1))" "$w" "${COMP_LABELS[i]}" "${COMP_SIZE[i]}"
+        def="${REC_BY_ID[${COMP_IDS[i]}]:-n}"
+        [[ "$def" == "y" ]] && def="yes" || def="no"
+        printf '  %-3s %-*s %-*s %s\n' "$((i+1))" "$w" "${COMP_LABELS[i]}" 8 "$def" "${COMP_SIZE[i]}"
     done
 }
 
@@ -1193,7 +1717,7 @@ do_uninstall() {
         say "  - $cid"
         remove_component "$d"
         if (( DRY_RUN )); then
-            printf '  [dry-run] remove record %s\n' "$d"
+            say "  [dry-run] remove record $d"
         else
             rm -rf "$d"
         fi
@@ -1281,6 +1805,26 @@ if (( UNINSTALL )); then
 fi
 
 # --------------------------------------------------------------------------- #
+# section: recommendations (needed by the plan preview and the wizard)
+# --------------------------------------------------------------------------- #
+declare -A REC_BY_ID=()
+compute_recommendations() {
+    local miss; miss="$(missing_pkgs)"
+    [[ -n "$miss" ]] && REC_BY_ID[deps]=y || REC_BY_ID[deps]=n
+    REC_BY_ID[core]=y
+    REC_BY_ID[lang]=y
+    REC_BY_ID[units]=y
+    REC_BY_ID[models]=n
+    (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
+    REC_BY_ID[stt]=n
+    REC_BY_ID[perception]=n
+    REC_BY_ID[noctalia]=n
+    (( WITH_NOCTALIA )) && REC_BY_ID[noctalia]=y
+    [[ -f "$CONFIG_FILE" ]] && REC_BY_ID[config]=n || REC_BY_ID[config]=y
+}
+compute_recommendations
+
+# --------------------------------------------------------------------------- #
 # section: non-interactive gate (curl | bash with no --yes): plan only
 # --------------------------------------------------------------------------- #
 if (( ! ASSUME_YES && ! DRY_RUN )) && ! is_tty; then
@@ -1300,12 +1844,8 @@ fi
 # --------------------------------------------------------------------------- #
 # section: release + asset names
 # --------------------------------------------------------------------------- #
-section "release"
 resolve_release
 set_asset_names
-field "repo:" "$UTTER_REPO"
-field "version:" "$VER"
-field "base:" "$BASE_URL"
 
 # --------------------------------------------------------------------------- #
 # section: interactive wizard
@@ -1323,23 +1863,6 @@ present_step() {
     fi
     run_dep_probe "$id"
 }
-
-declare -A REC_BY_ID=()
-compute_recommendations() {
-    local miss; miss="$(missing_pkgs)"
-    [[ -n "$miss" ]] && REC_BY_ID[deps]=y || REC_BY_ID[deps]=n
-    REC_BY_ID[core]=y
-    REC_BY_ID[lang]=y
-    REC_BY_ID[units]=y
-    REC_BY_ID[models]=n
-    (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
-    REC_BY_ID[stt]=n
-    REC_BY_ID[perception]=n
-    REC_BY_ID[noctalia]=n
-    (( WITH_NOCTALIA )) && REC_BY_ID[noctalia]=y
-    [[ -f "$CONFIG_FILE" ]] && REC_BY_ID[config]=n || REC_BY_ID[config]=y
-}
-compute_recommendations
 
 recommend_tiers() {
     # echo lines: key|title|size|reason
@@ -1657,6 +2180,7 @@ wizard() {
 
         # Language: choose the spoken language; English is inline and default.
         if [[ "$id" == "lang" ]]; then
+            ui_rule
             run_language_step
             (( QUIT )) && return 1
             DECISION[i]="yes"
@@ -1670,6 +2194,7 @@ wizard() {
                 DECISION[i]="skip"
                 continue
             fi
+            ui_rule
             say ""
             say "  Recommended tiers:"
             MODEL_TIER_KEYS=(); MODEL_TIER_TITLES=(); MODEL_TIER_SIZES=()
@@ -1697,6 +2222,8 @@ wizard() {
             announce_default "$rec"
             [[ "$rec" == "y" ]] && DECISION[i]="yes" || DECISION[i]="skip"
         else
+            ui_rule
+            ui_key_legend
             if ask_yn "$rec" "  Install ${COMP_LABELS[i]}?"; then
                 DECISION[i]="yes"
             else
@@ -1734,23 +2261,38 @@ fi
 section "plan review"
 sudo_used=0
 PLAN_W="$(comp_label_width)"
-if [[ -n "$GL_H" ]]; then
-    printf '  %s%-3s %-*s %-8s %s%s\n' "$C_DIM" "#" "$PLAN_W" "component" "action" "sudo" "$C_RESET"
-else
-    printf '  %-3s %-*s %-8s %s\n' "#" "$PLAN_W" "component" "action" "sudo"
+PLAN_COMPACT=0
+(( $(ui_cols) < 56 )) && PLAN_COMPACT=1
+if (( ! PLAN_COMPACT )); then
+    if [[ -n "$GL_H" ]]; then
+        printf '  %s%-3s %-*s %-8s %s%s\n' "$C_MUTED" "#" "$PLAN_W" "component" "action" "sudo" "$C_RESET"
+    else
+        printf '  %-3s %-*s %-8s %s\n' "#" "$PLAN_W" "component" "action" "sudo"
+    fi
 fi
 for i in "${!COMP_IDS[@]}"; do
     id="${COMP_IDS[i]}"
     d="${DECISION[i]:-skip}"
+    _sudo="-"
     if [[ "$d" == "yes" ]]; then
         if (( COMP_SUDO[i] )) || { [[ "$id" == "gui" ]] && [[ "$MODE" == "package" ]]; }; then
-            printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "install" "sudo"
-            sudo_used=1
+            _sudo="sudo"; sudo_used=1
+        fi
+        if (( PLAN_COMPACT )); then
+            if [[ "$_sudo" == "sudo" ]]; then
+                say "  $((i+1))   ${COMP_LABELS[i]} (install, sudo)"
+            else
+                say "  $((i+1))   ${COMP_LABELS[i]} (install)"
+            fi
         else
-            printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "install" "-"
+            printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "install" "$_sudo"
         fi
     else
-        printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "skip" "-"
+        if (( PLAN_COMPACT )); then
+            say "  $((i+1))   ${COMP_LABELS[i]} (skip)"
+        else
+            printf '  %-3s %-*s %-8s %s\n' "$((i+1))" "$PLAN_W" "${COMP_LABELS[i]}" "skip" "-"
+        fi
     fi
 done
 if (( ENABLE_UNITS )); then say "  units: enable + start utter-runner.service now"; fi
@@ -1802,7 +2344,7 @@ exec_deps() {
         run "install system dependencies" "${INSTALL_CMD[@]}"
     else
         warn "no passwordless sudo; printing the command instead:"
-        printf '            $ %s\n' "${INSTALL_CMD[*]}"
+        say "            \$ ${INSTALL_CMD[*]}"
         note "run it yourself, then re-run"
     fi
     reset_record
@@ -1869,7 +2411,7 @@ fix_plugin_python() {
         "$SHARE_DIR/config.m3.toml"
     )
     if (( DRY_RUN )); then
-        printf '  [dry-run] point plugin entrypoints at %s\n' "$ASSISTANT_PY"
+        say "  [dry-run] point plugin entrypoints at $ASSISTANT_PY"
         return 0
     fi
     local f
@@ -1888,7 +2430,7 @@ exec_core() {
     fetch_core
     run "create $SHARE_DIR" mkdir -p "$SHARE_DIR"
     if (( DRY_RUN )); then
-        printf '  [dry-run] extract %s -> %s\n' "$CORE_TARBALL" "$SHARE_DIR"
+        say "  [dry-run] extract $CORE_TARBALL -> $SHARE_DIR"
     else
         local extract="$TMP/extract"
         mkdir -p "$extract"
@@ -1902,7 +2444,7 @@ exec_core() {
 
     run "create $BIN_DIR" mkdir -p "$BIN_DIR"
     if (( DRY_RUN )); then
-        printf '  [dry-run] write %s (wrapper for python -m assistant)\n' "$ASSISTANT_BIN"
+        say "  [dry-run] write $ASSISTANT_BIN (wrapper for python -m assistant)"
     else
         cat > "$ASSISTANT_BIN" <<WRAP
 #!/usr/bin/env bash
@@ -2049,9 +2591,9 @@ exec_gui() {
     if [[ "$MODE" == "appimage" ]]; then
         run "create $BIN_DIR" mkdir -p "$BIN_DIR"
         if (( DRY_RUN )); then
-            printf '  [dry-run] install %s -> %s (chmod +x)\n' "$GUI_ASSET" "$GUI_BIN"
-            printf '  [dry-run] install icons -> %s\n' "$ICON_THEME_DIR"
-            printf '  [dry-run] write %s\n' "$DESKTOP_FILE"
+            say "  [dry-run] install $GUI_ASSET -> $GUI_BIN (chmod +x)"
+            say "  [dry-run] install icons -> $ICON_THEME_DIR"
+            say "  [dry-run] write $DESKTOP_FILE"
         else
             install -m 0755 "$TMP/$GUI_ASSET" "$GUI_BIN"
             ok "installed $GUI_BIN"
@@ -2117,7 +2659,7 @@ DESKTOP
                 run "install package" "${PKG_CMD[@]}"
             else
                 warn "no passwordless sudo; print the command instead:"
-                printf '            $ %s\n' "${PKG_CMD[*]}"
+                say "            \$ ${PKG_CMD[*]}"
             fi
         else
             warn "no package manager command for '$PKG_MGR'; install $GUI_ASSET manually"
@@ -2181,7 +2723,7 @@ toml_escape() {
 set_config_value() {
     local file="$1"; shift
     if (( DRY_RUN )); then
-        printf '  [dry-run] edit %s\n' "$file"
+        say "  [dry-run] edit $file"
         return 0
     fi
     local section key value
@@ -2273,10 +2815,10 @@ exec_config() {
         run "write $CONFIG_FILE from default" cp "$src" "$CONFIG_FILE"
         if [[ -n "$LANG_CODE" ]]; then
             if (( DRY_RUN )); then
-                printf '  [dry-run] set [stt] language = "%s" in %s\n' "$LANG_CODE" "$CONFIG_FILE"
-                printf '  [dry-run] set [tts] language = "%s" in %s\n' "$LANG_CODE" "$CONFIG_FILE"
+                say "  [dry-run] set [stt] language = \"$LANG_CODE\" in $CONFIG_FILE"
+                say "  [dry-run] set [tts] language = \"$LANG_CODE\" in $CONFIG_FILE"
                 [[ -n "$LANG_TTS_VOICE" ]] && \
-                    printf '  [dry-run] set [tts] voice = "%s" in %s\n' "$LANG_TTS_VOICE" "$CONFIG_FILE"
+                    say "  [dry-run] set [tts] voice = \"$LANG_TTS_VOICE\" in $CONFIG_FILE"
             else
                 set_config_value "$CONFIG_FILE" stt language "$LANG_CODE" \
                     tts language "$LANG_CODE" tts voice "$LANG_TTS_VOICE"
@@ -2307,12 +2849,7 @@ run_component() {
 }
 
 section "install"
-for i in "${!COMP_IDS[@]}"; do
-    id="${COMP_IDS[i]}"
-    if [[ "${DECISION[i]:-skip}" == "yes" ]]; then
-        run_component "$id" || die "component failed: $id"
-    fi
-done
+run_install_phase
 
 rebuild_install_json
 
@@ -2323,7 +2860,12 @@ section "done"
 if (( DRY_RUN )); then
     say "Dry-run complete. Re-run without --dry-run to apply."
 else
-    say "Installed utter $VER into $PREFIX"
+    if ui_unicode_ok; then
+        printf '  %s%s%s Installed utter %s into %s\n' \
+            "$C_OK" "$TASK_DONE" "$C_RESET" "$VER" "$PREFIX"
+    else
+        say "Installed utter $VER into $PREFIX"
+    fi
     say ""
     if [[ -n "$LANG_CODE" ]]; then
         say "Language: $LANG_CODE"
@@ -2345,5 +2887,8 @@ else
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         say ""
         note "$BIN_DIR is not on your PATH; add it: export PATH=\"$BIN_DIR:\$PATH\""
+    fi
+    if ui_unicode_ok; then
+        printf '\n  %sutter%s\n' "$C_FAINT" "$C_RESET"
     fi
 fi

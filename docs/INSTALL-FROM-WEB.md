@@ -8,10 +8,13 @@ component, shows what it is, its size, whether sudo is needed and what was
 detected on this machine, and asks whether you want it. With `--yes` it accepts
 the recommended defaults non-interactively.
 
-The wizard uses a built-in ANSI UI (coloured section banners, aligned tables, a
-step indicator and download progress). It falls back to plain ASCII when it is
-piped, when `NO_COLOR` is set or `TERM=dumb`; if `gum` is already on `PATH` it
-is used for menus and confirmations. Override with `UTTER_UI=auto|gum|plain`.
+The wizard uses a built-in ANSI UI with an amber block wordmark (a short
+gradient sweep on start), a step indicator with a progress bar, aligned
+question blocks and a live per-component task list during install. It falls
+back to plain ASCII with no escape bytes when it is piped, when `NO_COLOR` is
+set, `TERM=dumb`, `--yes`, `--dry-run`, or `UTTER_UI=plain`; if `gum` is already
+on `PATH` it is used for menus and confirmations. Override the colour depth with
+`UTTER_COLOR` (`truecolor`/`256`/`16`/`plain`), or force plain with `UTTER_UI=plain`.
 
 ## Download and run
 
@@ -147,6 +150,8 @@ per-step progress and a final summary with next steps.
 | `UTTER_BASE_URL` | GitHub Releases | override the download base (e.g. `http://127.0.0.1:8000` for testing) |
 | `PREFIX` | `$HOME/.local` | install prefix |
 | `UTTER_UI` | `auto` | terminal UI style: `auto` (use `gum` when present), `gum`, or `plain` |
+| `UTTER_COLOR` | `auto` | color depth: `auto`, `truecolor`, `256`, `16`, or `plain` |
+| `UTTER_NO_ANIM` | — | set to disable the logo sweep and typewriter (e.g. over a slow link) |
 | `UTTER_PYTHON` | auto-detected | interpreter baked into the `assistant` wrapper |
 | `UTTER_MODEL_STT` | — | source to pull if the STT tier is accepted (`hf:org/repo[:file]`, `https://…`, `file://…`) |
 | `UTTER_MODEL_DECISION` | — | source to pull if the decision-head tier is accepted |
