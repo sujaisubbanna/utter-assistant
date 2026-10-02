@@ -12,7 +12,11 @@
 #
 # Every download is verified against sha256sums.txt from the GitHub Release.
 #
+#  3. add it to the requested locale list in docs/TRANSLATING.md.
+#  4. no code change is needed.
+#
 # Environment:
+#   UTTER_INSTALL_LANG  force the installer's UI language (e.g. de, de-DE, zh)
 #   UTTER_REPO      GitHub repo "owner/name" (default: sujaisubbanna/utter-assistant)
 #   UTTER_VERSION   release tag (default: latest)
 #   UTTER_BASE_URL  override the download base (default: GitHub Releases;
@@ -129,6 +133,158 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+# --------------------------------------------------------------------------- #
+# section: i18n — installer UI language (English inline; locale files are data)
+# --------------------------------------------------------------------------- #
+# This script stays a single self-contained file and the published
+# `curl … | bash` one-liner keeps working in English even when no locale files
+# are present. Translations live beside the script as data:
+#
+#     install/i18n/<lang>.sh          (repo / checkout)
+#     <PREFIX>/share/utter/i18n/<lang>.sh     (installed tree)
+#
+# A locale file is plain bash assigning the `L10N` associative array. It is
+# sourced when present; nothing is ever fetched over the network for it. With
+# no file, every lookup falls back to the English source silently — a missing
+# key never prints a raw key. Locale files are not part of this single-file
+# script: they are data looked up beside the script or in $SHARE_DIR/i18n, so
+# `curl … | bash` keeps working in English with no extra files.
+#
+# Machine-drafted locale files ship UNREVIEWED; see docs/TRANSLATING.md.
+#
+# The UI language is the detected system locale (LC_ALL -> LC_MESSAGES -> LANG),
+# overridable with UTTER_INSTALL_LANG (e.g. `de`, `de-DE`, `pt-BR`). This is the
+# INSTALLER's language; it is independent of the language step, which chooses
+# the spoken STT/TTS language written to config.toml.
+#
+# Printf safety: translated text is always passed to `printf` as a `%s`
+# argument, never as a format string. `t <key> [args…]` substitutes `{1}`…`{N}`
+# positionally as literal data, so a translation containing `%s` or `$(…)` is
+# printed verbatim and can never inject a format.
+
+declare -A L10N=()
+UTTER_I18N_LOADED=""
+UTTER_I18N_LANG="en"
+
+# _i18n_base_lang <raw> — first subtag, lowercased (de-DE -> de, zh_CN.UTF-8 -> zh)
+_i18n_base_lang() {
+    local raw="${1:-}"
+    raw="${raw%%@*}"; raw="${raw%%.*}"; raw="${raw//_/-}"
+    raw="${raw%%-*}"
+    printf '%s' "${raw,,}"
+}
+
+# _i18n_system_lang — base language from the system locale, or empty (C/POSIX)
+_i18n_system_lang() {
+    local raw="${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}"
+    case "${raw^^}" in ''|C|POSIX) return 0 ;; esac
+    _i18n_base_lang "$raw"
+}
+
+# _i18n_script_dir — directory of this script when it is a real file (not a
+# `curl | bash` pipe); empty when piped or unresolvable.
+_i18n_script_dir() {
+    local self="${BASH_SOURCE[0]:-}"
+    [[ -n "$self" && -f "$self" ]] || return 0
+    local d; d="$(cd -- "$(dirname -- "$self")" 2>/dev/null && pwd)"
+    printf '%s' "$d"
+}
+
+# i18n_init — resolve the UI language and source its locale file, silently
+# falling back to English when no locale file is available.
+i18n_init() {
+    local lang
+    lang="$(_i18n_base_lang "${UTTER_INSTALL_LANG:-}")"
+    [[ -n "$lang" ]] || lang="$(_i18n_system_lang)"
+    [[ -n "$lang" ]] || lang="en"
+    UTTER_I18N_LANG="$lang"
+    [[ "$lang" == "en" ]] && return 0
+    local dir f
+    dir="$(_i18n_script_dir)"
+    for f in \
+        "${dir:+$dir/install/i18n/$lang.sh}" \
+        "${UTTER_I18N_DIR:+$UTTER_I18N_DIR/$lang.sh}" \
+        "$PREFIX/share/utter/i18n/$lang.sh"; do
+        [[ -n "$f" && -r "$f" ]] || continue
+        L10N=()
+        # shellcheck disable=SC1090
+        if source "$f" 2>/dev/null; then
+            UTTER_I18N_LOADED="$f"
+            return 0
+        fi
+    done
+    L10N=()
+    return 0
+}
+i18n_init
+
+# l10n <english> — the translation for an exact English message, else English.
+# An explicitly blanked translation is treated as missing (falls back).
+# An empty message (blank line) is returned as-is: `L10N[]` is not a valid
+# subscript, so the empty key must short-circuit.
+l10n() {
+    local key="${1:-}" val
+    [[ -n "$key" ]] || return 0
+    val="${L10N[$key]-}"
+    if [[ -n "$val" ]]; then printf '%s' "$val"; else printf '%s' "$key"; fi
+}
+
+# _i18n_escape <s> — literal replacement text for parameter expansion
+# (guard `&` which is special under bash's patsub_replacement, and backslash).
+_i18n_escape() {
+    local s="${1-}"
+    s="${s//\\/\\\\}"
+    s="${s//&/\\&}"
+    printf '%s' "$s"
+}
+
+# t <key> [args…] — print the translation for <key>, substituting {1}…{N} with
+# the arguments as literal text. Printed with `printf '%s'`: never a format.
+t() {
+    local key="${1:-}"; shift || true
+    local out; out="$(l10n "$key")"
+    if (( $# )); then
+        local i=0 a
+        for a in "$@"; do
+            i=$(( i + 1 ))
+            out="${out//\{$i\}/$(_i18n_escape "$a")}"
+        done
+    fi
+    printf '%s' "$out"
+}
+
+# t_line <key> [args…] — t plus a trailing newline (for direct printing).
+t_line() { t "$@"; printf '\n'; }
+
+# say_f <key> [args…] — say for a message with runtime substitutions; the
+# translation substitutes {1}…{N} as literal data and is wrapped like say.
+say_f() { say "$(t "$@")"; }
+# note_f / warn_f / sub_f — same idea for the other output helpers.
+note_f() { note "$(t "$@")"; }
+warn_f() { warn "$(t "$@")"; }
+sub_f()  { sub "$(t "$@")"; }
+# field_f <keykey> <valkey> [args…] — field where the value is looked up (the
+# key column stays a fixed short label); args substitute into the value cell.
+field_f() {
+    local kk="$1" vk="$2"; shift 2
+    field "$kk" "$(t "$vk" "$@")"
+}
+# section_f <key> [args…] — section for a message with runtime substitutions.
+section_f() { section "$(t "$@")"; }
+# ok_f <key> [args…] / ask_yn_f <def> <key> [args…] — substitution variants.
+ok_f() { ok "$(t "$@")"; }
+ask_yn_f() {
+    local def="$1" key="$2"; shift 2
+    local prompt; prompt="$(t "$key" "$@")"
+    [[ "$prompt" == "  "* ]] || prompt="  $prompt"
+    ask_yn "$def" "$prompt"
+}
+# run_f <key> <cmd…> — run where the description takes {1} = first cmd argument.
+run_f() {
+    local key="$1"; shift
+    run "$(t "$key" "${1:-}")" "$@"
+}
 
 # --------------------------------------------------------------------------- #
 # section: ui — one canonical output set (colors, banners, tables, prompts)
@@ -278,7 +434,7 @@ fi
 # --- core output ----------------------------------------------------------- #
 
 say() {
-    local text="$*" cols
+    local text cols; text="$(l10n "$*")"
     cols="$(ui_cols)"
     if (( ${#text} <= cols )); then printf '%s\n' "$text"; return 0; fi
     local indent="" rest="$text"
@@ -288,8 +444,12 @@ say() {
 
 # field <key> <value> — aligned "  key   value" row; long values wrap to the
 # terminal width with a continuation indent aligned under the value column.
+# The key column is a fixed short technical label (kept as-is so the 9-char
+# alignment holds); the value is looked up, and values built from runtime data
+# fall back to English unchanged.
 field() {
-    local key="$1" value="$2" cols avail
+    local key="${1:-}" value cols avail
+    value="$(l10n "${2:-}")"
     cols="$(ui_cols)"; avail=$(( cols - 11 )); (( avail < 8 )) && avail=8
     if (( ${#value} <= avail )); then
         printf '  %s%-9s%s%s\n' "$C_MUTED" "$key" "$C_RESET" "$value"
@@ -299,18 +459,21 @@ field() {
     ui_wrap_first "           " "$avail" "$value"
 }
 # sub <text> — continuation line, aligned under a field value
-sub() { say "           $*"; }
+sub() { say "           $(l10n "$*")"; }
 
+# The ok/note/WARNING/ERROR prefixes are fixed short tokens: they are kept
+# untranslated so the hard-coded indent/width math stays correct. Only the
+# message body is looked up.
 ok() {
     printf '  %s[ok]%s ' "$C_OK" "$C_RESET"
-    ui_wrap_first "       " "$(( $(ui_cols) - 7 ))" "$*"
+    ui_wrap_first "       " "$(( $(ui_cols) - 7 ))" "$(l10n "$*")"
 }
 note() {
     printf '  %snote:%s ' "$C_MUTED" "$C_RESET"
-    ui_wrap_first "        " "$(( $(ui_cols) - 8 ))" "$*"
+    ui_wrap_first "        " "$(( $(ui_cols) - 8 ))" "$(l10n "$*")"
 }
-warn() { printf '  %sWARNING:%s %s\n' "$C_WARN" "$C_RESET" "$*" >&2; }
-die()  { printf '%sERROR:%s %s\n' "$C_ERR" "$C_RESET" "$*" >&2; exit 1; }
+warn() { printf '  %sWARNING:%s %s\n' "$C_WARN" "$C_RESET" "$(l10n "$*")" >&2; }
+die()  { printf '%sERROR:%s %s\n' "$C_ERR" "$C_RESET" "$(l10n "$*")" >&2; exit 1; }
 
 # ui_cols — terminal width, always a positive integer (COLUMNS, then tput, then 80)
 ui_cols() {
@@ -380,7 +543,8 @@ ui_rule() {
 
 # section <title> — phase banner
 section() {
-    local title="$*" cols pad rule hdr
+    local title; title="$(l10n "$*")"
+    local cols pad rule hdr
     if [[ "$RULE_CH" == "-" ]]; then
         hdr="== $title =="
         printf '\n'
@@ -397,7 +561,7 @@ section() {
 
 # step_header <n> <total> <label> — wizard step indicator with a progress bar
 step_header() {
-    local n="$1" total="$2" label="$3"
+    local n="$1" total="$2" label; label="$(l10n "${3:-}")"
     local cols pfx cont maxdots dots="" i
     cols="$(ui_cols)"
     pfx="[${n}/${total}]"
@@ -432,12 +596,12 @@ ui_key_legend() {
 
 # run <description> <command...> — execute, or print it under --dry-run
 run() {
-    local desc="$1"; shift
+    local desc; desc="$(l10n "${1:-}")"; shift || true
     if (( DRY_RUN )); then
-        say "  [dry-run] $desc"
-        say "            \$ $*"
+        say_f "  [dry-run] {1}" "$desc"
+        say_f "            \$ {1}" "$*"
     else
-        say "  [run] $desc"
+        say_f "  [run] {1}" "$desc"
         "$@"
     fi
 }
@@ -712,13 +876,18 @@ ui_task_run() {
         fi
         return 0
     fi
-    printf '  %s%s%s %s ...\n' "$C_ACCENT" "$TASK_RUN" "$C_RESET" "$label"
+    # Non-live path: print the label wrapped to the terminal width so a long
+    # (e.g. translated) component name never overflows a narrow/piped output.
+    printf '  %s%s%s ' "$C_ACCENT" "$TASK_RUN" "$C_RESET"
+    ui_wrap_first "     " "$(( $(ui_cols) - 5 ))" "$label ..."
     run_component "$id" || rc=$?
     if (( rc == 0 )); then
-        printf '  %s%s%s %s\n' "$C_OK" "$TASK_DONE" "$C_RESET" "$label"
+        printf '  %s%s%s ' "$C_OK" "$TASK_DONE" "$C_RESET"
+        ui_wrap_first "     " "$(( $(ui_cols) - 5 ))" "$label"
         return 0
     fi
-    printf '  %s%s%s %s\n' "$C_ERR" "$TASK_FAIL" "$C_RESET" "$label"
+    printf '  %s%s%s ' "$C_ERR" "$TASK_FAIL" "$C_RESET"
+    ui_wrap_first "     " "$(( $(ui_cols) - 5 ))" "$label"
     return "$rc"
 }
 
@@ -1008,7 +1177,7 @@ command -v noctalia >/dev/null 2>&1 && NOCTALIA_PRESENT=1 || NOCTALIA_PRESENT=0
 
 found_core() {
     if [[ -x "$ASSISTANT_BIN" || -d "$SHARE_DIR" ]]; then
-        field "found:" "already present at $SHARE_DIR"
+        field_f "found:" "already present at {1}" "$SHARE_DIR"
     else
         field "found:" "not installed"
     fi
@@ -1016,7 +1185,7 @@ found_core() {
 
 found_units() {
     if [[ -f "$RUNNER_UNIT" ]]; then
-        field "found:" "unit installed ($RUNNER_UNIT)"
+        field_f "found:" "unit installed ({1})" "$RUNNER_UNIT"
     elif _systemd_user_ok; then
         field "found:" "systemd --user available, no unit yet"
     else
@@ -1026,9 +1195,9 @@ found_units() {
 
 found_gui() {
     if [[ -x "$GUI_BIN" ]]; then
-        field "found:" "installed at $GUI_BIN"
+        field_f "found:" "installed at {1}" "$GUI_BIN"
     elif [[ -x "$SYMLINK_PATH" ]]; then
-        field "found:" "installed at $SYMLINK_PATH"
+        field_f "found:" "installed at {1}" "$SYMLINK_PATH"
     else
         field "found:" "not installed"
     fi
@@ -1040,12 +1209,12 @@ found_models() {
     if [[ -d "$root/manifests" ]]; then
         n="$(find "$root/manifests" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
     fi
-    field "found:" "$n model manifest(s) under $root"
+    field_f "found:" "{1} model manifest(s) under {2}" "$n" "$root"
 }
 
 found_config() {
     if [[ -f "$CONFIG_FILE" ]]; then
-        field "found:" "exists ($CONFIG_FILE)"
+        field_f "found:" "exists ({1})" "$CONFIG_FILE"
     else
         field "found:" "not present"
     fi
@@ -1085,7 +1254,7 @@ found_perception() {
 found_noctalia() {
     if (( NOCTALIA_PRESENT )); then
         field "found:" "Noctalia detected"
-        [[ -d "$NOCTALIA_DEST" ]] && sub "widget already at $NOCTALIA_DEST"
+        [[ -d "$NOCTALIA_DEST" ]] && sub_f "widget already at {1}" "$NOCTALIA_DEST"
     else
         field "found:" "Noctalia not detected"
     fi
@@ -1096,15 +1265,15 @@ found_deps() {
     for logical in "${DEP_REQUIRED[@]}"; do
         if dep_present "$logical"; then present+=("$logical"); else miss+=("$logical"); fi
     done
-    field "found:" "present: ${present[*]:-none}"
-    sub "missing: ${miss[*]:-none}"
+    field_f "found:" "present: {1}" "${present[*]:-none}"
+    sub_f "missing: {1}" "${miss[*]:-none}"
 }
 
 found_lang() {
     local syscode
     syscode="$(resolve_system_language)"
     if [[ -n "$syscode" ]]; then
-        field "found:" "system language $syscode"
+        field_f "found:" "system language {1}" "$syscode"
     else
         field "found:" "no system language (C/POSIX); English default"
     fi
@@ -1167,6 +1336,17 @@ COMP_SIZE=(
     "<10 KB"
 )
 COMP_SUDO=(1 0 0 0 0 0 0 0 0 0)
+
+# Translate the static component tables once, in place, so every consumer
+# (preview table, width computation, wizard headings, plan) sees the localized
+# text. Values that have no translation stay English.
+i18n_localize_components() {
+    local i v
+    for i in "${!COMP_LABELS[@]}"; do COMP_LABELS[i]="$(l10n "${COMP_LABELS[i]}")"; done
+    for i in "${!COMP_WHAT[@]}";   do COMP_WHAT[i]="$(l10n "${COMP_WHAT[i]}")"; done
+    for i in "${!COMP_SIZE[@]}";   do COMP_SIZE[i]="$(l10n "${COMP_SIZE[i]}")"; done
+}
+i18n_localize_components
 
 TOTAL=${#COMP_IDS[@]}
 DECISION=()      # yes | skip (indexed like COMP_IDS)
@@ -1240,11 +1420,11 @@ resolve_release() {
             if (( DRY_RUN )); then
                 VER="<latest>"
             else
-                say "  querying: $api"
+                say_f "  querying: {1}" "$api"
                 # `|| true` keeps a failed request from tripping `set -e` so the
                 # friendly error below is the one the user sees.
                 VER="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
-                [[ -n "$VER" ]] || die "could not resolve the latest release for $UTTER_REPO"
+                [[ -n "$VER" ]] || die "$(t "could not resolve the latest release for {1}" "$UTTER_REPO")"
             fi
         else
             VER="$UTTER_VERSION"
@@ -1277,12 +1457,12 @@ fetch() {
     local asset="$1"
     local url="$BASE_URL/$asset"
     if (( DRY_RUN )); then
-        say "  [dry-run] download $url"
+        say_f "  [dry-run] download {1}" "$url"
         return 0
     fi
     [[ -f "$TMP/.fetched/$asset" ]] && return 0
-    say "  [get] $url"
-    ui_download "$url" "$TMP/$asset" || die "download failed: $url"
+    say_f "  [get] {1}" "$url"
+    ui_download "$url" "$TMP/$asset" || die "$(t "download failed: {1}" "$url")"
     mkdir -p "$TMP/.fetched"; : > "$TMP/.fetched/$asset"
 }
 
@@ -1290,18 +1470,18 @@ verify() {
     # verify <asset> — check against sha256sums.txt
     local asset="$1"
     if (( DRY_RUN )); then
-        say "  [dry-run] verify sha256 of $asset against $SUMS"
+        say_f "  [dry-run] verify sha256 of {1} against {2}" "$asset" "$SUMS"
         return 0
     fi
-    [[ -f "$TMP/$SUMS" ]] || die "missing $SUMS (cannot verify $asset)"
+    [[ -f "$TMP/$SUMS" ]] || die "$(t "missing {1} (cannot verify {2})" "$SUMS" "$asset")"
     local want got
     want="$(awk -v a="$asset" '$2==a || $2=="*"a {print $1}' "$TMP/$SUMS" | head -1)"
-    [[ -n "$want" ]] || die "$asset not listed in $SUMS"
+    [[ -n "$want" ]] || die "$(t "{1} not listed in {2}" "$asset" "$SUMS")"
     got="$(sha256sum "$TMP/$asset" | awk '{print $1}')"
     if [[ "$want" != "$got" ]]; then
-        die "sha256 mismatch for $asset: want $want got $got"
+        die "$(t "sha256 mismatch for {1}: want {2} got {3}" "$asset" "$want" "$got")"
     fi
-    ok "sha256 ${got:0:16}${GL_ELL} $asset"
+    ok_f "sha256 {1}{2} {3}" "${got:0:16}" "$GL_ELL" "$asset"
 }
 
 ensure_sums() {
@@ -1431,7 +1611,7 @@ record_component() {
     local id="$1" label="$2" version="$3" method="$4" sudo="$5" assistant="$6"
     local dir="$COMP_DIR/$id"
     if (( DRY_RUN )); then
-        say "  [dry-run] record component $id -> $dir"
+        say_f "  [dry-run] record component {1} -> {2}" "$id" "$dir"
         return 0
     fi
     mkdir -p "$dir"
@@ -1455,7 +1635,7 @@ record_component() {
 
 rebuild_install_json() {
     if (( DRY_RUN )); then
-        say "  [dry-run] write $STATE_FILE"
+        say_f "  [dry-run] write {1}" "$STATE_FILE"
         return 0
     fi
     command -v python3 >/dev/null 2>&1 || { warn "python3 missing; per-component state kept, install.json not regenerated"; return 0; }
@@ -1517,7 +1697,7 @@ with open(tmp, "w", encoding="utf-8") as fh:
     fh.write("\n")
 os.replace(tmp, out)
 PY
-    ok "wrote $STATE_FILE"
+    ok_f "wrote {1}" "$STATE_FILE"
 }
 
 # --------------------------------------------------------------------------- #
@@ -1527,7 +1707,7 @@ print_banner() {
     ui_banner
     local iver="${VER:-$UTTER_VERSION}"
     if (( $(ui_cols) < 48 )); then
-        say "  installer · Linux (Wayland) · $iver"
+        say_f "  installer · Linux (Wayland) · {1}" "$iver"
     else
         printf '  %sinstaller%s · Linux (Wayland) · %s%s%s\n' \
             "$C_BOLD" "$C_RESET" "$C_MUTED" "$iver" "$C_RESET"
@@ -1596,7 +1776,7 @@ read_component_field() {
 
 do_uninstall() {
     section "uninstall"
-    say "  prefix: $PREFIX"
+    say_f "  prefix: {1}" "$PREFIX"
 
     local dirs=()
     if [[ -d "$COMP_DIR" ]]; then
@@ -1714,10 +1894,10 @@ do_uninstall() {
     local d cid
     for d in "${remove[@]}"; do
         cid="$(basename "$d")"
-        say "  - $cid"
+        say_f "  - {1}" "$cid"
         remove_component "$d"
         if (( DRY_RUN )); then
-            say "  [dry-run] remove record $d"
+            say_f "  [dry-run] remove record {1}" "$d"
         else
             rm -rf "$d"
         fi
@@ -1739,7 +1919,7 @@ do_uninstall() {
     fi
 
     section "done"
-    say "Uninstalled. User config in $CONFIG_DIR and downloaded models are kept."
+    say_f "Uninstalled. User config in {1} and downloaded models are kept." "$CONFIG_DIR"
 }
 
 remove_component() {
@@ -1747,26 +1927,26 @@ remove_component() {
     local f u pkg line
     while IFS= read -r line; do
         [[ -n "$line" ]] || continue
-        run "remove $line" rm -f "$line"
+        run_f "remove {1}" "$line" rm -f "$line"
     done < <(read_component_lines "$d" files)
     while IFS= read -r line; do
         [[ -n "$line" ]] || continue
-        run "remove $line" rm -rf "$line"
+        run_f "remove {1}" "$line" rm -rf "$line"
     done < <(read_component_lines "$d" dirs)
     while IFS= read -r u; do
         [[ -n "$u" ]] || continue
         if command -v systemctl >/dev/null 2>&1; then
-            run "disable --now $u" systemctl --user disable --now "$u" || true
+            run_f "disable --now {1}" "$u" systemctl --user disable --now "$u" || true
         fi
     done < <(read_component_lines "$d" units)
     while IFS= read -r pkg; do
         [[ -n "$pkg" ]] || continue
         case "$PKG_MGR" in
-            pacman) say "  to remove the package: sudo pacman -Rns $pkg" ;;
-            apt)    say "  to remove the package: sudo apt-get remove $pkg" ;;
-            dnf)    say "  to remove the package: sudo dnf remove $pkg" ;;
-            zypper) say "  to remove the package: sudo zypper remove $pkg" ;;
-            *)      say "  to remove the package: $pkg" ;;
+            pacman) say_f "  to remove the package: sudo pacman -Rns {1}" "$pkg" ;;
+            apt)    say_f "  to remove the package: sudo apt-get remove {1}" "$pkg" ;;
+            dnf)    say_f "  to remove the package: sudo dnf remove {1}" "$pkg" ;;
+            zypper) say_f "  to remove the package: sudo zypper remove {1}" "$pkg" ;;
+            *)      say_f "  to remove the package: {1}" "$pkg" ;;
         esac
     done < <(read_component_lines "$d" packages)
 }
@@ -1778,25 +1958,25 @@ read_component_lines() {
 
 do_uninstall_legacy() {
     note "no per-component install-state found; removing the classic bootstrap paths"
-    [[ -f "$GUI_BIN" ]] && run "remove $GUI_BIN" rm -f "$GUI_BIN" || note "no GUI binary"
-    [[ -L "$SYMLINK_PATH" ]] && run "remove $SYMLINK_PATH" rm -f "$SYMLINK_PATH" || true
-    [[ -f "$ASSISTANT_BIN" ]] && run "remove $ASSISTANT_BIN" rm -f "$ASSISTANT_BIN" || note "no assistant wrapper"
-    [[ -f "$DESKTOP_FILE" ]] && run "remove $DESKTOP_FILE" rm -f "$DESKTOP_FILE" || note "no desktop file"
+    [[ -f "$GUI_BIN" ]] && run_f "remove {1}" "$GUI_BIN" rm -f "$GUI_BIN" || note "no GUI binary"
+    [[ -L "$SYMLINK_PATH" ]] && run_f "remove {1}" "$SYMLINK_PATH" rm -f "$SYMLINK_PATH" || true
+    [[ -f "$ASSISTANT_BIN" ]] && run_f "remove {1}" "$ASSISTANT_BIN" rm -f "$ASSISTANT_BIN" || note "no assistant wrapper"
+    [[ -f "$DESKTOP_FILE" ]] && run_f "remove {1}" "$DESKTOP_FILE" rm -f "$DESKTOP_FILE" || note "no desktop file"
     for icon in "${ICON_FILES[@]}"; do
-        [[ -f "$icon" ]] && run "remove $icon" rm -f "$icon" || true
+        [[ -f "$icon" ]] && run_f "remove {1}" "$icon" rm -f "$icon" || true
     done
-    [[ -f "$RUNNER_UNIT" ]] && run "remove $RUNNER_UNIT" rm -f "$RUNNER_UNIT" || note "no runner unit"
+    [[ -f "$RUNNER_UNIT" ]] && run_f "remove {1}" "$RUNNER_UNIT" rm -f "$RUNNER_UNIT" || note "no runner unit"
     if [[ -d "$SHARE_DIR" ]]; then
-        run "remove $SHARE_DIR" rm -rf "$SHARE_DIR"
+        run_f "remove {1}" "$SHARE_DIR" rm -rf "$SHARE_DIR"
     else
-        note "no core tree at $SHARE_DIR"
+        note_f "no core tree at {1}" "$SHARE_DIR"
     fi
     if command -v systemctl >/dev/null 2>&1; then
         run "reload systemd user manager" systemctl --user daemon-reload || true
     fi
-    [[ -f "$STATE_FILE" ]] && run "remove $STATE_FILE" rm -f "$STATE_FILE" || true
+    [[ -f "$STATE_FILE" ]] && run_f "remove {1}" "$STATE_FILE" rm -f "$STATE_FILE" || true
     section "done"
-    say "Uninstalled. User config in $CONFIG_DIR and models are kept."
+    say_f "Uninstalled. User config in {1} and models are kept." "$CONFIG_DIR"
 }
 
 if (( UNINSTALL )); then
@@ -2006,7 +2186,7 @@ lang_offer_downloads() {
 
     say ""
     say "  English ships inline and needs no downloads."
-    say "  For $code, everything below is optional — press Enter to skip."
+    say_f "  For {1}, everything below is optional — press Enter to skip." "$code"
     say ""
 
     if [[ -n "$stt_src" ]]; then
@@ -2018,11 +2198,11 @@ lang_offer_downloads() {
         (( QUIT )) && return 1
     else
         note "no multilingual STT source configured; add it later with:"
-        say "        UTTER_MODEL_STT=$(lang_env_token "$code")=hf:org/repo assistant models pull <src>"
+        say_f "        UTTER_MODEL_STT_{1}=hf:org/repo assistant models pull <src>" "$(lang_env_token "$code")"
     fi
 
     if [[ -n "$tts_src" ]]; then
-        field "tts" "spoken replies for $code (voice model/path)"
+        field_f "tts" "spoken replies for {1} (voice model/path)" "$code"
         if ask_yn "n" "  Download the TTS voice for $code?"; then
             LANG_TTS_SRC="$tts_src"; LANG_ACCEPT+=(tts)
         fi
@@ -2057,7 +2237,7 @@ run_language_step() {
     say "  Spoken language for speech-to-text and spoken replies."
     say "  English ships inline and needs no downloads; other languages do."
     if [[ -n "$syscode" ]]; then
-        say "  Detected system language: $syscode"
+        say_f "  Detected system language: {1}" "$syscode"
     else
         say "  System language: not detected (C/POSIX); defaulting to English."
     fi
@@ -2067,7 +2247,7 @@ run_language_step() {
     if (( ASSUME_YES )); then
         LANG_CODE=""
         say "  default: English (default) — no downloads"
-        say "  to add a language later: edit [stt]/[tts] language in $CONFIG_FILE"
+        say_f "  to add a language later: edit [stt]/[tts] language in {1}" "$CONFIG_FILE"
         say "  then pull a multilingual model: assistant models pull <hf:org/repo[:file]>"
         return 0
     fi
@@ -2118,12 +2298,12 @@ run_language_step() {
     if [[ -z "$LANG_CODE" || "$LANG_CODE" == en || "$LANG_CODE" == en-* ]]; then
         LANG_CODE=""
         say "  selected: English (default) — inline, no downloads."
-        say "  to switch later, edit [stt]/[tts] language in $CONFIG_FILE"
+        say_f "  to switch later, edit [stt]/[tts] language in {1}" "$CONFIG_FILE"
         return 0
     fi
 
     LANG_TTS_VOICE="$(lang_voice_value "$LANG_CODE")"
-    say "  selected: $LANG_CODE"
+    say_f "  selected: {1}" "$LANG_CODE"
     lang_offer_downloads "$LANG_CODE"
 }
 
@@ -2162,7 +2342,7 @@ wizard() {
         # GUI: the release publishes x86_64 GUI assets only.
         if [[ "$id" == "gui" ]] && (( ! GUI_AVAILABLE )); then
             step_header "$((i+1))" "$TOTAL" "${COMP_LABELS[i]}"
-            note "no GUI assets are published for $ARCH yet (the AppImage/deb/rpm are x86_64 only); skipping."
+            note_f "no GUI assets are published for {1} yet (the AppImage/deb/rpm are x86_64 only); skipping." "$ARCH"
             DECISION[i]="skip"
             continue
         fi
@@ -2208,7 +2388,7 @@ wizard() {
             done < <(recommend_tiers)
             local accepted=0 idx
             for idx in "${!MODEL_TIER_KEYS[@]}"; do
-                if ask_yn "n" "  Download the ${MODEL_TIER_TITLES[idx]} model (${MODEL_TIER_SIZES[idx]})?"; then
+                if ask_yn_f "n" "  Download the {1} model ({2})?" "${MODEL_TIER_TITLES[idx]}" "${MODEL_TIER_SIZES[idx]}"; then
                     accepted=1
                     MODELS_YES="${MODELS_YES:+$MODELS_YES,}${MODEL_TIER_KEYS[idx]}"
                 fi
@@ -2224,7 +2404,7 @@ wizard() {
         else
             ui_rule
             ui_key_legend
-            if ask_yn "$rec" "  Install ${COMP_LABELS[i]}?"; then
+            if ask_yn_f "$rec" "  Install {1}?" "${COMP_LABELS[i]}"; then
                 DECISION[i]="yes"
             else
                 DECISION[i]="skip"
@@ -2295,13 +2475,13 @@ for i in "${!COMP_IDS[@]}"; do
         fi
     fi
 done
-if (( ENABLE_UNITS )); then say "  units: enable + start utter-runner.service now"; fi
+if (( ENABLE_UNITS )); then say_f "  units: enable + start utter-runner.service now"; fi
 if [[ -n "$LANG_CODE" ]]; then
-    say "  language: $LANG_CODE (English default otherwise)"
+    say_f "  language: {1} (English default otherwise)" "$LANG_CODE"
 else
     say "  language: English (default) — inline, no downloads"
 fi
-if (( ${#MODELS_YES} )); then say "  models accepted: $MODELS_YES"; fi
+if (( ${#MODELS_YES} )); then say_f "  models accepted: {1}" "$MODELS_YES"; fi
 if (( sudo_used )); then say "  sudo: required for one or more selected steps"; else say "  sudo: not required"; fi
 
 if (( ! ASSUME_YES )); then
@@ -2324,7 +2504,7 @@ exec_deps() {
         say "  all required dependencies are already present"
         return 0
     fi
-    say "  missing packages: $missing_csv"
+    say_f "  missing packages: {1}" "$missing_csv"
     local PKGS=()
     local p
     while IFS= read -r p; do [[ -n "$p" ]] && PKGS+=("$p"); done < <(missing_pkgs)
@@ -2337,7 +2517,7 @@ exec_deps() {
         *)      INSTALL_CMD=() ;;
     esac
     if (( ${#INSTALL_CMD[@]} == 0 )); then
-        warn "no package manager command for '$PKG_MGR'; install manually: ${PKGS[*]}"
+        warn "$(t "no package manager command for '{1}'; install manually: {2}" "$PKG_MGR" "${PKGS[*]}")"
     elif (( DRY_RUN )); then
         run "install system dependencies" "${INSTALL_CMD[@]}"
     elif sudo -n true 2>/dev/null; then
@@ -2376,7 +2556,7 @@ ensure_python_deps() {
     local venv="$SHARE_DIR/.venv-agent"
     if (( DRY_RUN )); then
         ASSISTANT_PY="$venv/bin/python"
-        run "create $venv" python3 -m venv "$venv"
+        run_f "create {1}" "$venv" python3 -m venv "$venv"
         run "install PyYAML + requests" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests
         return 0
     fi
@@ -2386,7 +2566,7 @@ ensure_python_deps() {
     fi
     if [[ -x "$venv/bin/python" ]] \
         && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
-        ok "installed PyYAML + requests into $venv"
+        ok_f "installed PyYAML + requests into {1}" "$venv"
         ASSISTANT_PY="$venv/bin/python"
         return 0
     fi
@@ -2411,7 +2591,7 @@ fix_plugin_python() {
         "$SHARE_DIR/config.m3.toml"
     )
     if (( DRY_RUN )); then
-        say "  [dry-run] point plugin entrypoints at $ASSISTANT_PY"
+        say_f "  [dry-run] point plugin entrypoints at {1}" "$ASSISTANT_PY"
         return 0
     fi
     local f
@@ -2422,15 +2602,15 @@ fix_plugin_python() {
             -e "s|entrypoint = \\[\"python3\", \"-m\", \"plugin\"\\]|entrypoint = [\"${ASSISTANT_PY}\", \"-m\", \"plugin\"]|" \
             "$f"
     done
-    ok "plugin utter_py will run with $ASSISTANT_PY"
+    ok_f "plugin utter_py will run with {1}" "$ASSISTANT_PY"
 }
 
 exec_core() {
     section "install core (runner + assistant CLI)"
     fetch_core
-    run "create $SHARE_DIR" mkdir -p "$SHARE_DIR"
+    run_f "create {1}" "$SHARE_DIR" mkdir -p "$SHARE_DIR"
     if (( DRY_RUN )); then
-        say "  [dry-run] extract $CORE_TARBALL -> $SHARE_DIR"
+        say_f "  [dry-run] extract {1} -> {2}" "$CORE_TARBALL" "$SHARE_DIR"
     else
         local extract="$TMP/extract"
         mkdir -p "$extract"
@@ -2439,12 +2619,12 @@ exec_core() {
         [[ -n "$top" ]] || die "core tarball has no top-level directory"
         rm -rf "$SHARE_DIR"
         mv "$top" "$SHARE_DIR"
-        ok "extracted core -> $SHARE_DIR"
+        ok_f "extracted core -> {1}" "$SHARE_DIR"
     fi
 
-    run "create $BIN_DIR" mkdir -p "$BIN_DIR"
+    run_f "create {1}" "$BIN_DIR" mkdir -p "$BIN_DIR"
     if (( DRY_RUN )); then
-        say "  [dry-run] write $ASSISTANT_BIN (wrapper for python -m assistant)"
+        say_f "  [dry-run] write {1} (wrapper for python -m assistant)" "$ASSISTANT_BIN"
     else
         cat > "$ASSISTANT_BIN" <<WRAP
 #!/usr/bin/env bash
@@ -2462,7 +2642,7 @@ fi
 exec "\$PY" -m assistant "\$@"
 WRAP
         chmod +x "$ASSISTANT_BIN"
-        ok "wrote $ASSISTANT_BIN"
+        ok_f "wrote {1}" "$ASSISTANT_BIN"
     fi
     ensure_python_deps
     fix_plugin_python
@@ -2482,7 +2662,7 @@ exec_units() {
         unit_src="$CORE_CONTEXT/install/utter-runner.service"
     fi
     if [[ -f "$unit_src" ]] || (( DRY_RUN )); then
-        run "create $UNIT_DIR" mkdir -p "$UNIT_DIR"
+        run_f "create {1}" "$UNIT_DIR" mkdir -p "$UNIT_DIR"
         # The unit ships with @REPO@ placeholders; point them at the installed
         # core tree, or systemd tries to run a literal "@REPO@" path.
         install_unit() { sed "s|@REPO@|$SHARE_DIR|g" "$unit_src" > "$RUNNER_UNIT"; }
@@ -2508,14 +2688,14 @@ exec_lang() {
     section "language"
     if [[ -z "$LANG_CODE" ]]; then
         say "  English (default) — ships inline, no downloads."
-        say "  To switch languages later, edit [stt]/[tts] language in $CONFIG_FILE"
+        say_f "  To switch languages later, edit [stt]/[tts] language in {1}" "$CONFIG_FILE"
         say "  and pull a multilingual model: assistant models pull <hf:org/repo[:file]>"
         reset_record
         D_KEEP=1
         record_component lang "Language (English)" "$VER_NUM" "inline" 0 "$ASSISTANT_BIN"
         return 0
     fi
-    say "  Selected language: $LANG_CODE"
+    say_f "  Selected language: {1}" "$LANG_CODE"
     if (( ${#LANG_ACCEPT[@]} == 0 )); then
         say "  No downloads accepted; English-only models keep working."
         say "  Add a multilingual model later: assistant models pull <hf:org/repo[:file]>"
@@ -2540,9 +2720,9 @@ exec_lang() {
             *)   src="" ;;
         esac
         if [[ -n "$src" ]]; then
-            run "pull $LANG_CODE $kind download ($src)" "$ASSISTANT_BIN" models pull "$src"
+            run_f "pull {1} {2} download ({3})" "$LANG_CODE" "$kind" "$src" "$ASSISTANT_BIN" models pull "$src"
         else
-            note "no source configured for the $LANG_CODE $kind download; pull it later with:"
+            note_f "no source configured for the {1} {2} download; pull it later with:" "$LANG_CODE" "$kind"
             say "        assistant models pull <hf:org/repo[:file] | https://… | file://…>"
         fi
     done
@@ -2569,9 +2749,9 @@ exec_models() {
             *)        src="" ;;
         esac
         if [[ -n "$src" ]]; then
-            run "pull $key model ($src)" "$ASSISTANT_BIN" models pull "$src"
+            run_f "pull {1} model ({2})" "$key" "$src" "$ASSISTANT_BIN" models pull "$src"
         else
-            note "no source configured for the $key tier; pull it later with:"
+            note_f "no source configured for the {1} tier; pull it later with:" "$key"
             say "        assistant models pull <hf:org/repo[:file] | https://… | file://…>"
         fi
     done
@@ -2581,9 +2761,9 @@ exec_models() {
 }
 
 exec_gui() {
-    section "install GUI ($MODE)"
+    section_f "install GUI ({1})" "$MODE"
     if (( ! GUI_AVAILABLE )); then
-        note "no GUI assets are published for $ARCH yet (x86_64 only); skipping the GUI."
+        note_f "no GUI assets are published for {1} yet (x86_64 only); skipping the GUI." "$ARCH"
         return 0
     fi
     choose_gui_asset
@@ -2591,12 +2771,12 @@ exec_gui() {
     if [[ "$MODE" == "appimage" ]]; then
         run "create $BIN_DIR" mkdir -p "$BIN_DIR"
         if (( DRY_RUN )); then
-            say "  [dry-run] install $GUI_ASSET -> $GUI_BIN (chmod +x)"
-            say "  [dry-run] install icons -> $ICON_THEME_DIR"
-            say "  [dry-run] write $DESKTOP_FILE"
+            say_f "  [dry-run] install {1} -> {2} (chmod +x)" "$GUI_ASSET" "$GUI_BIN"
+            say_f "  [dry-run] install icons -> {1}" "$ICON_THEME_DIR"
+            say_f "  [dry-run] write {1}" "$DESKTOP_FILE"
         else
             install -m 0755 "$TMP/$GUI_ASSET" "$GUI_BIN"
-            ok "installed $GUI_BIN"
+            ok_f "installed {1}" "$GUI_BIN"
             if [[ -d "$SHARE_DIR/assets/icons" ]]; then
                 for pair in "utter-32.png:32x32" "utter-64.png:64x64" "utter-128.png:128x128" "utter-256.png:256x256"; do
                     mkdir -p "$ICON_THEME_DIR/${pair##*:}/apps"
@@ -2608,7 +2788,7 @@ exec_gui() {
                     install -m 0644 "$SHARE_DIR/assets/icons/utter.svg" \
                         "$ICON_THEME_DIR/scalable/apps/$ICON_NAME.svg"
                 fi
-                ok "installed icons ($ICON_NAME)"
+                ok_f "installed icons ({1})" "$ICON_NAME"
                 command -v gtk-update-icon-cache >/dev/null 2>&1 && \
                     gtk-update-icon-cache -f -t "$ICON_THEME_DIR" >/dev/null 2>&1 || true
             else
@@ -2630,14 +2810,14 @@ Keywords=utter;voice;assistant;settings;stt;llm;
 StartupNotify=true
 StartupWMClass=utter
 DESKTOP
-            ok "wrote $DESKTOP_FILE"
+            ok_f "wrote {1}" "$DESKTOP_FILE"
             command -v update-desktop-database >/dev/null 2>&1 && \
                 update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
         fi
         local symlink=""
         if [[ ":$PATH:" != *":$BIN_DIR:"* && "$BIN_DIR" != "$HOME/.local/bin" ]] && command -v noctalia >/dev/null 2>&1; then
-            run "create $HOME/.local/bin" mkdir -p "$HOME/.local/bin"
-            run "symlink $SYMLINK_PATH -> $GUI_BIN (Noctalia left-click)" ln -sf "$GUI_BIN" "$SYMLINK_PATH"
+            run_f "create {1}" "$HOME/.local/bin" mkdir -p "$HOME/.local/bin"
+            run_f "symlink {1} -> {2} (Noctalia left-click)" "$SYMLINK_PATH" "$GUI_BIN" ln -sf "$GUI_BIN" "$SYMLINK_PATH"
             symlink="$SYMLINK_PATH"
         fi
         reset_record
@@ -2662,7 +2842,7 @@ DESKTOP
                 say "            \$ ${PKG_CMD[*]}"
             fi
         else
-            warn "no package manager command for '$PKG_MGR'; install $GUI_ASSET manually"
+            warn "$(t "no package manager command for '{1}'; install {2} manually" "$PKG_MGR" "$GUI_ASSET")"
         fi
         reset_record
         D_PACKAGES=("utter-gui")
@@ -2723,7 +2903,7 @@ toml_escape() {
 set_config_value() {
     local file="$1"; shift
     if (( DRY_RUN )); then
-        say "  [dry-run] edit $file"
+        say_f "  [dry-run] edit {1}" "$file"
         return 0
     fi
     local section key value
@@ -2807,22 +2987,22 @@ exec_config() {
     ensure_core_context
     local src="$CORE_CONTEXT/config.default.toml"
     if [[ -f "$CONFIG_FILE" ]] && (( ! OVERWRITE_CONFIG )); then
-        note "keeping existing $CONFIG_FILE (not overwritten)"
+        note_f "keeping existing {1} (not overwritten)" "$CONFIG_FILE"
         return 0
     fi
     if [[ -f "$src" ]] || (( DRY_RUN )); then
-        run "create $CONFIG_DIR" mkdir -p "$CONFIG_DIR"
-        run "write $CONFIG_FILE from default" cp "$src" "$CONFIG_FILE"
+        run_f "create {1}" "$CONFIG_DIR" mkdir -p "$CONFIG_DIR"
+        run_f "write {1} from default" "$CONFIG_FILE" cp "$src" "$CONFIG_FILE"
         if [[ -n "$LANG_CODE" ]]; then
             if (( DRY_RUN )); then
-                say "  [dry-run] set [stt] language = \"$LANG_CODE\" in $CONFIG_FILE"
-                say "  [dry-run] set [tts] language = \"$LANG_CODE\" in $CONFIG_FILE"
+                say_f "  [dry-run] set [stt] language = \"{1}\" in {2}" "$LANG_CODE" "$CONFIG_FILE"
+                say_f "  [dry-run] set [tts] language = \"{1}\" in {2}" "$LANG_CODE" "$CONFIG_FILE"
                 [[ -n "$LANG_TTS_VOICE" ]] && \
-                    say "  [dry-run] set [tts] voice = \"$LANG_TTS_VOICE\" in $CONFIG_FILE"
+                    say_f "  [dry-run] set [tts] voice = \"{1}\" in {2}" "$LANG_TTS_VOICE" "$CONFIG_FILE"
             else
                 set_config_value "$CONFIG_FILE" stt language "$LANG_CODE" \
                     tts language "$LANG_CODE" tts voice "$LANG_TTS_VOICE"
-                ok "wrote language $LANG_CODE to $CONFIG_FILE"
+                ok_f "wrote language {1} to {2}" "$LANG_CODE" "$CONFIG_FILE"
             fi
         fi
         reset_record
@@ -2858,26 +3038,26 @@ rebuild_install_json
 # --------------------------------------------------------------------------- #
 section "done"
 if (( DRY_RUN )); then
-    say "Dry-run complete. Re-run without --dry-run to apply."
+    say_f "Dry-run complete. Re-run without --dry-run to apply."
 else
     if ui_unicode_ok; then
         printf '  %s%s%s Installed utter %s into %s\n' \
             "$C_OK" "$TASK_DONE" "$C_RESET" "$VER" "$PREFIX"
     else
-        say "Installed utter $VER into $PREFIX"
+        say_f "Installed utter {1} into {2}" "$VER" "$PREFIX"
     fi
     say ""
     if [[ -n "$LANG_CODE" ]]; then
-        say "Language: $LANG_CODE"
+        say_f "Language: {1}" "$LANG_CODE"
     else
         say "Language: English (default; English ships inline, no downloads)"
-        say "  to add a language later: edit [stt]/[tts] language in $CONFIG_FILE"
+        say_f "  to add a language later: edit [stt]/[tts] language in {1}" "$CONFIG_FILE"
         say "  then: assistant models pull <hf:org/repo[:file]>"
     fi
     say ""
     say "Next steps:"
     say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
-    say "  2. Check the install:  $ASSISTANT_BIN doctor --json"
+    say_f "  2. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
     if (( GUI_AVAILABLE )); then
         say "  3. Launch the GUI:     ${GUI_BIN}"
         say "  4. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
@@ -2886,7 +3066,7 @@ else
     fi
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         say ""
-        note "$BIN_DIR is not on your PATH; add it: export PATH=\"$BIN_DIR:\$PATH\""
+        note_f "{1} is not on your PATH; add it: export PATH=\"{1}:\$PATH\"" "$BIN_DIR"
     fi
     if ui_unicode_ok; then
         printf '\n  %sutter%s\n' "$C_FAINT" "$C_RESET"
