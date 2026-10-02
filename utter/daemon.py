@@ -83,6 +83,31 @@ def _pcm16_source(chunks, lock):
     return source
 
 
+def _model_service_reachable(cfg) -> bool:
+    """True when the model server for this platform is actually up.
+
+    On macOS the only model service is the local LLM (Ollama), which is
+    optional. A short probe lets the OSD skip the cold-start "loading" watcher
+    when there is nothing to wait for (no panel, no 30 s timeout warning).
+    On other platforms this is always True so behaviour is unchanged.
+    """
+    try:
+        from . import platform
+        if not platform.is_macos():
+            return True
+        from . import runtime as _runtime
+        resolved = _runtime.resolve_router(cfg)
+        base = (getattr(resolved, "llm_base_url", "") or "").rstrip("/")
+        if not base:
+            return False
+        import urllib.request
+        request = urllib.request.Request(base + "/models", method="GET")
+        with urllib.request.urlopen(request, timeout=0.6):
+            return True
+    except Exception:  # noqa: BLE001 - unavailable is a normal, non-fatal state
+        return False
+
+
 class _NativeOverlay:
     """System-wide overlay facade (macOS native panel; no-op elsewhere).
 
@@ -232,6 +257,14 @@ class _Osd:
         services = list(getattr(sc, "services", []) or [])
         if not services:
             return
+        # On macOS the only model service is the local LLM server (Ollama),
+        # which is optional: rules + whisper STT work without it. If nothing is
+        # actually listening there is nothing to wait for, so skip the watcher
+        # entirely — otherwise every cold start shows a "Models are coming up…"
+        # panel and logs a 30 s timeout warning for a server that isn't there.
+        if not _model_service_reachable(cfg):
+            log.debug("model loading: no reachable model service; skipping watcher")
+            return
         try:
             from .voice import model_loading as ml
             # Pass ``self`` (not the emitter) so the watcher's ready()/timeout
@@ -247,12 +280,12 @@ class _Osd:
 
     def begin_loading(self) -> None:
         """Show ``loading`` until the model services report ready (cold/wake)."""
-        native = getattr(self, "_native", None)
-        # Re-assert the native panel even when the JSON emitter is disabled or
-        # has no watcher; never early-return before notifying the native side.
-        self.loading("Models are coming up…")
+        # Only show the loading state when a watcher exists to clear it again;
+        # otherwise the panel would be stuck on screen until the next PTT.
         if self.watcher is None:
             return
+        native = getattr(self, "_native", None)
+        self.loading("Models are coming up…")
         if not self.enabled and native is None:
             # Preserve the previous Linux behaviour: a disabled emitter with no
             # native overlay starts no polling thread.
