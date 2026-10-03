@@ -31,6 +31,12 @@ export PATH="$HOME/.local/bin:$PATH"
 `assistant doctor` tells you which command-line tools are missing and whether your user can read
 input devices. The most common fixes are covered in [Troubleshooting](/help/troubleshooting/).
 
+Opening `utter-gui` for the first time runs a mandatory **onboarding wizard** before the settings
+shell appears. It walks through your **language**, the required **permissions**, your
+push-to-talk **keys**, which **apps** Utter is allowed to act on, and a first **model**. Every
+step can be skipped, progress is remembered across launches, and you can re-run the wizard any
+time from Settings.
+
 ## 2. Set your push-to-talk keys
 
 Utter has **two** push-to-talk keys, one per mode. Both are plain evdev key names and both are
