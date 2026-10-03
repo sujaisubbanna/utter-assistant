@@ -1,0 +1,13 @@
+# Apps Utter enables by default under the per-app opt-in hard cut.
+#
+# Read-only policy data (reserved: never treated as a profile). It is the ONLY
+# app-specific set enabled on a fresh install; every other catalogue app is off
+# until the user opts in. `scripts/gen_app_catalog.py` must never write
+# `enabled` into the regenerated per-machine catalogue.
+preselected:
+  ids:
+    - spotify
+    - firefox
+    - google-chrome
+    - code
+    - org.gnome.Nautilus

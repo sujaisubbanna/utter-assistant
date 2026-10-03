@@ -27,7 +27,7 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from utter.router import rules  # noqa: E402
-from utter.router.profiles import AppProfile  # noqa: E402
+from utter.router.profiles import AppProfile, enabled_profiles  # noqa: E402
 from utter.types import Context, FocusedWindow  # noqa: E402
 
 
@@ -213,6 +213,85 @@ class RulesGoldenOrderTests(unittest.TestCase):
             ("the quick brown fox", False),
         ]:
             self.assertEqual(rules.is_command_like(text), expected, text)
+
+
+# --- per-app opt-in gate: routing must consume the enabled subset only -------
+SPOTIFY = AppProfile(id="spotify", name="Spotify", aliases=["spotify"], enabled=True)
+FIREFOX = AppProfile(
+    id="firefox", name="Firefox", kind="browser", aliases=["browser"], enabled=True,
+    shortcuts={"new_tab": "ctrl+t", "close_tab": "ctrl+w", "reload": "F5",
+               "address_bar": "ctrl+l"},
+    commands={"open youtube": "ctrl+y"},
+    search_url="https://duckduckgo.com/?q={q}",
+)
+CODE = AppProfile(id="code", name="Code", kind="editor", aliases=["vscode"])
+
+
+def _enabled(*profiles):
+    return enabled_profiles({p.id: p for p in profiles})
+
+
+def _off(profile):
+    import copy
+    p = copy.copy(profile)
+    p.enabled = False
+    return p
+
+
+class AppOptInRoutingTest(unittest.TestCase):
+    def test_disabled_app_media_not_planned(self):
+        off = _enabled(_off(SPOTIFY))
+        self.assertIsNone(rules.plan("spotify pause", _NONE, off))
+
+    def test_enabled_app_media_planned(self):
+        on = _enabled(SPOTIFY)
+        got = snapshot(rules.plan("spotify pause", _NONE, on))
+        self.assertEqual(got["steps"], [
+            step("media", {"command": "pause", "app": "spotify"}, "app", "pause in Spotify"),
+        ])
+
+    def test_disabled_app_unreachable_by_open(self):
+        # A non-site app: disabled -> the explicit "open <app>" escalates.
+        off = _enabled(_off(CODE))
+        self.assertIsNone(rules.plan("open code", _NONE, off))
+        # A site (youtube) still opens even when its app is disabled.
+        off_firefox = _enabled(_off(FIREFOX))
+        site = snapshot(rules.plan("open youtube", _NONE, off_firefox))
+        self.assertEqual(site["steps"][0]["action"], "ensure_url")
+
+    def test_disabled_app_unreachable_by_site_and_close(self):
+        off = _enabled(_off(CODE))
+        self.assertIsNone(rules.plan("switch to code", _NONE, off))
+        self.assertIsNone(rules.plan("close code", _NONE, off))
+
+    def test_disabled_focused_app_custom_command_ignored(self):
+        # Firefox's custom "open youtube" chord must not fire when disabled;
+        # the site path still handles it.
+        off = _enabled(_off(FIREFOX))
+        focus = Context(focused=FocusedWindow(app_id="firefox", title="YouTube"))
+        got = snapshot(rules.plan("open youtube", focus, off))
+        self.assertEqual(got["steps"][0]["action"], "ensure_url")
+
+    def test_disabled_focused_browser_shortcut_ignored(self):
+        off = _enabled(_off(FIREFOX))
+        focus = Context(focused=FocusedWindow(app_id="firefox", title="x"))
+        self.assertIsNone(rules.plan("new tab", focus, off))
+        on = _enabled(FIREFOX)
+        got = snapshot(rules.plan("new tab", focus, on))
+        self.assertEqual(got["steps"][0], step("key", {"chord": "ctrl+t"}, "keyboard",
+                                               "new_tab in firefox"))
+
+    def test_type_stays_focused_when_target_disabled(self):
+        off = _enabled(_off(CODE))
+        got = snapshot(rules.plan("type ok", _TEXT, off))
+        self.assertEqual(got["steps"], [step("type_text", {"text": "ok"}, "app", "type 'ok'")])
+
+    def test_cli_agent_ungated(self):
+        # "codex" is synthesised, not a catalogue profile; it must still target.
+        off = _enabled(_off(CODE))
+        got = snapshot(rules.plan("codex type ok", _NONE, off))
+        self.assertEqual(got["steps"], [step("type_text", {"text": "ok", "app": "codex"},
+                                             "app", "type 'ok' in codex")])
 
 
 if __name__ == "__main__":

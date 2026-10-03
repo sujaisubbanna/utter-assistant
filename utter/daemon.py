@@ -349,13 +349,23 @@ class Utter:
             from .context import desktop
             return desktop.build_context(with_a11y=with_a11y)
 
-        self.executor = Executor(ctx_builder, self.cfg, profiles=self.profiles)
+        self.executor = Executor(ctx_builder, self.cfg, profiles=self.profiles,
+                                 reload_profiles=True)
 
     # -- routing -----------------------------------------------------------
     def route(self, utterance: str, ctx: Context) -> Optional[Plan]:
-        from .router import decide, planner, rules
+        from .router import decide, planner, profiles as profiles_mod, rules
 
-        rp = rules.plan(utterance, ctx, self.profiles)
+        # Refresh (mtime-invalidated) so a GUI/CLI opt-in toggle applies without
+        # a restart, then route over the enabled subset only. The executor keeps
+        # the *full* dict so it can still tell disabled-known from unknown.
+        profiles = profiles_mod.load_cached()
+        self.profiles = profiles
+        if self.executor is not None:
+            self.executor._profiles = profiles
+        enabled = profiles_mod.enabled_profiles(profiles)
+
+        rp = rules.plan(utterance, ctx, enabled)
 
         # Deterministic multi-step plans (e.g. "close youtube" -> focus + close)
         # are kept in rules; they cannot be expressed as a single decision.
@@ -367,7 +377,7 @@ class Utter:
         # commands, replacing brittle string matching.
         dec = None
         try:
-            dec = decide.decide(utterance, ctx, self.profiles, self.cfg.router)
+            dec = decide.decide(utterance, ctx, enabled, self.cfg.router)
         except Exception as e:  # noqa: BLE001
             log.debug("decide failed: %s", e)
 
@@ -384,7 +394,7 @@ class Utter:
         # the free-form planner (only when the model server is unreachable).
         if rp is not None:
             return rp
-        p = planner.plan(utterance, ctx, self.profiles, self.cfg.router)
+        p = planner.plan(utterance, ctx, enabled, self.cfg.router)
         if p is not None:
             log.info("llm planner produced plan (conf=%.2f)", p.confidence)
         return p

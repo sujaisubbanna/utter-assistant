@@ -33,6 +33,8 @@ for pid, prof in base.items():
         "builtin_shortcuts": d.get("shortcuts") or {},
         "app_ids": eff.get("app_ids") or [],
         "curated": pid in curated,
+        "enabled": bool(d.get("enabled")),
+        "preselected": bool(d.get("preselected")),
         "user": u or None,
         # a full profile you keep yourself (vs. a small edit saved by the settings app)
         "own": bool(u) and pid not in curated and ("launch" in u or "name" in u),
@@ -53,35 +55,89 @@ import yaml
 user_dir, pid, payload = Path(sys.argv[1]), sys.argv[2], json.loads(sys.argv[3])
 if not pid or len(pid) > 120 or "/" in pid or pid.startswith(".") or any(ord(c) < 32 for c in pid):
     sys.exit("invalid profile id")
-out = {"id": pid}
-aliases = payload.get("aliases")
-if aliases is not None:
-    out["aliases"] = [str(a).strip()[:60] for a in aliases if str(a).strip()][:32]
-shortcuts = payload.get("shortcuts") or {}
-clean = {}
-for name, chord in shortcuts.items():
-    name, chord = str(name).strip(), str(chord).strip()
-    if not re.fullmatch(r"[a-z0-9_]{1,40}", name):
-        sys.exit(f"invalid action name: {name}")
-    if not re.fullmatch(r"[A-Za-z0-9_+\-]{1,40}", chord):
-        sys.exit(f"invalid key combination for {name}: {chord}")
-    clean[name] = chord
-if clean:
-    out["shortcuts"] = clean
-url = payload.get("search_url")
-if url:
-    url = str(url).strip()
-    if not re.match(r"https?://", url) or "{q}" not in url or len(url) > 500:
-        sys.exit("search address must start with http(s):// and contain {q}")
-    out["search_url"] = url
-user_dir.mkdir(parents=True, exist_ok=True)
 target = user_dir / (re.sub(r"[^A-Za-z0-9._-]", "_", pid) + ".yaml")
+# Start from any existing override so fields this edit does not touch survive:
+# a toggle must keep custom `commands`, and a shortcut edit must keep `enabled`.
+existing = {}
+if target.is_file():
+    try:
+        existing = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
+    except Exception:
+        existing = {}
+out = dict(existing) if isinstance(existing, dict) else {}
+out["id"] = pid
+enabled = payload.get("enabled", out.get("enabled"))
+if enabled is not None:
+    if not isinstance(enabled, bool):
+        sys.exit("enabled must be a boolean")
+    out["enabled"] = enabled
+if "aliases" in payload:
+    aliases = payload.get("aliases") or []
+    out["aliases"] = [str(a).strip()[:60] for a in aliases if str(a).strip()][:32]
+if "shortcuts" in payload:
+    clean = {}
+    for name, chord in (payload.get("shortcuts") or {}).items():
+        name, chord = str(name).strip(), str(chord).strip()
+        if not re.fullmatch(r"[a-z0-9_]{1,40}", name):
+            sys.exit(f"invalid action name: {name}")
+        if not re.fullmatch(r"[A-Za-z0-9_+\-]{1,40}", chord):
+            sys.exit(f"invalid key combination for {name}: {chord}")
+        clean[name] = chord
+    if clean:
+        out["shortcuts"] = clean
+    else:
+        out.pop("shortcuts", None)
+if "search_url" in payload:
+    url = payload.get("search_url")
+    if not url:
+        out.pop("search_url", None)
+    else:
+        url = str(url).strip()
+        if not re.match(r"https?://", url) or "{q}" not in url or len(url) > 500:
+            sys.exit("search address must start with http(s):// and contain {q}")
+        out["search_url"] = url
+user_dir.mkdir(parents=True, exist_ok=True)
 fd, tmp = tempfile.mkstemp(dir=user_dir, suffix=".tmp")
 with os.fdopen(fd, "w", encoding="utf-8") as fh:
     fh.write("# Written by the utter settings app. Overrides the built-in profile.\n")
     yaml.safe_dump(out, fh, sort_keys=False, allow_unicode=True)
 os.replace(tmp, target)
 print(json.dumps({"ok": True, "path": str(target)}))
+"##;
+
+/// argv: user_dir, json ids, enabled. Writes/updates each override's `enabled`.
+pub const SET_ENABLED_SCRIPT: &str = r##"
+import json, os, re, sys, tempfile
+from pathlib import Path
+import yaml
+
+user_dir, ids_raw, enabled_raw = Path(sys.argv[1]), json.loads(sys.argv[2]), sys.argv[3].strip().lower()
+enabled = enabled_raw in ("1", "true", "yes", "on")
+if not isinstance(ids_raw, list):
+    sys.exit("ids must be a list")
+written = []
+for raw_id in ids_raw:
+    pid = str(raw_id)
+    if not pid or len(pid) > 120 or "/" in pid or pid.startswith(".") or any(ord(c) < 32 for c in pid):
+        sys.exit("invalid profile id: %r" % (pid,))
+    target = user_dir / (re.sub(r"[^A-Za-z0-9._-]", "_", pid) + ".yaml")
+    existing = {}
+    if target.is_file():
+        try:
+            existing = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
+        except Exception:
+            existing = {}
+    existing = dict(existing) if isinstance(existing, dict) else {}
+    existing["id"] = pid
+    existing["enabled"] = enabled
+    user_dir.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=user_dir, suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("# Written by the utter settings app. Overrides the built-in profile.\n")
+        yaml.safe_dump(existing, fh, sort_keys=False, allow_unicode=True)
+    os.replace(tmp, target)
+    written.append(pid)
+print(json.dumps({"ok": True, "written": written}))
 "##;
 
 /// Accept only a plain profile id (no path separators or control chars).

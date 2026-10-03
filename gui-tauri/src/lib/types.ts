@@ -203,6 +203,7 @@ export interface ProfileOverride {
   aliases?: string[];
   shortcuts?: Record<string, string>;
   search_url?: string | null;
+  enabled?: boolean;
 }
 
 export interface AppProfile {
@@ -216,6 +217,10 @@ export interface AppProfile {
   builtin_shortcuts: Record<string, string>;
   app_ids: string[];
   curated: boolean;
+  /** Per-app opt-in gate: false means Utter ignores the app entirely. */
+  enabled: boolean;
+  /** True for the shipped curated default set. */
+  preselected: boolean;
   user: (ProfileOverride & { id?: string }) | null;
   own?: boolean;
 }

@@ -101,11 +101,12 @@ class AppTargetExecutorTest(unittest.TestCase):
     def setUp(self):
         INJECTED.clear()
         self.profiles = {
-            "codex": AppProfile(id="codex", name="Codex", aliases=["codex"]),
+            "codex": AppProfile(id="codex", name="Codex", aliases=["codex"], enabled=True),
             "steam": AppProfile(id="steam", name="Steam", aliases=["steam"],
-                                app_ids=["steam", "Steam", "steam"]),
+                                app_ids=["steam", "Steam", "steam"], enabled=True),
             "spotify": AppProfile(id="spotify", name="Spotify", aliases=["spotify"],
-                                  app_ids=["spotify", "com.spotify.Client", "spotify"]),
+                                  app_ids=["spotify", "com.spotify.Client", "spotify"],
+                                  enabled=True),
         }
         self.cfg = Config()
         self.confirm_requests: list = []
@@ -366,9 +367,9 @@ class ResolutionTest(unittest.TestCase):
     def setUp(self):
         self.profiles = {
             "steam": AppProfile(id="steam", name="Steam", aliases=["steam"],
-                                app_ids=["steam", "Steam", "steam"]),
+                                app_ids=["steam", "Steam", "steam"], enabled=True),
             "spotify": AppProfile(id="spotify", name="Spotify", aliases=["spotify"],
-                                  app_ids=["spotify", "com.spotify.Client"]),
+                                  app_ids=["spotify", "com.spotify.Client"], enabled=True),
         }
         self.ex = Executor(lambda with_a11y=False: None, Config(), profiles=self.profiles)
 
@@ -455,6 +456,188 @@ class MediaSelectionTest(unittest.TestCase):
     def test_no_filter_prefers_real_player(self):
         names = ["dev.noctalia.Mpris", "org.mpris.MediaPlayer2.vlc"]
         self.assertEqual(_select_mpris(names), "org.mpris.MediaPlayer2.vlc")
+
+
+class AppOptInExecutorTest(unittest.TestCase):
+    """The executor holds the FULL dict so direct RPC cannot bypass the gate.
+
+    A known-but-disabled ``args.app`` refuses in every app-specific handler and
+    in targeted input, while an explicit ``window_id`` and a synthesised
+    CLI-agent name still work.
+    """
+
+    def setUp(self):
+        INJECTED.clear()
+        self.profiles = {
+            "code": AppProfile(id="code", name="Code", aliases=["code"],
+                               app_ids=["code"], enabled=True),
+            "spotify": AppProfile(id="spotify", name="Spotify", aliases=["spotify"],
+                                  app_ids=["spotify", "Spotify"], enabled=False),
+        }
+        self.cfg = Config()
+        self.launched: list = []
+        self.mpris_calls: list = []
+        self._patches = [
+            mock.patch("utter.actions.launch.launch_app", self._stub_launch),
+            mock.patch.object(executor_mod, "_mpris", self._stub_mpris),
+            mock.patch("utter.actions.keyboard.send_key", _stub_key),
+            mock.patch("utter.actions.keyboard.type_text", _stub_type),
+        ]
+        for p in self._patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _stub_launch(self, argv):
+        self.launched.append(argv)
+        return ActionResult(True, Action.LAUNCH_APP, Tier.APP, "stub launch")
+
+    def _stub_mpris(self, command, candidate_ids=None):
+        self.mpris_calls.append((command, candidate_ids))
+        return ActionResult(True, Action.MEDIA, Tier.APP, "stub media")
+
+    def _executor(self):
+        return Executor(lambda with_a11y=False: None, self.cfg, profiles=self.profiles)
+
+    def _step(self, action, args):
+        return Step(action, args, tier=Tier.APP)
+
+    def test_ensure_app_disabled_refuses(self):
+        res = self._executor().execute_step(self._step(Action.ENSURE_APP, {"app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+        self.assertIn("disabled", res.detail)
+        self.assertEqual(self.launched, [])
+
+    def test_focus_app_disabled_refuses(self):
+        res = self._executor().execute_step(self._step(Action.FOCUS_APP, {"app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+
+    def test_launch_app_disabled_refuses(self):
+        res = self._executor().execute_step(self._step(Action.LAUNCH_APP, {"app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(self.launched, [])
+
+    def test_launch_app_direct_argv_stays_allowed(self):
+        # CLI-agent/ComfyUI launches carry argv; the runner terminal/input gate
+        # covers them, not the per-app opt-in.
+        res = self._executor().execute_step(
+            self._step(Action.LAUNCH_APP, {"app": "foot", "argv": ["foot", "-e", "codex"]}))
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(self.launched, [["foot", "-e", "codex"]])
+
+    def test_close_app_disabled_refuses(self):
+        res = self._executor().execute_step(self._step(Action.CLOSE_APP, {"app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+
+    def test_media_disabled_refuses(self):
+        res = self._executor().execute_step(
+            self._step(Action.MEDIA, {"command": "pause", "app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(self.mpris_calls, [])
+
+    def test_generic_media_still_allowed(self):
+        res = self._executor().execute_step(self._step(Action.MEDIA, {"command": "pause"}))
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(self.mpris_calls, [("pause", None)])
+
+    def test_targeted_type_disabled_refuses(self):
+        res = self._executor().execute_step(
+            self._step(Action.TYPE_TEXT, {"text": "hi", "app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(INJECTED, [])
+
+    def test_targeted_key_disabled_refuses(self):
+        res = self._executor().execute_step(
+            self._step(Action.KEY, {"chord": "Return", "app": "spotify"}))
+        self.assertFalse(res.ok, res.detail)
+        self.assertEqual(INJECTED, [])
+
+    def test_enabled_app_type_still_works(self):
+        fake = FakeDesktop([WindowInfo(id=7, app_id="code", workspace_id=1)],
+                           focused=FocusedWindow(app_id="code", window_id=7, workspace_id=1))
+        for name in ("focused_window", "list_windows", "find_windows",
+                     "focus_window_on_workspace", "focus_window", "backend"):
+            p = mock.patch.object(desktop, name, getattr(fake, name))
+            p.start()
+            self.addCleanup(p.stop)
+        res = self._executor().execute_step(
+            self._step(Action.TYPE_TEXT, {"text": "hi", "app": "code"}))
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(INJECTED, [("type", "hi")])
+
+    def test_candidate_ids_no_raw_name_fallback(self):
+        ex = self._executor()
+        self.assertEqual(ex._candidate_ids("mysteryapp"), [])
+        self.assertEqual(ex._candidate_ids("codex"), ["codex"])  # synthesised CLI agent
+        self.assertEqual(ex._candidate_ids("spotify"), ["spotify", "Spotify"])
+
+    def test_unknown_app_target_refuses_for_lack_of_window(self):
+        # Unknown names are not "disabled" (not catalogue apps) but the window
+        # lookup has no raw-name fallback, so targeted input still refuses.
+        fake = FakeDesktop([], focused=FocusedWindow(app_id="kitty", window_id=20,
+                                                     workspace_id=1))
+        for name in ("focused_window", "list_windows", "find_windows",
+                     "focus_window_on_workspace", "focus_window", "backend"):
+            p = mock.patch.object(desktop, name, getattr(fake, name))
+            p.start()
+            self.addCleanup(p.stop)
+        res = self._executor().execute_step(
+            self._step(Action.TYPE_TEXT, {"text": "hi", "app": "mysteryapp"}))
+        self.assertFalse(res.ok, res.detail)
+        self.assertIn("not running", res.detail)
+        self.assertEqual(INJECTED, [])
+
+    def test_explicit_window_id_targets_without_profile(self):
+        fake = FakeDesktop([WindowInfo(id=42, app_id="spotify", workspace_id=1)],
+                           focused=FocusedWindow(app_id="spotify", window_id=42, workspace_id=1))
+        for name in ("focused_window", "list_windows", "find_windows",
+                     "focus_window_on_workspace", "focus_window", "backend"):
+            p = mock.patch.object(desktop, name, getattr(fake, name))
+            p.start()
+            self.addCleanup(p.stop)
+        # Disabled app + explicit window_id: the capability still targets.
+        res = self._executor().execute_step(
+            self._step(Action.TYPE_TEXT, {"text": "hi", "app": "spotify", "window_id": 42}))
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(INJECTED, [("type", "hi")])
+
+    def test_cli_agent_type_still_works_without_profile(self):
+        fake = FakeDesktop([WindowInfo(id=10, app_id="codex", workspace_id=1)],
+                           focused=FocusedWindow(app_id="kitty", window_id=20, workspace_id=1))
+        for name in ("focused_window", "list_windows", "find_windows",
+                     "focus_window_on_workspace", "focus_window", "backend"):
+            p = mock.patch.object(desktop, name, getattr(fake, name))
+            p.start()
+            self.addCleanup(p.stop)
+        res = self._executor().execute_step(
+            self._step(Action.TYPE_TEXT, {"text": "ok", "app": "codex"}))
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(INJECTED, [("type", "ok")])
+
+
+class EnsureUrlDisabledBrowserTest(unittest.TestCase):
+    def test_disabled_browser_window_not_focused_uses_open_url(self):
+        from utter.types import Context as Ctx
+        profiles = {"firefox": AppProfile(id="firefox", name="Firefox", kind="browser",
+                                          app_ids=["firefox"], enabled=False)}
+        win = WindowInfo(id=5, app_id="firefox", title="YouTube", workspace_id=1)
+        ctx = Ctx(windows=[win], focused=FocusedWindow(app_id="kitty", window_id=20,
+                                                       workspace_id=1))
+        ex = Executor(lambda with_a11y=False: ctx, Config(), profiles=profiles)
+        focused: list = []
+        opened: list = []
+        with mock.patch.object(desktop, "focused_window",
+                               lambda: ctx.focused), \
+                mock.patch.object(desktop, "focus_window", lambda wid: focused.append(wid)), \
+                mock.patch("utter.actions.launch.open_url",
+                           lambda url, browser_app_id=None: (opened.append(url),
+                                                             ActionResult(True, Action.ENSURE_URL, Tier.APP, "opened"))[1]), \
+                mock.patch("utter.browser.zen.is_up", lambda: False):
+            res = ex.execute_step(Step(Action.ENSURE_URL,
+                                       {"url": "https://www.youtube.com", "site": "youtube"},
+                                       tier=Tier.APP))
+        self.assertTrue(res.ok, res.detail)
+        self.assertEqual(focused, [])  # never focused the disabled browser
+        self.assertEqual(opened, ["https://www.youtube.com"])
 
 
 if __name__ == "__main__":

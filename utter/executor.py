@@ -16,12 +16,32 @@ from .types import Action, ActionResult, Context, Plan, Step, Tier
 log = logging.getLogger("utter.executor")
 
 
+def _is_cli_agent_name(app) -> bool:
+    """True for a synthesised CLI-agent target (``codex``, ``claude code`` ...).
+
+    These are not catalogue profiles; the per-app opt-in gate must not block
+    them (their dangerous part is the runner's terminal/input gate).
+    """
+    if app is None:
+        return False
+    try:
+        from .router.rules import CLI_AGENTS
+        return str(app).strip().lower() in {str(k).strip().lower() for k in CLI_AGENTS}
+    except Exception:  # noqa: BLE001 - never let the guard break execution
+        return False
+
+
 class Executor:
     def __init__(self, ctx_builder: Callable[..., Context], cfg,
-                 profiles: Optional[dict] = None, confirm: Optional[Callable[[dict], bool]] = None):
+                 profiles: Optional[dict] = None, confirm: Optional[Callable[[dict], bool]] = None,
+                 reload_profiles: bool = False):
         self.ctx_builder = ctx_builder
         self.cfg = cfg
         self._profiles = profiles
+        # When True the executor re-reads profiles (mtime-invalidated) on every
+        # use, so a live GUI/CLI opt-in toggle applies without a restart. Unit
+        # tests pass an explicit ``profiles`` and leave this off.
+        self._reload_profiles = reload_profiles
         # ``confirm(request) -> bool`` is the host's confirmation channel
         # (runner ``host.confirm``). ``None`` means no channel: disruptive
         # cross-workspace/fullscreen focus moves are refused, never guessed.
@@ -72,11 +92,19 @@ class Executor:
 
     def _do_launch_app(self, step: Step) -> ActionResult:
         from .actions import launch
+        app = step.args.get("app")
+        # A *direct* argv launch (CLI agents, ComfyUI: ``app: foot`` + argv) is
+        # not an app-profile action; the runner's terminal/input gate covers it.
+        # Only a launch that names a known profile may be blocked for opt-out.
+        if not step.args.get("argv") and app is not None and self._known_disabled(app):
+            return ActionResult(False, step.action, step.tier, f"{app} is disabled")
         return launch.launch_app(step.args.get("argv") or step.args["app"])
 
     def _do_focus_app(self, step: Step) -> ActionResult:
         from .context import desktop
         app = step.args["app"]
+        if self._known_disabled(app):
+            return ActionResult(False, step.action, Tier.APP, f"{app} is disabled")
         if platform.is_macos():
             # macOS reports bundle ids (``com.apple.Safari``) while profile ids
             # may differ. Reuse the same tolerant, profile-aware resolution that
@@ -99,6 +127,9 @@ class Executor:
 
     def _do_key(self, step: Step) -> ActionResult:
         from .actions import keyboard
+        blocked = self._blocked_target(step)
+        if blocked is not None:
+            return blocked
         # macOS first: a targeted window is injected natively to its pid, with
         # no focus change. On Linux this is always None, so the Wayland focus
         # round-trip below is untouched. macOS must outrank `_targeted`, or the
@@ -112,6 +143,9 @@ class Executor:
 
     def _do_type_text(self, step: Step) -> ActionResult:
         from .actions import keyboard
+        blocked = self._blocked_target(step)
+        if blocked is not None:
+            return blocked
         pid = self._macos_target_pid(step)
         if pid is not None:
             return keyboard.type_text(step.args["text"], pid=pid)
@@ -192,6 +226,13 @@ class Executor:
 
     # -- app-targeted input (focus round-trip) -----------------------------
     def _get_profiles(self) -> dict:
+        if self._reload_profiles:
+            try:
+                from .router import profiles as profiles_mod
+                self._profiles = profiles_mod.load_cached()
+                return self._profiles
+            except Exception:  # noqa: BLE001 - fall through to the cached dict
+                pass
         if self._profiles is None:
             try:
                 from .router import profiles as profiles_mod
@@ -211,15 +252,69 @@ class Executor:
             prof = profiles_mod.resolve(str(app), profiles)
         return prof
 
+    def _app_enabled(self, app) -> bool:
+        """Whether a *known, opted-out* app must be refused.
+
+        A known profile that is disabled returns False. An unknown name (a CLI
+        agent, a macOS app with no profile, or any raw name) returns True: it is
+        not a catalogue app the user could have opted out of. Window targeting
+        still refuses an unresolved name: :meth:`_candidate_ids` has no
+        raw-name fallback, so an unknown target only ever works with an
+        explicit ``window_id`` (or a synthesised CLI-agent name).
+        """
+        prof = self._app_profile(app)
+        if prof is None:
+            return True
+        return bool(getattr(prof, "enabled", False))
+
+    def _known_disabled(self, app) -> bool:
+        """True only when ``app`` resolves to a profile that is opted out."""
+        prof = self._app_profile(app)
+        return prof is not None and not bool(getattr(prof, "enabled", False))
+
+    def _browser_allowed(self, app_id) -> bool:
+        """A window whose app profile is disabled must never be focused.
+
+        Sites/URLs stay openable (``open youtube``); this only stops Utter from
+        driving a browser it was told to ignore.
+        """
+        if not app_id:
+            return False
+        prof = self._app_profile(app_id)
+        if prof is None:
+            return True  # not a catalogue profile (e.g. zen): not gated here
+        return bool(getattr(prof, "enabled", False))
+
+    def _blocked_target(self, step: Step):
+        """Refusal result when a step names a *disabled* app, else ``None``.
+
+        An explicit ``window_id`` is a capability and may target without a
+        profile; an unknown spoken ``app`` is not blocked here but will refuse
+        later for lack of a window candidate.
+        """
+        app = step.args.get("app")
+        if app is None or step.args.get("window_id") is not None:
+            return None
+        if self._app_enabled(app):
+            return None
+        return ActionResult(False, step.action, step.tier, f"{app} is disabled")
+
     def _candidate_ids(self, app) -> list:
         """Window ``app_id`` candidates for a profile: ``[id, *app_ids]``, deduped.
 
         ``app_ids`` are precomputed (curated profile data); the compositor list
-        only ever *selects* one of these — it never authors a target.
+        only ever *selects* one of these — it never authors a target. An
+        unresolved spoken name has no fallback (only an explicit ``window_id``
+        may target without a profile); a synthesised CLI-agent name is allowed
+        because it is ungated.
         """
+        if app is None:
+            return []
         prof = self._app_profile(app)
-        ids = [str(app)] if prof is None else [getattr(prof, "id", str(app)),
-                                               *(getattr(prof, "app_ids", []) or [])]
+        if prof is None:
+            return [str(app)] if _is_cli_agent_name(app) else []
+        ids = [getattr(prof, "id", str(app)),
+               *(getattr(prof, "app_ids", []) or [])]
         out: list = []
         seen: set = set()
         for cid in ids:
@@ -468,7 +563,8 @@ class Executor:
         windows = getattr(ctx, "windows", []) or []
         preferred = (getattr(getattr(self.cfg, "actions", None), "preferred_browser", "") or "").lower()
         prefer = prefer or preferred or None
-        browsers = [w for w in windows if _is_browser_app(w.app_id, prefer)]
+        browsers = [w for w in windows
+                    if _is_browser_app(w.app_id, prefer) and self._browser_allowed(w.app_id)]
         if preferred:
             # A configured browser is the only one used; it is launched if closed.
             browsers = [w for w in browsers if preferred in (w.app_id or "").lower()]
@@ -480,7 +576,7 @@ class Executor:
         # 0. BiDi: exact detection across ALL tabs (incl. background) + activate.
         try:
             from .browser import zen
-            if zen.is_up():
+            if self._browser_allowed("zen") and zen.is_up():
                 tab = zen.activate_match(kw or url)
                 if tab:
                     # BiDi selects the tab but does not raise the window on Wayland;
@@ -499,7 +595,8 @@ class Executor:
         except Exception as e:  # noqa: BLE001
             log.debug("zen bidi lookup failed: %s", e)
 
-        if ctx.focused and _is_browser_app(ctx.focused.app_id, prefer) and _title_has(ctx.focused.title, kw):
+        if (ctx.focused and self._browser_allowed(ctx.focused.app_id)
+                and _is_browser_app(ctx.focused.app_id, prefer) and _title_has(ctx.focused.title, kw)):
             return ActionResult(True, Action.ENSURE_URL, Tier.APP,
                                 f"already on {kw} (focused window)")
 
@@ -510,7 +607,8 @@ class Executor:
                                     f"focused existing '{kw}' window {w.id}")
 
         from .actions import launch
-        opened = launch.open_url(url, browser_app_id=browsers[0].app_id if browsers else (preferred or None))
+        fallback_browser = preferred if (preferred and self._browser_allowed(preferred)) else None
+        opened = launch.open_url(url, browser_app_id=browsers[0].app_id if browsers else fallback_browser)
         detail = f"opened {url}"
         if browsers:
             self._focus_window(browsers[0].id)
@@ -521,6 +619,8 @@ class Executor:
         """Context-aware 'open <app>': focus an existing window, else launch."""
         app = step.args["app"]
         argv = step.args.get("argv")
+        if self._known_disabled(app):
+            return ActionResult(False, Action.ENSURE_APP, Tier.APP, f"{app} is disabled")
         ctx = self.ctx_builder()
         for w in getattr(ctx, "windows", []) or []:
             if w.app_id == app or app.lower() in (w.app_id or "").lower():
@@ -586,7 +686,18 @@ class Executor:
 
     def _do_media(self, step: Step) -> ActionResult:
         app = step.args.get("app")
-        candidate_ids = self._candidate_ids(app) if app else None
+        # Generic media transport keys (no app) are always allowed; a named app
+        # target must be enabled and resolve to at least one MPRIS candidate id
+        # (never silently drive a different player).
+        if app is not None:
+            if not self._app_enabled(app):
+                return ActionResult(False, Action.MEDIA, step.tier, f"{app} is disabled")
+            candidate_ids = self._candidate_ids(app)
+            if not candidate_ids:
+                return ActionResult(False, Action.MEDIA, step.tier,
+                                    f"no media player for {app}")
+        else:
+            candidate_ids = None
         return _mpris(step.args.get("command", "play-pause"), candidate_ids=candidate_ids)
 
     def _do_close_app(self, step: Step) -> ActionResult:
@@ -595,6 +706,9 @@ class Executor:
         Never focuses: a close is issued straight at the target window id. A
         multi-window app is never guessed at — the caller must be specific.
         """
+        app = step.args.get("app")
+        if app is not None and step.args.get("window_id") is None and not self._app_enabled(app):
+            return ActionResult(False, Action.CLOSE_APP, step.tier, f"{app} is disabled")
         target, err = self._resolve_target(step, destructive=True)
         if target is None:
             return ActionResult(False, Action.CLOSE_APP, step.tier, err)
