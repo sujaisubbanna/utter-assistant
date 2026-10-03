@@ -21,6 +21,7 @@ import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
 import { usePoll } from "../lib/hooks";
+import { resetOnboarding } from "../lib/onboarding";
 import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
 import { useRunnerStatus } from "../lib/status";
 import type { UnitStatus } from "../lib/types";
@@ -302,6 +303,22 @@ export function GeneralPage() {
               );
             })
           )}
+        </Section>
+
+        <Section title={t("nav.setup")} description={t("onboarding.rerunHint")}>
+          <Row leading={<Tile icon="refresh" />} title={t("onboarding.rerun")}>
+            <Button
+              size="sm"
+              icon="refresh"
+              onClick={() => {
+                resetOnboarding();
+                window.location.hash = "";
+                window.location.reload();
+              }}
+            >
+              {t("onboarding.rerun")}
+            </Button>
+          </Row>
         </Section>
 
         <PageNote>

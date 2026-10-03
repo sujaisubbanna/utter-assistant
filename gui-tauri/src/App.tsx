@@ -7,11 +7,13 @@ import { I18nProvider, useT } from "./i18n";
 import { api } from "./lib/api";
 import { ConfigProvider, useConfig } from "./lib/config";
 import { navLabelKey } from "./lib/nav";
+import { isOnboardingComplete } from "./lib/onboarding";
 import { PlatformProvider, usePlatform } from "./lib/platform";
 import { RunnerStatusProvider } from "./lib/status";
 import { ThemeProvider } from "./lib/theme";
+import { Onboarding } from "./pages/onboarding/Onboarding";
 import { isPageId, PAGES } from "./pages";
-import { LINUX_AGENT_UNITS, setupSeen } from "./pages/Setup";
+import { LINUX_AGENT_UNITS, markSetupSeen, setupSeen } from "./pages/Setup";
 
 function routeFromHash(): string {
   const id = window.location.hash.replace(/^#\/?/, "");
@@ -40,9 +42,7 @@ function useSplash(ready: boolean) {
 
 function Shell() {
   const t = useT();
-  const { loading: configLoading } = useConfig();
   const { isMac, ready: platformReady } = usePlatform();
-  useSplash(!configLoading);
   const [route, setRoute] = useState<string>(routeFromHash);
   const [version, setVersion] = useState("0.1.0");
   const mainRef = useRef<HTMLElement>(null);
@@ -147,6 +147,62 @@ function Shell() {
   );
 }
 
+/**
+ * Decides whether the first-run wizard or the settings shell is shown. The
+ * wizard gates the app until it is finished; a page route in `UTTER_GUI_ROUTE`
+ * still wins in a dev build so screenshots can reach any page.
+ */
+function Root() {
+  const { loading: configLoading } = useConfig();
+  const { ready: platformReady } = usePlatform();
+  const [onboardingDone, setOnboardingDone] = useState<boolean>(() => isOnboardingComplete());
+  const [forcedStep, setForcedStep] = useState<number | null | undefined>(undefined);
+  const [bypass, setBypass] = useState(false);
+
+  // Keep the pre-React splash until we know which screen to paint.
+  useSplash(!configLoading && platformReady && forcedStep !== undefined);
+
+  useEffect(() => {
+    // Dev/screenshot affordance: `?onboarding=<step>` opens straight to a step.
+    const params = new URLSearchParams(window.location.search);
+    if (import.meta.env.DEV && params.has("onboarding")) {
+      const step = Number(params.get("onboarding"));
+      setForcedStep(Number.isFinite(step) ? Math.max(0, step) : 0);
+      return;
+    }
+    api
+      .bootParams()
+      .then((boot) => {
+        const [id, query] = String(boot.route ?? "").split("?");
+        if (id === "onboarding") {
+          const step = Number(new URLSearchParams(query ?? "").get("step"));
+          setForcedStep(Number.isFinite(step) ? Math.max(0, step) : 0);
+          return;
+        }
+        if (import.meta.env.DEV && id && isPageId(id) && id !== "general") {
+          setBypass(true);
+        }
+        setForcedStep(null);
+      })
+      .catch(() => setForcedStep(null));
+  }, []);
+
+  const done = useCallback(() => {
+    // Let the shell's own "open Set up when unusable" logic take over from here.
+    markSetupSeen();
+    setOnboardingDone(true);
+    setForcedStep(null);
+    setBypass(false);
+  }, []);
+
+  if (forcedStep === undefined || !platformReady) return null;
+
+  if (forcedStep !== null || (!onboardingDone && !bypass)) {
+    return <Onboarding initialStep={forcedStep ?? undefined} onDone={done} />;
+  }
+  return <Shell />;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -155,7 +211,7 @@ export default function App() {
           <PlatformProvider>
             <ConfigProvider>
               <RunnerStatusProvider>
-                <Shell />
+                <Root />
               </RunnerStatusProvider>
             </ConfigProvider>
           </PlatformProvider>

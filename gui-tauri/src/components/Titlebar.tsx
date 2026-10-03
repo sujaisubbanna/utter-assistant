@@ -63,7 +63,7 @@ export function ConnectionPill() {
   );
 }
 
-export function Titlebar({ route }: { route: string }) {
+export function Titlebar({ route, onboarding = false }: { route: string; onboarding?: boolean }) {
   const { t } = useI18n();
   const { paletteActive } = useTheme();
   const win = getCurrentWindow();
@@ -98,18 +98,26 @@ export function Titlebar({ route }: { route: string }) {
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center gap-1.5 pl-2 text-[12.5px] text-muted-foreground"
       >
-        <span data-tauri-drag-region className="max-[879px]:hidden">
-          {t("app.settings")}
-        </span>
-        <Icon name="chevron-right" size={13} className="opacity-50 max-[879px]:hidden" />
-        <span data-tauri-drag-region className="truncate font-medium text-foreground">
-          {t(navLabelKey(route))}
-        </span>
+        {onboarding ? (
+          <span data-tauri-drag-region className="truncate font-medium text-foreground">
+            {t("nav.setup")}
+          </span>
+        ) : (
+          <>
+            <span data-tauri-drag-region className="max-[879px]:hidden">
+              {t("app.settings")}
+            </span>
+            <Icon name="chevron-right" size={13} className="opacity-50 max-[879px]:hidden" />
+            <span data-tauri-drag-region className="truncate font-medium text-foreground">
+              {t(navLabelKey(route))}
+            </span>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
         <OfflineBadge />
-        <ConnectionPill />
+        {!onboarding && <ConnectionPill />}
         <div className="flex items-center gap-0.5 pl-1">
           <WindowButton label={t("titlebar.minimize")} onClick={() => void win.minimize()}>
             <Icon name="minus" size={14} />
