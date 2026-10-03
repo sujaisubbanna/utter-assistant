@@ -355,13 +355,15 @@ def _claim_app_target(name: str, profiles: dict):
     cannot shadow an explicit CLI-agent name ("codex"); a CLI agent with no GUI
     profile is still an explicit target.
     """
-    if not name or not profiles:
+    if not name:
         return None
     n = normalize(name)
-    if not n or n in _generic_app_names(profiles):
+    if not n:
+        return None
+    if profiles and n in _generic_app_names(profiles):
         return None
     from .profiles import AppProfile, resolve as _profiles_resolve
-    prof = _profiles_resolve(n, profiles)
+    prof = _profiles_resolve(n, profiles) if profiles else None
     if prof is not None:
         return prof
     if n in CLI_AGENTS:

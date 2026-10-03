@@ -744,6 +744,26 @@ pub async fn app_profiles_list(state: State<'_, AppState>) -> Result<Value, Stri
     .await
 }
 
+/// The app catalogue for the onboarding picker.
+///
+/// Seam for the per-app opt-in work: `assistant apps list --json` returns
+/// `{apps:[{id,name,kind,icon?,enabled,preselected}]}`. Until that subcommand
+/// ships the assistant exits non-zero and this returns `{ok:false}`, which the
+/// UI notices and fills in from the profile loader. No opt-in state is written
+/// here — the backend gate is owned by a separate lane.
+#[tauri::command]
+pub async fn apps_list(state: State<'_, AppState>) -> Result<Value, String> {
+    let cmd = state.assistant(&["apps", "list", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| error.to_string())?;
+        Ok(parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        ))
+    })
+    .await
+}
+
 /// Save a user override (aliases, shortcuts, search address) for one app.
 #[tauri::command]
 pub async fn app_profile_save(
@@ -759,6 +779,34 @@ pub async fn app_profile_save(
         .arg(dir)
         .arg(id)
         .arg(profile.to_string());
+    blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
+}
+
+/// Enable/disable a set of apps in one call (writes override files).
+///
+/// Bulk opt-in for the picker/onboarding: each id is validated exactly like
+/// `app_profile_save`, existing override fields are preserved, and only the
+/// `enabled` gate changes.
+#[tauri::command]
+pub async fn app_profiles_set_enabled(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    enabled: bool,
+) -> Result<CmdResult, String> {
+    if ids.len() > 1000 {
+        return Err("too many ids".to_string());
+    }
+    for id in &ids {
+        if !profiles::valid_id(id) {
+            return Err(format!("invalid profile id: {id}"));
+        }
+    }
+    let dir = user_profiles_dir(&state).to_string_lossy().into_owned();
+    let payload = Value::Array(ids.iter().map(|id| Value::String(id.clone())).collect());
+    let cmd = profile_python(&state, profiles::SET_ENABLED_SCRIPT)
+        .arg(dir)
+        .arg(payload.to_string())
+        .arg(if enabled { "true" } else { "false" });
     blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
 }
 

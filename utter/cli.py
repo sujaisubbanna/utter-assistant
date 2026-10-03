@@ -390,7 +390,11 @@ def _cmd_commands(args) -> int:
 
 
 def _cmd_apps(args) -> int:
-    entries = [{"id": p.id, "name": p.name, "aliases": p.aliases} for p in _profiles().values()]
+    from .router import profiles as profiles_mod
+    entries = [{"id": p.id, "name": p.name, "aliases": p.aliases,
+                "enabled": profiles_mod.is_enabled(p),
+                "preselected": bool(getattr(p, "preselected", False))}
+               for p in _profiles().values()]
     return _out(args, "apps list", data=entries)
 
 

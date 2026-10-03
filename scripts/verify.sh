@@ -38,6 +38,7 @@ echo "== agent CLI contract =="
 echo "== router: rules golden order =="
 "$PY" tests/router/test_rules_order.py || rc=1
 "$PY" tests/router/test_app_target_rules.py || rc=1
+"$PY" tests/router/test_app_enabled.py || rc=1
 
 echo "== executor: app-targeted focus round-trip =="
 "$PY" tests/executor/test_app_target.py || rc=1
@@ -74,6 +75,7 @@ echo "== guardrails: runner stdlib, provenance, installer contract =="
 "$PY" tests/test_runner_stdlib.py || rc=1
 "$PY" tests/test_provenance_invariant.py || rc=1
 "$PY" tests/test_app_target_policy.py || rc=1
+"$PY" tests/test_gui_profile_contract.py || rc=1
 "$PY" tests/test_installer_contract.py || rc=1
 
 echo

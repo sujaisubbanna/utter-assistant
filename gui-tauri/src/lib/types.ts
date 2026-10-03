@@ -203,6 +203,7 @@ export interface ProfileOverride {
   aliases?: string[];
   shortcuts?: Record<string, string>;
   search_url?: string | null;
+  enabled?: boolean;
 }
 
 export interface AppProfile {
@@ -216,6 +217,10 @@ export interface AppProfile {
   builtin_shortcuts: Record<string, string>;
   app_ids: string[];
   curated: boolean;
+  /** Per-app opt-in gate: false means Utter ignores the app entirely. */
+  enabled: boolean;
+  /** True for the shipped curated default set. */
+  preselected: boolean;
   user: (ProfileOverride & { id?: string }) | null;
   own?: boolean;
 }
@@ -224,4 +229,26 @@ export interface ProfileList {
   profiles: AppProfile[];
   user_dir: string;
   loader_reads_user: boolean;
+}
+
+/**
+ * One entry in the app catalogue the onboarding picker shows. `icon` is an
+ * optional data/URL the backend may supply (a real desktop-entry or bundle
+ * icon); when absent the UI falls back to the kind icon. `enabled` and
+ * `preselected` come from the per-app opt-in backend — until that ships the
+ * picker derives both from the curated profile list.
+ */
+export interface AppCatalogEntry {
+  id: string;
+  name: string;
+  kind: string;
+  icon?: string | null;
+  enabled?: boolean;
+  preselected?: boolean;
+}
+
+export interface AppCatalog {
+  apps: AppCatalogEntry[];
+  /** False when the rich catalogue isn't available and the list was derived. */
+  detected?: boolean;
 }

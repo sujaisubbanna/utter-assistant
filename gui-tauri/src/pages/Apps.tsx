@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Icon, type IconName } from "../components/icons";
+import { Icon } from "../components/icons";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -12,25 +12,14 @@ import { SkeletonRows } from "../components/ui/Skeleton";
 import { EmptyState, ErrorState } from "../components/ui/States";
 import { Segmented } from "../components/ui/Tabs";
 import { useToast } from "../components/ui/Toast";
-import { useI18n, type MessageKey } from "../i18n";
+import { useI18n } from "../i18n";
 import { api } from "../lib/api";
+import { KIND_ICON, kindLabelKey } from "../lib/appKinds";
 import { splitList, titleCase } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { AppProfile, ProfileList, ProfileOverride } from "../lib/types";
 
 type Filter = "main" | "edited" | "all";
-
-const KIND_ICON: Record<string, IconName> = {
-  browser: "globe",
-  editor: "terminal",
-  media: "play",
-  chat: "link",
-  terminal: "terminal",
-  game: "zap",
-  filemanager: "folder",
-};
-
-const KINDS = new Set(["browser", "editor", "media", "chat", "terminal", "game", "filemanager"]);
 
 const ACTION_RE = /^[a-z0-9_]{1,40}$/;
 const CHORD_RE = /^[A-Za-z0-9_+-]{1,40}$/;
@@ -307,7 +296,7 @@ export function AppsPage() {
       );
   }, [data, query, filter]);
 
-  const kindLabel = (kind: string) => t(`apps.kinds.${KINDS.has(kind) ? kind : "other"}` as MessageKey);
+  const kindLabel = (kind: string) => t(kindLabelKey(kind));
 
   return (
     <>

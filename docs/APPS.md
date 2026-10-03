@@ -90,6 +90,7 @@ App knowledge has three layers, all under `utter/`:
 | Artefact | Path | Role |
 |---|---|---|
 | Curated profiles | `utter/profiles/*.yaml` | hand-written per-app rules |
+| Preselected set | `utter/profiles/_preselected.yaml` | the curated apps enabled by default |
 | Per-kind defaults | `utter/profiles/_defaults.yaml` | shortcuts/search_url inherited by kind |
 | Your profiles | `~/.config/utter/profiles/*.yaml` | your own apps and edits (the settings app writes here); they win |
 | Installed-app catalogue | `~/.local/share/utter/generated.yaml` | a minimal profile for every installed `.desktop`, generated per machine |
@@ -103,13 +104,14 @@ The loader is `utter/router/profiles.py`:
 
 - `AppProfile` (`profiles.py`) — fields: `id`, `name`, `aliases`, `launch`,
   `terminal`, `new_window`, `search_url` (must contain `{q}`), `shortcuts`
-  (name → chord), `app_ids` (compositor app_ids), `mime_types`, `kind`.
+  (name → chord), `app_ids` (compositor app_ids), `mime_types`, `kind`,
+  `enabled` (the opt-in gate) and `preselected` (id is in the shipped set).
 - `load()` reads `_defaults.yaml`, the machine's catalogue (`GENERATED_PATH`), every
   curated `*.yaml`, then your profiles (`USER_PROFILES_DIR`), which are merged on top
-  and ordered first (the reserved names `_defaults.yaml` / `generated.yaml` are skipped
-  as per-app files, in `load`). It merges curated overrides onto generated
-  entries (`merge_profiles`, `profiles.py`) and orders curated profiles ahead
-  of generated-only ones, with `generic-*` last.
+  and ordered first (the reserved names `_defaults.yaml` / `generated.yaml` /
+  `_preselected.yaml` are skipped as per-app files, in `load`). It merges curated
+  overrides onto generated entries (`merge_profiles`, `profiles.py`) and orders
+  curated profiles ahead of generated-only ones, with `generic-*` last.
 - Merge semantics (`_merge_entry`, `profiles.py`): **shortcuts are merged**;
   a curated `aliases` list **replaces** the generated keyword-derived aliases (it is
   not unioned); other fields are replaced.
@@ -118,6 +120,33 @@ The loader is `utter/router/profiles.py`:
 - `resolve(name, profiles)` (`profiles.py`) is case-insensitive by `id`,
   then `name`, then `alias`, then a token-subset fallback. `rules._resolve`
   (`rules.py`) is a defensive id/name/alias variant.
+
+### Per-app opt-in gate
+
+Every profile has an `enabled` flag. **A disabled app is invisible to Utter**:
+no launch/ensure, focus, close, shortcut, custom command, media target, or
+typed/keystroke target. Still allowed regardless of the gate: sites/URLs
+(`open youtube`), generic media transport keys (`media next`), compositor/niri
+actions, dictation into the focused field, and CLI agents (`codex`), whose
+dangerous part is the runner's `terminal`/`input` gate.
+
+- `enabled` is computed by `load()`: an explicit `enabled` in a merged override
+  wins; otherwise the id is enabled iff it is in `_preselected.yaml`; otherwise
+  `False`. On a fresh install only that curated set (`spotify`, `firefox`,
+  `google-chrome`, `code`, `org.gnome.Nautilus`) is live; user-customised apps
+  are **not** auto-enabled.
+- A one-time marker `$XDG_STATE_HOME/utter/apps-state.json`
+  (`{"policy_version": 1}`) records the hard cut. It is a version record only —
+  it never re-seeds a user's later choices.
+- `scripts/gen_app_catalog.py` deliberately never writes `enabled`: the gate is
+  policy, not per-machine catalogue data.
+- Routing consumes `profiles.enabled_profiles(...)` (the enabled subset); the
+  executor keeps the **full** dict so a direct RPC call still refuses a
+  known-disabled app but an unknown argv launch and an explicit `window_id`
+  capability keep working.
+- Toggling writes `~/.config/utter/profiles/<id>.yaml` `{id, enabled: bool}`.
+  Custom commands for a disabled app are kept (inert) and resurface when it is
+  re-enabled; resetting the override returns to the `preselected` default.
 
 ### Building the catalog
 

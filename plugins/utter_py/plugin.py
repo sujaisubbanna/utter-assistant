@@ -127,7 +127,7 @@ def _ensure() -> None:
     def ctx_builder(with_a11y: bool = False):
         return niri.build_context(with_a11y=with_a11y)
 
-    _EXECUTOR = Executor(ctx_builder, _CFG, profiles=_PROFILES)
+    _EXECUTOR = Executor(ctx_builder, _CFG, profiles=_PROFILES, reload_profiles=True)
 
 
 def _context():
@@ -197,16 +197,23 @@ def _plan(params: dict) -> dict:
         return {"steps": []}
     _ensure()
     from utter.router import decide, rules
+    from utter.router import profiles as profiles_mod
+
+    # Refresh (mtime-invalidated) so a toggle takes effect without a restart,
+    # and route over the enabled subset only. The executor keeps the full dict.
+    profiles = profiles_mod.load_cached()
+    _EXECUTOR._profiles = profiles
+    enabled = profiles_mod.enabled_profiles(profiles)
 
     ctx = _context()
-    rp = rules.plan(utterance, ctx, _PROFILES)
+    rp = rules.plan(utterance, ctx, enabled)
     if rp is not None and getattr(rp, "steps", None):
         return {"steps": [_step(s.action.value, s.args) for s in rp.steps]}
 
     # rules could not resolve it cheaply -> constrained decision head (Jev).
     decision = None
     try:
-        decision = decide.decide(utterance, ctx, _PROFILES, _CFG.router)
+        decision = decide.decide(utterance, ctx, enabled, _CFG.router)
     except Exception:  # noqa: BLE001 - fail open to "no plan"
         decision = None
     if decision is not None:

@@ -280,7 +280,12 @@ def collect(dirs: list[Path]) -> dict[str, dict]:
 
 
 def build_generated(catalog: dict[str, dict]) -> dict:
-    """Build the bulk ``generated.yaml`` payload (every visible entry)."""
+    """Build the bulk ``generated.yaml`` payload (every visible entry).
+
+    Deliberately never writes ``enabled``: the per-app opt-in gate is policy
+    (``utter/profiles/_preselected.yaml`` + user overrides), not per-machine
+    catalogue data that is regenerated on every scan.
+    """
     profiles: dict[str, dict] = {}
     reserved = _cli_agent_names()
     for desktop_id in sorted(catalog):

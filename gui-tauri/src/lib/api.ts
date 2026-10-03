@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type {
   AppInfo,
+  AppCatalog,
   AudioSource,
   BootParams,
   BundleResult,
@@ -55,6 +56,13 @@ export const api = {
     invoke<CmdResult>("tts_test", { engine, voice, text }),
   testEndpoint: (url: string) => invoke<CmdResult>("test_endpoint", { url }),
   appProfilesList: () => invoke<ProfileList>("app_profiles_list"),
+  /**
+   * The app catalogue for the onboarding picker. This is the seam for the
+   * per-app opt-in work: the backend command delegates to
+   * `assistant apps list --json` (`{apps:[…]}`) and falls back to the profile
+   * loader. Callers must tolerate `{ok:false}` / a missing `apps` array.
+   */
+  appsList: () => invoke<AppCatalog | { ok?: boolean; error?: string }>("apps_list"),
   appProfileSave: (id: string, profile: ProfileOverride) =>
     invoke<CmdResult>("app_profile_save", { id, profile }),
   appProfileReset: (id: string) => invoke<void>("app_profile_reset", { id }),
