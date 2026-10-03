@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-03
+
+### Added
+- **First-run onboarding wizard.** A mandatory, guided setup shows on first launch
+  and walks through language, permissions, app actions, models and a first action.
+  Steps are resumable and skippable, the settings shell can re-run it, and all 10
+  shipped locales are covered.
+- **Per-app opt-in.** No app-specific capability is enabled by default any more.
+  A curated set (Spotify, Firefox, Chrome, VS Code, Files) is preselected during
+  onboarding; everything else is off until you turn it on per app. A disabled app
+  is ignored entirely — no launch, focus, close, shortcut, media or typed target.
+  Sites and URLs, push-to-talk dictation and generic media keys keep working, and
+  CLI agents are never gated.
+
+### Changed
+- The settings sidebar **"Set up" tab is renamed to "Settings"** (the page stays
+  as it was).
+- Onboarding step content is **vertically centred** and uses a slightly wider
+  column, so tall windows no longer look mostly empty.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
