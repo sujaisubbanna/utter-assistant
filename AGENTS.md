@@ -91,3 +91,8 @@ Use `.venv-agent/bin/python` (Python 3.14) for protocol/runner work. `runner/**`
   sandbox wrapper. `action.terminal` / `action.input` are opt-in and confirmed.
 - **Real assistant** — wrapped as `plugins/utter_py`; `runner.command "open youtube"` drives
   the real rules, decision head and actions end-to-end (dry-run by default).
+- **GUI** — Tauri settings app with a mandatory first-run onboarding wizard (`gui-tauri/src/pages/onboarding/`),
+  skippable/resumable steps, re-runnable from **Settings**. See `docs/ONBOARDING.md`.
+- **App actions are opt-in** — no app-specific capability is on by default; only the curated
+  `utter/profiles/_preselected.yaml` set is live, and existing installs are cut over once via
+  `$XDG_STATE_HOME/utter/apps-state.json`. Disabled apps are ignored entirely. See `docs/APPS.md` §2.
