@@ -99,7 +99,7 @@ End users should use Option A. For a source checkout:
 ```
 
 `macos/setup.sh` refuses to clobber the agents a packaged `utter.app` already manages — if a
-runtime is already installed it points you at the app's Set up page instead.
+runtime is already installed it points you at the app's **Settings** tab instead.
 
 ## Phase 2 — Verify the install
 
@@ -111,8 +111,8 @@ systemctl --user status utter-runner.service --no-pager
 systemctl --user enable --now utter-runner.service
 ```
 
-Then open the GUI: if the app is not set up, its **Set up** page opens on launch and shows the
-runner service state with a Start/Restart button.
+Then open the GUI: on first launch the mandatory **onboarding wizard** runs before the settings
+shell; the **Settings** tab shows the runner service state with a Start/Restart button.
 
 ### macOS
 
@@ -123,10 +123,11 @@ launchctl list | grep -i utter
 tail -n 20 ~/Library/Logs/utter/utter.log
 ```
 
-The app's **Set up** page unpacks the bundled Python runtime into
+The app's **Settings** tab unpacks the bundled Python runtime into
 `~/Library/Application Support/utter/runtime/` and writes two launchd agents,
-`com.utter.runner` and `com.utter.assistant`. It opens automatically on first launch, and whenever
-a required permission is still missing.
+`com.utter.runner` and `com.utter.assistant`. The first-run onboarding wizard opens
+automatically on first launch, and its permissions step reappears whenever a required permission
+is still missing.
 
 ## Phase 3 — macOS permissions (required before voice works)
 
@@ -140,11 +141,12 @@ In **System Settings → Privacy & Security**, grant, for the app **utter**:
 | **Accessibility** | typing text, pressing keys, window titles | injection silently does nothing |
 | **Screen Recording** | reading window titles / screenshots | window titles come back empty |
 
-Use the **Grant access** buttons on the Set up page (they open the exact pane).
+Use the **Grant access** buttons in the onboarding wizard's permissions step, or on the
+**Settings** tab (they open the exact pane).
 
 **Critical gotcha:** Input Monitoring and Accessibility only take effect for **newly started**
-processes. The Set up page restarts the background agents automatically when it sees them flip to
-granted; by hand:
+processes. The wizard and the **Settings** tab restart the background agents automatically when
+they see them flip to granted; by hand:
 
 ```bash
 launchctl kickstart -k gui/$(id -u)/com.utter.assistant
@@ -156,7 +158,8 @@ add it back (toggling is often not enough), then restart the agents.
 
 ## Phase 4 — First run (needs the human to speak)
 
-1. Open the app and confirm the Set up page (macOS) or that the runner is running (Linux).
+1. Open the app and confirm permissions on the **Settings** tab (macOS) or that the runner is
+   running (Linux).
 2. Hold the **assistant key** (macOS default: **right Command**), say **"open youtube"**, release.
 3. Expected: a start sound, the on-screen overlay, then the browser opens YouTube and a success
    sound plays.

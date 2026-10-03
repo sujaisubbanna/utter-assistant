@@ -114,6 +114,66 @@ Scan order (highest precedence first): `~/.local/share/applications`, flatpak ex
 from `Exec`, `kind` is inferred from `Categories`, and `app_ids` candidates come from
 `StartupWMClass`, flatpak ids, the binary basename and the desktop-file id.
 
+## Apps are opt-in
+
+No app-specific capability is on by default. Utter only acts on an app after you choose it,
+and the choice wins in this order:
+
+1. an explicit `enabled` in your own profile (`~/.config/utter/profiles/<id>.yaml`), then
+2. membership in the shipped preselected set, then
+3. off.
+
+On a fresh install only the curated preselected set is live:
+
+| Preselected app | Profile id |
+|---|---|
+| Spotify | `spotify` |
+| Firefox | `firefox` |
+| Google Chrome | `google-chrome` |
+| Visual Studio Code | `code` |
+| GNOME Files | `org.gnome.Nautilus` |
+
+Everything else in the generated catalogue, including your own customised apps, is **off until
+you enable it**. The gate is policy, not per-machine catalogue data, so `scripts/gen_app_catalog.py`
+never writes `enabled`.
+
+**A disabled app is invisible to Utter.** There is no launch/ensure, focus, close, shortcut,
+custom-command, media or typed/keystroke target for it. These still work regardless of the gate:
+
+- **Sites and URLs** such as "open youtube" — a disabled browser falls back to `xdg-open`.
+- **Generic media keys** such as "pause" and "next track".
+- **Dictation** into the focused field.
+- **CLI agents** such as "opencode" (never gated; their dangerous part is the runner's
+  `terminal`/`input` gate).
+
+### Enabling an app
+
+Either toggle the app on the **App actions** page of the settings app, or set `enabled: true` in
+its user profile:
+
+```yaml
+# ~/.config/utter/profiles/spotify.yaml
+id: spotify
+enabled: true
+```
+
+Toggling writes exactly that `{id, enabled: bool}` override. To turn an app off again, set
+`enabled: false` or reset the override — it then falls back to its preselected default (off for
+anything outside the curated set). Custom commands for a disabled app are kept, inert, and
+resurface when you re-enable it.
+
+### Existing installs: the one-time hard cut
+
+Upgrades do not silently keep acting on everything you had before. The first time an existing
+install loads the new policy, every app not in the preselected set is switched **off** and a
+one-time marker is written to `$XDG_STATE_HOME/utter/apps-state.json`:
+
+```json
+{"policy_version": 1}
+```
+
+That marker is a version record only — it never re-seeds or overrides your later choices.
+
 ## Editing shortcuts in the settings app
 
 ![The App actions page listing apps and their action counts](../../../assets/app-actions.png)

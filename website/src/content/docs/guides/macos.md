@@ -63,11 +63,12 @@ uses Apple's own speech recognition with a whisper.cpp fallback. If you prefer V
 1. Download `utter-gui_<ver>_aarch64.dmg` (Apple Silicon) or `utter-gui_<ver>_x86_64.dmg` (Intel)
    from the release page and drag **utter** to Applications. First launch: clear Gatekeeper once
    via `xattr -cr /Applications/utter.app` (or right-click → *Open* on macOS < 15).
-2. Open it. The **Set up** page unpacks the Python runtime and the assistant that ship inside
-   the app into `~/Library/Application Support/utter/`, starts the two launchd agents and
-   then walks you through the permissions. No Homebrew, no Python, no terminal.
+2. Open it. A mandatory first-run **onboarding wizard** (language, permissions, keys, apps,
+   model) runs before the settings shell. The **Settings** tab unpacks the Python runtime and
+   the assistant that ship inside the app into `~/Library/Application Support/utter/`, starts
+   the two launchd agents and shows the permissions. No Homebrew, no Python, no terminal.
 
-Updates work the same way: drop in the new app and Set up offers **Update**.
+Updates work the same way: drop in the new app and Settings offers **Update**.
 
 ### Homebrew
 
@@ -78,13 +79,18 @@ Updates work the same way: drop in the new app and Set up offers **Update**.
 Developers can run from a checkout instead: `macos/setup.sh` creates `.venv-macos`,
 installs the `[macos]` extras and the launchd agents.
 
-## First run: the Set up page
+## First run: the onboarding wizard and Settings
 
-On a Mac the settings app opens on **Set up** the first time. Like Raycast's onboarding it
-lists each permission with a one-line reason, a **Grant access** button that triggers the
-macOS prompt, an **Open System Settings** button that jumps to the exact pane, and a status
-badge that re-checks live until everything is granted. The two launchd agents (plugin runner
-and voice assistant) are shown underneath with a Start button.
+On a Mac the settings app runs a mandatory first-run **onboarding wizard** before the settings
+shell appears. It walks through your **language**, the required **permissions**, your
+push-to-talk **keys**, which **apps** Utter may act on, and a first **model**. Every step can be
+skipped, progress is remembered across launches, and you can re-run the wizard later from
+Settings.
+
+The **Settings** tab itself lists each permission with a one-line reason, a **Grant access**
+button that triggers the macOS prompt, an **Open System Settings** button that jumps to the
+exact pane, and a status badge that re-checks live until everything is granted. The two launchd
+agents (plugin runner and voice assistant) are shown underneath with a Start button.
 
 The prompts come from the assistant's own Python, not from the app window, because macOS
 grants permissions to the process that asks. That is the name you will see in System
