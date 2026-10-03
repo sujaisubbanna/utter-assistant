@@ -251,6 +251,7 @@ pub fn run() {
             commands::test_endpoint,
             commands::open_url,
             commands::app_profiles_list,
+            commands::apps_list,
             commands::app_profile_save,
             commands::app_profiles_set_enabled,
             commands::app_profile_reset,

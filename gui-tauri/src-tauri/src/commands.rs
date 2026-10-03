@@ -744,6 +744,26 @@ pub async fn app_profiles_list(state: State<'_, AppState>) -> Result<Value, Stri
     .await
 }
 
+/// The app catalogue for the onboarding picker.
+///
+/// Seam for the per-app opt-in work: `assistant apps list --json` returns
+/// `{apps:[{id,name,kind,icon?,enabled,preselected}]}`. Until that subcommand
+/// ships the assistant exits non-zero and this returns `{ok:false}`, which the
+/// UI notices and fills in from the profile loader. No opt-in state is written
+/// here — the backend gate is owned by a separate lane.
+#[tauri::command]
+pub async fn apps_list(state: State<'_, AppState>) -> Result<Value, String> {
+    let cmd = state.assistant(&["apps", "list", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| error.to_string())?;
+        Ok(parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        ))
+    })
+    .await
+}
+
 /// Save a user override (aliases, shortcuts, search address) for one app.
 #[tauri::command]
 pub async fn app_profile_save(

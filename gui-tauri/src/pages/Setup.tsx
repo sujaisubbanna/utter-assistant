@@ -26,7 +26,7 @@ import type { AppInfo, InstallStatus, PermissionItem, PermissionReport, UnitStat
  * result (and the prompt) belongs to the binary launchd runs.
  */
 
-const PANE: Record<string, string> = {
+export const PANE: Record<string, string> = {
   microphone: "Privacy_Microphone",
   speech_recognition: "Privacy_SpeechRecognition",
   input_monitoring: "Privacy_ListenEvent",
@@ -34,7 +34,7 @@ const PANE: Record<string, string> = {
   screen_recording: "Privacy_ScreenCapture",
 };
 
-const ICON: Record<string, IconName> = {
+export const ICON: Record<string, IconName> = {
   microphone: "mic",
   speech_recognition: "wave",
   input_monitoring: "keyboard",
@@ -42,7 +42,7 @@ const ICON: Record<string, IconName> = {
   screen_recording: "monitor",
 };
 
-const LABEL_KEY: Record<string, MessageKey> = {
+export const LABEL_KEY: Record<string, MessageKey> = {
   microphone: "setup.permissions.microphone",
   speech_recognition: "setup.permissions.speech",
   input_monitoring: "setup.permissions.inputMonitoring",
@@ -50,7 +50,7 @@ const LABEL_KEY: Record<string, MessageKey> = {
   screen_recording: "setup.permissions.screenRecording",
 };
 
-const WHY_KEY: Record<string, MessageKey> = {
+export const WHY_KEY: Record<string, MessageKey> = {
   microphone: "setup.permissions.microphoneWhy",
   speech_recognition: "setup.permissions.speechWhy",
   input_monitoring: "setup.permissions.inputMonitoringWhy",
@@ -59,16 +59,16 @@ const WHY_KEY: Record<string, MessageKey> = {
 };
 
 /** Prompt-able permissions: macOS shows a dialog for these on request. */
-const PROMPTS = new Set(["microphone", "speech_recognition", "input_monitoring", "accessibility", "screen_recording"]);
+export const PROMPTS = new Set(["microphone", "speech_recognition", "input_monitoring", "accessibility", "screen_recording"]);
 
 /** Grants that only take effect for newly started processes, so the launchd
  *  agents must be restarted when either flips to granted. */
-const RESTART_ON_GRANT = ["input_monitoring", "accessibility"];
+export const RESTART_ON_GRANT = ["input_monitoring", "accessibility"];
 
 // macOS runs two launchd agents. On Linux the installer only installs the
 // runner user unit (`install/utter-runner.service`); the old utter-bridge and
 // friends are legacy units the installer removes, so they are not shown.
-const MAC_AGENT_UNITS = ["utter-runner", "utter-bridge"];
+export const MAC_AGENT_UNITS = ["utter-runner", "utter-bridge"];
 export const LINUX_AGENT_UNITS = ["utter-runner"];
 const SETUP_SEEN = "utter.setup.seen";
 
