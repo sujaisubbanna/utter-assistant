@@ -113,7 +113,7 @@ End users should use Option A. For a source checkout:
 ```
 
 `macos/setup.sh` refuses to clobber the agents a packaged `utter.app` already manages — if a
-runtime is already installed it will point you at the app's Set up page instead.
+runtime is already installed it will point you at the app's **Settings** tab instead.
 
 ---
 
@@ -127,8 +127,10 @@ systemctl --user status utter-runner.service --no-pager
 systemctl --user enable --now utter-runner.service
 ```
 
-Then open the GUI and check the **Set up** page. If the app is not set up, Set up opens on
-launch; it shows the runner service state and a Start/Restart button.
+Then open the GUI. On first launch the **first-run wizard** runs (see
+[`ONBOARDING.md`](ONBOARDING.md)); afterwards, the **Settings** tab shows the runner service
+state and a Start/Restart button. The tab also opens on launch whenever the runner is not
+running.
 
 ### macOS
 
@@ -139,10 +141,10 @@ launchctl list | grep -i utter
 tail -n 20 ~/Library/Logs/utter/utter.log
 ```
 
-The app's **Set up** page unpacks the bundled Python runtime into
-`~/Library/Application Support/utter/runtime/` and writes two launchd agents,
-`com.utter.runner` and `com.utter.assistant`. It opens automatically on first launch (and
-whenever a required permission is still missing).
+After the first-run wizard, the app's **Settings** tab unpacks the bundled Python runtime
+into `~/Library/Application Support/utter/runtime/` and writes two launchd agents,
+`com.utter.runner` and `com.utter.assistant`. The tab opens automatically while a required
+permission is still missing.
 
 ---
 
@@ -159,10 +161,11 @@ app **utter**:
 | **Accessibility** | typing text, pressing keys, window titles | injection silently does nothing |
 | **Screen Recording** | reading window titles / screenshots | window titles come back empty |
 
-Use the **Grant access** buttons on the Set up page (they open the exact pane). Grant each one.
+Use the **Grant access** buttons on the wizard's permissions step or the **Settings** tab
+(they open the exact pane). Grant each one.
 
 **Critical gotcha:** Input Monitoring and Accessibility only take effect for **newly started**
-processes. After granting them, the background agents must restart. The Set up page does this
+processes. After granting them, the background agents must restart. The app does this
 automatically when it sees them flip to granted; if you are doing it by hand:
 
 ```bash
@@ -177,8 +180,10 @@ and add it back (toggling is often not enough), then restart the agents.
 
 ## Phase 4 — First run (needs the human to speak)
 
-1. Open the app. On macOS the Set up page confirms permissions; on Linux confirm the runner is
-   running.
+1. Open the app. The **first-run wizard** runs on first launch (see
+   [`ONBOARDING.md`](ONBOARDING.md)); afterwards, on macOS the **Settings** tab confirms
+   permissions and on Linux confirm the runner is running — the wizard's permissions step
+   covers both.
 2. Hold the **assistant key** (macOS default: **right Command**; Linux: your configured key),
    say **"open youtube"**, release.
 3. Expected: a start sound, the on-screen overlay, then the browser opens YouTube and a success
@@ -214,8 +219,8 @@ curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --uninstall -
   `xattr -cr /Applications/utter.app`.
 - **macOS: push-to-talk does nothing after granting Input Monitoring.** The agents are still the
   old, un-granted processes. Restart them (Phase 3).
-- **macOS: `llutter`… no `launchctl` agents.** The app's Set up page did not run; open the app
-  and let it finish, or run `macos/setup.sh`.
+- **macOS: `llutter`… no `launchctl` agents.** The app's **Settings** tab did not run; open
+  the app and let it finish, or run `macos/setup.sh`.
 - **Linux: `utter-runner` failed to start.** `systemctl --user status utter-runner.service` and
   `journalctl --user -u utter-runner -n 50` for the traceback.
 - **No speech recognised.** On macOS ensure Microphone + Speech Recognition are granted; the
