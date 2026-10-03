@@ -128,7 +128,8 @@ no launch/ensure, focus, close, shortcut, custom command, media target, or
 typed/keystroke target. Still allowed regardless of the gate: sites/URLs
 (`open youtube`), generic media transport keys (`media next`), compositor/niri
 actions, dictation into the focused field, and CLI agents (`codex`), whose
-dangerous part is the runner's `terminal`/`input` gate.
+dangerous part is the runner's `terminal`/`input` gate. New users first meet this
+gate in the apps step of the [first-run wizard](ONBOARDING.md).
 
 - `enabled` is computed by `load()`: an explicit `enabled` in a merged override
   wins; otherwise the id is enabled iff it is in `_preselected.yaml`; otherwise

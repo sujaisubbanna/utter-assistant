@@ -41,6 +41,10 @@ What it does:
 6. Records what it did in `$XDG_STATE_HOME/utter/install.json` (reversible).
 7. Runs `python -m assistant doctor --json` (or `recommend --json`) to verify.
 
+On first launch the settings app opens the **first-run setup wizard** — language, permissions,
+push-to-talk keys, which apps Utter may control, and a model to run. It is documented in
+[`ONBOARDING.md`](ONBOARDING.md).
+
 Uninstall:
 ```bash
 install/uninstall.sh --dry-run

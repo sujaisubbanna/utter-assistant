@@ -139,7 +139,8 @@ clear error; without Accessibility typed text silently goes nowhere.
    unsigned, quarantined app, not a bad download. Clear the flag once:
    `xattr -cr /Applications/utter.app` (or download with `curl`, which never
    sets it). On macOS 15+ right-click → *Open* no longer bypasses this.
-3. Open it. The **Set up** page installs the rest by itself:
+3. Open it. The first-run wizard runs first (see [ONBOARDING.md](ONBOARDING.md));
+   once that is done, the macOS-only **Settings** tab installs the rest by itself:
    - it unpacks the Python runtime and the assistant that ship inside the app
      (`Contents/Resources/runtime.tar.gz`, ~150 MB: a relocatable CPython from
      python-build-standalone with numpy, sounddevice, PyObjC and pywhispercpp)
@@ -149,8 +150,8 @@ clear error; without Accessibility typed text silently goes nowhere.
    - it then walks the permissions (next section). Nothing to type.
 
 No Homebrew, no Python install, no terminal. Updating is the same: drop the new
-app in, open it, and Set up offers **Update** when the bundled runtime is newer
-than the installed one. To remove everything: delete the app,
+app in, open it, and the **Settings** tab offers **Update** when the bundled
+runtime is newer than the installed one. To remove everything: delete the app,
 `~/Library/Application Support/utter`, `~/Library/LaunchAgents/com.utter.*.plist`
 and `~/.config/utter`.
 
@@ -249,17 +250,19 @@ copies the core (`utter/`, `runner/`, `assistant/`, `plugins/`, `protocol/`,
 affected. `gui-tauri/src-tauri/src/macos_setup.rs` does the unpack/agents on
 the user's Mac.
 
-## First run: the Set up page
+## First run: permissions in Settings
 
-On a Mac the settings app opens on **Set up** the first time (and keeps it in the
-sidebar). Its first row installs the bundled runtime and agents (see above);
-the rest is permissions. It is modelled on how Raycast onboards: one screen that lists every
-permission, says why it is needed, has a **Grant access** button that triggers
-the system prompt, an **Open System Settings** button that deep-links to the
-exact pane (`x-apple.systempreferences:com.apple.preference.security?Privacy_…`),
-and a status badge that re-checks every few seconds until everything is green.
-Below the permissions it shows the two launchd agents (plugin runner, voice
-assistant) with a Start button.
+On a Mac the settings app starts with the first-run wizard
+([ONBOARDING.md](ONBOARDING.md)); once that is finished the app opens on the
+macOS-only **Settings** tab, which stays in the sidebar. Its first row installs
+the bundled runtime and agents (see above); the rest is permissions. It is
+modelled on how Raycast onboards: one screen that lists every permission, says
+why it is needed, has a **Grant access** button that triggers the system prompt,
+an **Open System Settings** button that deep-links to the exact pane
+(`x-apple.systempreferences:com.apple.preference.security?Privacy_…`), and a
+status badge that re-checks every few seconds until everything is green. Below
+the permissions it shows the two launchd agents (plugin runner, voice assistant)
+with a Start button.
 
 **One identity: utter.app.** macOS attaches privacy permissions to the
 *responsible process*. If launchd ran the Python binary directly, the prompts
@@ -269,7 +272,7 @@ page would keep saying "not granted" after you had granted it. To avoid that,
 the launchd agents launch **the app binary itself** in a headless mode
 (`utter.app/Contents/MacOS/utter --daemon` / `--runner`), which supervises the
 bundled Python as its child and forwards signals. The prompts therefore show
-"utter" with its icon, and the daemon, the Set up page's probe
+"utter" with its icon, and the daemon, the Settings tab's probe
 (`python -m assistant macos-permissions --json`) and the prompts all share one
 grant. The daemon repeats the probe at startup and writes
 `~/Library/Application Support/utter/permissions.json`. From a terminal:
@@ -289,7 +292,7 @@ The same Tauri app, built as `utter.app`, with platform-aware pages:
 
 | Page | macOS behaviour |
 |---|---|
-| Set up | permissions onboarding + launchd agents (macOS only) |
+| Settings | permissions onboarding + launchd agents (macOS only) |
 | General | the service rows are backed by `launchctl` (`com.utter.runner`, `com.utter.assistant`); vision/planner/audio units show as not installed |
 | Voice | writes `[macos]`: push-to-talk keys by name (Right ⌘ / Right ⌥ …), Apple Speech / whisper.cpp / VocaMac engine + fallback, locale, on-device switch |
 | Spoken replies | `say` / AVSpeechSynthesizer, voice name, rate, with a test button |
@@ -384,7 +387,7 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 - runner socket peer credentials via `LOCAL_PEERCRED` (128-byte buffer, version 0 validation) / `LOCAL_PEERPID` and
   `proc_pidpath` (replaces `SO_PEERCRED` + `/proc`)
 - the launchd agents and `macos/setup.sh` (idempotent, reversible)
-- the Set up page: permission probes (`AVCaptureDevice`, `SFSpeechRecognizer`,
+- the Settings tab: permission probes (`AVCaptureDevice`, `SFSpeechRecognizer`,
   `IOHIDCheckAccess`, `AXIsProcessTrustedWithOptions`,
   `CGPreflightScreenCaptureAccess`), System Settings deep links, `launchctl`
   status/start/stop mapping in the settings app, with one permission identity (`utter.app`)

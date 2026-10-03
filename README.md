@@ -87,7 +87,7 @@ Whisper model (`small`, `large-v3-turbo`, …) and TTS voice. Non-English with a
    ```bash
    curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --yes
    ```
-3. Open the settings app, set your push-to-talk keys on the **Voice** page, and pick a model on the **Models** page. Full walkthrough: [docs/INSTALL.md](docs/INSTALL.md).
+3. On first launch the settings app opens the **[first-run setup wizard](docs/ONBOARDING.md)** — language, permissions, push-to-talk keys, which apps Utter may control, and a model to run. You can change any of these later on the settings app's **Voice**, **App actions** and **Models** pages. Full walkthrough: [docs/INSTALL.md](docs/INSTALL.md) and [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ## Use it without voice
 
@@ -168,6 +168,7 @@ Full documentation: **[utter.sujaisubbanna.com](https://utter.sujaisubbanna.com/
 | Doc | What's inside |
 |---|---|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | Installer, background services, the model store and the `assistant` CLI |
+| [`docs/ONBOARDING.md`](docs/ONBOARDING.md) | The first-run setup wizard: steps, skipping, resuming and re-running it |
 | [`docs/INSTALL-AGENT.md`](docs/INSTALL-AGENT.md) | Self-contained runbook for an AI agent to install and verify Utter |
 | [`docs/CLI.md`](docs/CLI.md) | The `utter` agent CLI: commands, JSON envelope, exit codes, safety |
 | [`docs/CUSTOMISING.md`](docs/CUSTOMISING.md) | Config, hotkeys, speech, AI and vision models, audio |
