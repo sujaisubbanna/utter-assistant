@@ -196,7 +196,7 @@ export const es: Messages = {
     safety: "Seguridad",
     diagnostics: "Solución de problemas",
     about: "Acerca de",
-    setup: "Configuración inicial",
+    setup: "Ajustes",
   },
 
   theme: {

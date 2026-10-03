@@ -202,7 +202,7 @@ export const ru: Messages = {
     safety: "Безопасность",
     diagnostics: "Поиск неисправностей",
     about: "О",
-    setup: "Настраивать",
+    setup: "Настройки",
   },
 
   theme: {

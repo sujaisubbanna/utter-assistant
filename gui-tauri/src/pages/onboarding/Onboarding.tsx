@@ -140,15 +140,23 @@ export function Onboarding({
               "radial-gradient(60% 100% at 50% 0%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 70%)",
           }}
         />
-        <div className="relative mx-auto flex h-full w-full max-w-[760px] flex-col px-6">
+        <div className="relative mx-auto flex h-full w-full max-w-[820px] flex-col px-6">
           <ProgressRail index={index} total={ONBOARDING_STEPS.length} onSelect={goTo} />
           <div
             ref={regionRef}
             tabIndex={-1}
             className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6 outline-none [scrollbar-gutter:stable]"
           >
-            <div key={ONBOARDING_STEPS[index]} className={direction === 1 ? "animate-step-in" : "animate-step-back"}>
-              <Step data={data} commit={commit} nav={nav} />
+            {/*
+              The wrapper is at least as tall as the scroll region and centres the
+              step when it fits. When the step is taller, the wrapper grows to the
+              content height, so the step sits top-aligned and scrolls normally
+              instead of being clipped.
+            */}
+            <div className="flex min-h-full flex-col justify-center">
+              <div key={ONBOARDING_STEPS[index]} className={direction === 1 ? "animate-step-in" : "animate-step-back"}>
+                <Step data={data} commit={commit} nav={nav} />
+              </div>
             </div>
           </div>
 

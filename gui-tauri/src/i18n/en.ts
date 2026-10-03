@@ -66,7 +66,7 @@ export const en = {
     safety: "Safety",
     diagnostics: "Troubleshooting",
     about: "About",
-    setup: "Set up",
+    setup: "Settings",
   },
 
   theme: {

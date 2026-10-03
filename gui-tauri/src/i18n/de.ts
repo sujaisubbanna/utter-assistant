@@ -202,7 +202,7 @@ export const de: Messages = {
     safety: "Sicherheit",
     diagnostics: "Fehlerbehebung",
     about: "Um",
-    setup: "Aufstellen",
+    setup: "Einstellungen",
   },
 
   theme: {
