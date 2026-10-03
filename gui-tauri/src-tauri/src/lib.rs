@@ -252,6 +252,7 @@ pub fn run() {
             commands::open_url,
             commands::app_profiles_list,
             commands::app_profile_save,
+            commands::app_profiles_set_enabled,
             commands::app_profile_reset,
             commands::which_many,
             commands::start_mic,

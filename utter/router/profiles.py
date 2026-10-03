@@ -34,8 +34,12 @@ USER_PROFILES_DIR = _xdg("XDG_CONFIG_HOME", ".config") / "utter" / "profiles"
 # Catalogue of the apps installed on *this* machine (scripts/gen_app_catalog.py).
 GENERATED_PATH = _xdg("XDG_DATA_HOME", ".local/share") / "utter" / "generated.yaml"
 
+# Curated opt-in preselection (shipped, read-only policy data — not a profile).
+PRESELECTED_NAME = "_preselected.yaml"
+# Hard-cut policy marker: ``$XDG_STATE_HOME/utter/apps-state.json``.
+POLICY_VERSION = 1
 # Files that are not per-app profiles.
-_RESERVED = {"_defaults.yaml", "generated.yaml"}
+_RESERVED = {"_defaults.yaml", "generated.yaml", PRESELECTED_NAME}
 
 
 @dataclass
@@ -58,10 +62,26 @@ class AppProfile:
     # hand-written / user profile. Keyword-derived aliases on generated entries
     # must never shadow an explicit CLI-agent name (see ``resolve``).
     generated: bool = True
+    # Opt-in gate: an app is actionable (launch/ensure, focus, close, shortcut,
+    # custom command, media target, targeted input) only when enabled. Default
+    # False so the hard cut enables only the curated preselected set.
+    enabled: bool = False
+    # True when the id is in the shipped ``_preselected.yaml`` set. The list
+    # surfaces show this so the default policy is visible.
+    preselected: bool = False
 
 
 # Fields accepted when constructing an AppProfile from a YAML mapping.
 _FIELDS = set(AppProfile.__dataclass_fields__)
+
+# An override carrying only these keys is the opt-in gate, not a curated-like
+# identity override: it must not flip ``generated`` (see ``load``).
+_GATE_ONLY_KEYS = {"id", "enabled", "preselected"}
+
+
+def _is_identity_override(entry: dict) -> bool:
+    """True when an override carries data beyond the opt-in gate."""
+    return any(key not in _GATE_ONLY_KEYS for key in entry)
 
 
 def _read_yaml(path: Path) -> dict:
@@ -154,17 +174,91 @@ def _to_profile(entry: dict) -> AppProfile:
     return AppProfile(**kwargs)
 
 
+def _preselected_ids(profiles_dir: Path | None = None) -> set[str]:
+    """Ids in the shipped ``_preselected.yaml`` opt-in set (may be empty)."""
+    directory = Path(profiles_dir) if profiles_dir else PROFILES_DIR
+    data = _read_yaml(directory / PRESELECTED_NAME)
+    block = data.get("preselected") if isinstance(data, dict) else None
+    ids = block.get("ids") if isinstance(block, dict) else None
+    if not isinstance(ids, list):
+        return set()
+    return {str(pid) for pid in ids if str(pid).strip()}
+
+
+def is_enabled(profile) -> bool:
+    """Whether a profile may be targeted by any app-specific action."""
+    return bool(getattr(profile, "enabled", False))
+
+
+def enabled_profiles(profiles: dict) -> dict:
+    """The enabled subset of ``profiles`` (the only set routing may consume)."""
+    return {pid: p for pid, p in profiles.items() if is_enabled(p)}
+
+
+# --- hard-cut policy marker (R9) --------------------------------------------
+def _state_path(state_path=None) -> Path:
+    if state_path is not None:
+        return Path(state_path)
+    return _xdg("XDG_STATE_HOME", ".local/state") / "utter" / "apps-state.json"
+
+
+def _read_policy_version(path: Path) -> Optional[int]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        return int(data.get("policy_version"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _write_policy_marker(path: Path) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps({"policy_version": POLICY_VERSION}) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass  # a read-only state dir must never break loading profiles
+
+
+def _apply_policy_marker(result: dict, state_path) -> bool:
+    """Record the hard-cut policy version; return True when newly recorded.
+
+    With no marker (a fresh install, or one from before the opt-in gate) the
+    hard cut applies: only the curated preselected set is enabled, unless an
+    override explicitly opts an app in. ``load`` has already computed exactly
+    that default for every profile, so first load only writes the marker — it
+    never auto-enables a user-customised app. Once the marker is present later
+    toggles are left alone (no re-seed).
+    """
+    path = _state_path(state_path)
+    if _read_policy_version(path) == POLICY_VERSION:
+        return False
+    _write_policy_marker(path)
+    return True
+
+
 def load(
     profiles_dir: str | Path | None = None,
     *,
     user_dir: str | Path | None = None,
     generated_path: str | Path | None = None,
+    state_path: str | Path | None = None,
 ) -> dict[str, AppProfile]:
     """Load all profiles: installed-app catalogue < curated < your own.
 
     Keyed by profile id. Your profiles (``USER_PROFILES_DIR``) come first so a
     spoken name resolves to them; generic ``generic-*`` fallbacks go last.
     Passing ``profiles_dir`` loads only that directory (tests).
+
+    Every profile gets ``enabled`` from an explicit override if present, else
+    from the shipped preselected set, else ``False``. ``state_path`` overrides
+    the hard-cut marker location (tests); it is only applied for the default
+    curated directory unless passed explicitly.
     """
     directory = Path(profiles_dir) if profiles_dir else PROFILES_DIR
     if profiles_dir:
@@ -184,6 +278,7 @@ def load(
     overrides = {**{k: overrides[k] for k in mine}, **{k: v for k, v in overrides.items() if k not in mine}}
 
     merged = merge_profiles(generated, overrides)
+    preselected = _preselected_ids(directory)
 
     # Order curated profiles ahead of generated-only ones so resolve() prefers a
     # hand-written profile for a spoken name; generic-* fallbacks go last.
@@ -197,9 +292,57 @@ def load(
         entry = merged[pid]
         kind = str(entry.get("kind") or "other")
         entry = _apply_defaults(entry, kind, defaults)
-        result[pid] = _to_profile(entry)
-        result[pid].generated = pid not in override_ids
+        profile = _to_profile(entry)
+        # Explicit `enabled` in the merged entry wins; else the curated
+        # preselected set; else off (the hard-cut default).
+        profile.preselected = pid in preselected
+        if "enabled" in entry and entry.get("enabled") is not None:
+            profile.enabled = bool(entry["enabled"])
+        else:
+            profile.enabled = profile.preselected
+        # An override that only flips the opt-in gate is not an identity
+        # override: keep generated=True so resolve()'s CLI-agent guard and the
+        # GUI `own` heuristic are unchanged. (scripts/gen_app_catalog.py must
+        # never write `enabled` into the regenerated catalogue.)
+        profile.generated = pid not in override_ids or not _is_identity_override(overrides.get(pid) or {})
+        result[pid] = profile
+
+    if state_path is not None or profiles_dir is None:
+        _apply_policy_marker(result, state_path)
     return result
+
+
+# Cache for ``load_cached``: "default" -> (signature, profiles). The live
+# process must pick up a GUI/CLI toggle without a restart, so the signature
+# tracks every file the merge reads (curated, user overrides, generated, and
+# ``_preselected.yaml``).
+_PROFILES_CACHE: dict[str, tuple[tuple, dict]] = {}
+
+
+def _watched_signature() -> tuple:
+    watched: set[Path] = set(PROFILES_DIR.glob("*.yaml"))
+    if USER_PROFILES_DIR.is_dir():
+        watched.update(USER_PROFILES_DIR.glob("*.yaml"))
+    watched.add(GENERATED_PATH)
+    sig = []
+    for path in sorted(watched, key=str):
+        try:
+            st = path.stat()
+            sig.append((str(path), st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append((str(path), None, None))
+    return tuple(sig)
+
+
+def load_cached() -> dict[str, AppProfile]:
+    """``load()`` with mtime invalidation so a toggle takes effect live (R8)."""
+    sig = _watched_signature()
+    cached = _PROFILES_CACHE.get("default")
+    if cached is not None and cached[0] == sig:
+        return cached[1]
+    profiles = load()
+    _PROFILES_CACHE["default"] = (sig, profiles)
+    return profiles
 
 
 def cli_agent_names() -> set[str]:

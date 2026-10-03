@@ -469,6 +469,13 @@ is covered in [`docs/APPS.md`](APPS.md) §6. Short version: create
 `kind`, then run `scripts/gen_app_catalog.py` (and `scripts/gen_niri_phrases.py` if
 you touched niri phrases).
 
+**Opt-in gate.** Every profile is off unless it is in the shipped
+`utter/profiles/_preselected.yaml` set or you explicitly set `enabled: true` in
+your `~/.config/utter/profiles/<id>.yaml`. A disabled app is ignored entirely by
+Utter (no launch/focus/close/shortcut/custom/media/targeted input), while sites,
+generic media keys and CLI agents stay available. See
+[`docs/APPS.md`](APPS.md) §2 for the full rule.
+
 Relevant config knobs here: `[router] llm_fallback` and `[actions] require_confirm`.
 
 ---

@@ -762,6 +762,34 @@ pub async fn app_profile_save(
     blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
 }
 
+/// Enable/disable a set of apps in one call (writes override files).
+///
+/// Bulk opt-in for the picker/onboarding: each id is validated exactly like
+/// `app_profile_save`, existing override fields are preserved, and only the
+/// `enabled` gate changes.
+#[tauri::command]
+pub async fn app_profiles_set_enabled(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    enabled: bool,
+) -> Result<CmdResult, String> {
+    if ids.len() > 1000 {
+        return Err("too many ids".to_string());
+    }
+    for id in &ids {
+        if !profiles::valid_id(id) {
+            return Err(format!("invalid profile id: {id}"));
+        }
+    }
+    let dir = user_profiles_dir(&state).to_string_lossy().into_owned();
+    let payload = Value::Array(ids.iter().map(|id| Value::String(id.clone())).collect());
+    let cmd = profile_python(&state, profiles::SET_ENABLED_SCRIPT)
+        .arg(dir)
+        .arg(payload.to_string())
+        .arg(if enabled { "true" } else { "false" });
+    blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
+}
+
 /// Drop the user override for one app, restoring the built-in actions.
 #[tauri::command]
 pub fn app_profile_reset(state: State<AppState>, id: String) -> Result<(), String> {
