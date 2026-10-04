@@ -1845,7 +1845,10 @@ verify() {
     fi
     [[ -f "$TMP/$SUMS" ]] || die "$(t "missing {1} (cannot verify {2})" "$SUMS" "$asset")"
     local want got
-    want="$(awk -v a="$asset" '$2==a || $2=="*"a {print $1}' "$TMP/$SUMS" | head -1)"
+    # Release checksums are generated with `sha256 ./<asset>`, so the stored
+    # name may carry a "./" prefix (and binary-mode entries a "*"); strip both
+    # before comparing, matching the macOS verifier.
+    want="$(awk -v a="$asset" '{ n=$2; sub(/^\*/, "", n); sub(/^\.\//, "", n); if (n == a) { print $1; exit } }' "$TMP/$SUMS")"
     [[ -n "$want" ]] || die "$(t "{1} not listed in {2}" "$asset" "$SUMS")"
     got="$(sha256sum "$TMP/$asset" | awk '{print $1}')"
     if [[ "$want" != "$got" ]]; then
