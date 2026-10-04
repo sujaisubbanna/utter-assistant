@@ -17,6 +17,27 @@ from . import util
 
 
 # --------------------------------------------------------------------------- #
+# pullable sources
+# --------------------------------------------------------------------------- #
+#: Ready-to-pull store sources for recommendation tiers. Only real, documented
+#: repos go here; a tier with no known Hugging Face source simply omits it (the
+#: settings app mirrors this in gui-tauri/src/lib/links.ts PULL_SOURCES).
+PULL_SOURCES = {
+    "UI-TARS-7B": "hf:ByteDance-Seed/UI-TARS-1.5-7B",
+}
+
+#: whisper.cpp publishes the ggml checkpoints used by the CPU/Vulkan tiers.
+WHISPER_CPP_REPO = "hf:ggerganov/whisper.cpp"
+
+
+def _whisper_cpp_source(model: str) -> str | None:
+    name = (model or "").strip()
+    if not name or name == "none":
+        return None
+    return f"{WHISPER_CPP_REPO}:ggml-{name}.bin"
+
+
+# --------------------------------------------------------------------------- #
 # probes
 # --------------------------------------------------------------------------- #
 def _vulkan_present() -> bool:
@@ -115,10 +136,12 @@ def suggest(hw: dict[str, Any]) -> dict[str, Any]:
                "reason": f"NVIDIA GPU with {vram:.0f} GB VRAM (>=8 GB)"}
     elif amd_intel or hw.get("vulkan"):
         stt = {"backend": "whisper.cpp", "model": "small", "device": "vulkan",
-               "est_vram_gb": 1.0, "reason": "Vulkan-capable GPU (AMD/Intel)"}
+               "est_vram_gb": 1.0, "reason": "Vulkan-capable GPU (AMD/Intel)",
+               "source": _whisper_cpp_source("small")}
     else:
         stt = {"backend": "whisper.cpp", "model": "base.en", "device": "cpu",
-               "est_ram_gb": 1.0, "reason": "no usable GPU; CPU int8"}
+               "est_ram_gb": 1.0, "reason": "no usable GPU; CPU int8",
+               "source": _whisper_cpp_source("base.en")}
 
     if vram >= 24:
         llm = {"model": "7-8B", "quant": "awq", "est_vram_gb": 6.0,
@@ -139,6 +162,8 @@ def suggest(hw: dict[str, Any]) -> dict[str, Any]:
     else:
         vision = {"model": "none", "mode": "a11y-only",
                   "reason": "no GPU with >=6 GB VRAM; accessibility-only"}
+    if vision["model"] in PULL_SOURCES:
+        vision["source"] = PULL_SOURCES[vision["model"]]
 
     return {
         "stt": stt,
@@ -173,16 +198,21 @@ def human(report: dict[str, Any]) -> str:
             lines.append(f"  GPU:     {g['name']} ({g['vram_gb']:.0f} GB, {g['vendor']})")
     else:
         lines.append("  GPU:     none detected")
+
+    def pull(entry: dict[str, Any]) -> str:
+        source = entry.get("source")
+        return f"\n              install: assistant models pull {source}" if source else ""
+
     lines += [
         "",
         "Suggested profile (nothing is installed automatically):",
         f"  STT:          {s['stt']['backend']} / {s['stt']['model']} ({s['stt']['device']})"
-        f" — {s['stt']['reason']}",
+        f" — {s['stt']['reason']}{pull(s['stt'])}",
         f"  Decision LLM: {s['decision_llm']['model']} {s['decision_llm'].get('quant','')}"
-        f" — {s['decision_llm']['reason']}",
+        f" — {s['decision_llm']['reason']}{pull(s['decision_llm'])}",
         f"  Planner LLM:  {s['planner_llm']['model']} {s['planner_llm'].get('quant','')}"
-        f" — {s['planner_llm']['reason']}",
-        f"  Vision:       {s['vision']['model']} — {s['vision']['reason']}",
+        f" — {s['planner_llm']['reason']}{pull(s['planner_llm'])}",
+        f"  Vision:       {s['vision']['model']} — {s['vision']['reason']}{pull(s['vision'])}",
         "",
         "  Zero-model mode is always available (rules + context + a11y).",
     ]

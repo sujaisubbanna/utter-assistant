@@ -219,9 +219,11 @@ Three backends are supported:
 - **`none`**, transcription disabled.
 
 Model lookup for whisper.cpp checks, in order: an explicit path or `$UTTER_WHISPER_MODEL`,
-`$UTTER_MODELS_DIR`, `<repo>/models/whisper`, then `~/.cache/whisper`. The default whisper.cpp
-filename is `ggml-small.en.bin`. If no local file exists and the configured name is a valid
-whisper.cpp model, `pywhispercpp` downloads it.
+`$UTTER_MODELS_DIR`, `<repo>/models/whisper`, `~/.cache/whisper`, then the model store
+(`$XDG_DATA_HOME/utter-models`, override `UTTER_MODELS`) — a pulled file is resolved through its
+manifest, since blobs are content-addressed. The default whisper.cpp filename is
+`ggml-small.en.bin`. If no local file exists and the configured name is a valid whisper.cpp
+model, `pywhispercpp` downloads it.
 
 ### Spoken language (STT and TTS)
 

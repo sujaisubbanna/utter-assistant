@@ -184,6 +184,34 @@ export const de: Messages = {
     px: "px",
   },
 
+  modelRequired: {
+    title: "Du brauchst zuerst ein Modell",
+    sttBody:
+      "Die Spracherkennung braucht ein Modell. Hole das empfohlene, oder lass es deine Spracherkennung beim ersten Diktieren laden.",
+    visionBody:
+      "Die Bildschirm-Vision braucht ein Modell auf diesem Computer. Hole das empfohlene und schalte sie dann ein.",
+    action: "Modell holen",
+    recommended: "Empfohlen",
+    size: "Etwa {size}",
+    storeLabel: "Gespeichert in",
+    estimatedNote: "Wir konnten deine Hardware nicht prüfen, daher ist dies eine sichere Standardwahl.",
+    sttNote: "Deine Spracherkennung kann es auch beim ersten Diktieren herunterladen.",
+    noSourceNote: "Richte dieses Modell auf der Seite „Modelle“ ein.",
+    notNow: "Später",
+    openModels: "Modelle öffnen",
+    download: "Herunterladen",
+    downloading: "Wird heruntergeladen…",
+    progress: "{done} von {total}",
+    starting: "Download wird gestartet…",
+    stop: "Stoppen",
+    failedTitle: "Download fehlgeschlagen",
+    failedBody: "Der Download wurde nicht fertig. Prüfe deine Verbindung und versuche es erneut.",
+    retry: "Erneut versuchen",
+    doneTitle: "Modell bereit",
+    doneBody: "{name} ist einsatzbereit.",
+    done: "Fertig",
+  },
+
   nav: {
     sections: "Abschnitte",
     groups: {

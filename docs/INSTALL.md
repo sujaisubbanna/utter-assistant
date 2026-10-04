@@ -62,6 +62,12 @@ On first launch the settings app opens the **first-run setup wizard** — langua
 push-to-talk keys, which apps Utter may control, and a model to run. It is documented in
 [`ONBOARDING.md`](ONBOARDING.md).
 
+The GUI step also installs a desktop entry (`~/.local/share/applications/utter-gui.desktop`,
+`Name=Utter`, `Categories=Utility;Accessibility;`) and refreshes the desktop database, so
+**Utter appears in the application menu** of KDE and other desktops. Opening it starts the
+setup wizard, which starts the runner service. CLI fallback:
+`systemctl --user enable --now utter-runner.service` then `utter-gui`.
+
 Uninstall:
 ```bash
 install/uninstall.sh --dry-run
@@ -115,8 +121,19 @@ it, so uninstalling the core tree keeps your models. An older store at
   atomic rename, pull lock, disk-space preflight.
 - `rm` drops the manifest and any now-unreferenced blobs; `prune` GCs orphans.
 
-Models are **the user's choice** — the installer never downloads one. `assistant recommend`
-suggests a profile for the machine's GPU/RAM; you pull what you want.
+The installer offers the model tiers (default **No**) and, for each tier you accept, pulls a
+**curated default source** through the store. On the 24 GB reference machine (RTX 3090 Ti) those
+defaults are:
+
+| Tier | Default source | Notes |
+|---|---|---|
+| STT | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | ~466 MB; runs on CPU or GPU |
+| Vision | `hf:ByteDance-Seed/UI-TARS-2B-SFT` | ~4.5 GB bf16; fits beside the 4-bit AWQ planner |
+| Decision / planner | — | no documented single Hugging Face source; set `UTTER_MODEL_DECISION` |
+
+`UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults. Nothing
+is downloaded unless you accept the tier, and `assistant recommend` suggests a profile for the
+machine's GPU/RAM before you choose.
 
 ### Spoken language and downloads
 

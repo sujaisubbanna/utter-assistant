@@ -48,6 +48,34 @@ export const en = {
     px: "px",
   },
 
+  modelRequired: {
+    title: "You need a model first",
+    sttBody:
+      "Speech recognition needs a model. Get the recommended one, or let your engine fetch it when you first dictate.",
+    visionBody:
+      "Screen vision needs a model on this computer. Get the recommended one, then turn it on.",
+    action: "Get a model",
+    recommended: "Recommended",
+    size: "About {size}",
+    storeLabel: "Saved to",
+    estimatedNote: "We couldn't check your hardware, so this is a safe default.",
+    sttNote: "Your speech engine can also download it the first time you dictate.",
+    noSourceNote: "Set this model up from the Models page.",
+    notNow: "Not now",
+    openModels: "Open Models",
+    download: "Download",
+    downloading: "Downloading…",
+    progress: "{done} of {total}",
+    starting: "Starting the download…",
+    stop: "Stop",
+    failedTitle: "Download failed",
+    failedBody: "The download didn't finish. Check your connection and try again.",
+    retry: "Try again",
+    doneTitle: "Model ready",
+    doneBody: "{name} is ready to use.",
+    done: "Done",
+  },
+
   nav: {
     sections: "Sections",
     groups: {

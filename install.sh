@@ -28,7 +28,10 @@
 #   UTTER_PYTHON    python interpreter baked into the assistant wrapper
 #   UTTER_MODEL_STT / _DECISION / _VISION / _TTS
 #                       optional model source for a tier (hf:org/repo[:file],
-#                       https://… or file://…); pulled only if that tier is chosen
+#                       https://… or file://…); pulled only if that tier is chosen.
+#                       STT and vision default to a curated source (see
+#                       DEFAULT_MODEL_STT / DEFAULT_MODEL_VISION); decision has
+#                       no documented source and must be set explicitly.
 #   UTTER_MODEL_STT_<LANG> / UTTER_MODEL_TTS_<LANG>
 #                       per-language overrides (e.g. UTTER_MODEL_STT_DE_DE or
 #                       UTTER_MODEL_STT_DE) that fall back to the generic tier var
@@ -991,16 +994,18 @@ run() {
 # --------------------------------------------------------------------------- #
 # section: logo + banner
 # --------------------------------------------------------------------------- #
-# Solid lowercase "utter", 6 rows. x-height letters (u/e/r) leave row 0 blank
-# for the ascender line; the two t's carry the crossbar on row 2. Rendered with
-# a per-column amber ramp (no rainbow) and an optional moving highlight, or an
-# ASCII fallback when the locale/terminal cannot show blocks.
+# Solid "utter", 6 rows, U T T E R. x-height letters (U/E/R) leave row 0 blank
+# for the ascender line; the two T's put their crossbar on row 0 with a centred
+# stem below (a crossbar in the middle reads like an H). Every glyph is exactly
+# 5 columns wide so `ui_logo` can index LOGO_COLS across the concatenated line.
+# Rendered with a per-column amber ramp (no rainbow) and an optional moving
+# highlight, or an ASCII fallback when the locale/terminal cannot show blocks.
 LOGO_ROWS=6
 LOGO_SEQ=(U T T E R)
 LOGO_U=('     ' '█   █' '█   █' '█   █' '█   █' ' ███ ')
-LOGO_T=(' ██  ' ' ██  ' '█████' ' ██  ' ' ██  ' ' ██  ')
-LOGO_E=('     ' '████ ' '█   █' '█████' '█    ' ' ███ ')
-LOGO_R=('     ' '████ ' '█   █' '█    ' '█    ' '█    ')
+LOGO_T=('█████' '  █  ' '  █  ' '  █  ' '  █  ' '  █  ')
+LOGO_E=('     ' '█████' '█    ' '████ ' '█    ' '█████')
+LOGO_R=('     ' '████ ' '█   █' '████ ' '█  █ ' '█   █')
 LOGO_LINES=()
 LOGO_COLS=29
 LOGO_BASE=()
@@ -1075,11 +1080,11 @@ ui_logo() {
 
 ui_ascii_logo() {
     cat <<'ASCII'
- _   _ _   _ _   _ _____ ____
-| | | | |_| | | | |_   _|  _ \
-| |_| |  _  | |_| | | | | |_) |
- \__,_|_| |_|\__,_| |_| |  _ <
-                        |_| \_\
+ _   _ _____ _____ _____ ____
+| | | |_   _|_   _| ____|  _ \
+| | | | | |   | | |  _| | |_) |
+| |_| | | |   | | | |___|  _ <
+ \___/  |_|   |_| |_____|_| \_\
 ASCII
 }
 
@@ -2510,6 +2515,16 @@ MODEL_TIER_KEYS=()
 MODEL_TIER_TITLES=()
 MODEL_TIER_SIZES=()
 
+# Curated default model sources, sized for the 24 GB reference machine (RTX
+# 3090 Ti; the shipped pair was measured on a 24 GB card):
+#   stt      ggml-small.en.bin (~466 MB) — English, runs on CPU or GPU
+#   vision   UI-TARS-2B-SFT (~4.5 GB bf16) — leaves room for the 4B AWQ planner
+# The 4-bit AWQ planner has no documented single Hugging Face source, so the
+# `decision` tier still needs UTTER_MODEL_DECISION (see docs/guides/models.md).
+# Installs without a 24 GB NVIDIA GPU keep zero-model mode and pull nothing.
+DEFAULT_MODEL_STT="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
+DEFAULT_MODEL_VISION="hf:ByteDance-Seed/UI-TARS-2B-SFT"
+
 # --------------------------------------------------------------------------- #
 # section: language (spoken STT/TTS; English ships inline)
 # --------------------------------------------------------------------------- #
@@ -3160,9 +3175,9 @@ exec_models() {
     for key in "${keys[@]}"; do
         [[ -n "$key" ]] || continue
         case "$key" in
-            stt)      src="${UTTER_MODEL_STT:-}" ;;
+            stt)      src="${UTTER_MODEL_STT:-$DEFAULT_MODEL_STT}" ;;
             decision) src="${UTTER_MODEL_DECISION:-}" ;;
-            vision)   src="${UTTER_MODEL_VISION:-}" ;;
+            vision)   src="${UTTER_MODEL_VISION:-$DEFAULT_MODEL_VISION}" ;;
             *)        src="" ;;
         esac
         if [[ -n "$src" ]]; then
@@ -3215,15 +3230,15 @@ exec_gui() {
             cat > "$DESKTOP_FILE" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=utter Settings
-GenericName=Voice Assistant Settings
-Comment=Configure the utter voice → desktop-action assistant
+Name=Utter
+GenericName=Voice Assistant
+Comment=Start or configure the Utter voice assistant
 Exec=$GUI_BIN
 TryExec=$GUI_BIN
 Icon=$ICON_NAME
 Terminal=false
-Categories=Settings;
-Keywords=utter;voice;assistant;settings;stt;llm;
+Categories=Utility;Accessibility;
+Keywords=utter;voice;assistant;dictation;speech;
 StartupNotify=true
 StartupWMClass=utter
 DESKTOP
@@ -3476,12 +3491,16 @@ else
     fi
     say ""
     say "Next steps:"
-    say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
-    say_f "  2. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
     if (( GUI_AVAILABLE )); then
-        say "  3. Launch the GUI:     ${GUI_BIN}"
+        say "  1. Open Utter from your application menu"
+        say "     (the first-run wizard starts the assistant service)"
+        say_f "     or from a terminal: {1}" "$GUI_BIN"
+        say "  2. If the service is not running: systemctl --user enable --now utter-runner.service"
+        say_f "  3. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
         say "  4. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
     else
+        say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
+        say_f "  2. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
         say "  3. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
     fi
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then

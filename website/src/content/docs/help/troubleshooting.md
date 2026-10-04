@@ -93,7 +93,8 @@ assistant models list
 ```
 
 For whisper.cpp, Utter looks in `$UTTER_WHISPER_MODEL`, `$UTTER_MODELS_DIR`,
-`<repo>/models/whisper` and `~/.cache/whisper`, and `pywhispercpp` will download a known model
+`<repo>/models/whisper`, `~/.cache/whisper` and the model store
+(`$XDG_DATA_HOME/utter-models`), and `pywhispercpp` will download a known model
 name on first use. The **decision** and **vision** models are optional; without them Utter still
 handles every rule-matched command.
 See [Models](/guides/models/).

@@ -184,6 +184,32 @@ export const zh: Messages = {
     px: "像素",
   },
 
+  modelRequired: {
+    title: "你需要先下载一个模型",
+    sttBody: "语音识别需要一个模型。获取推荐的模型，或让语音引擎在第一次听写时自动下载。",
+    visionBody: "屏幕视觉需要在这台电脑上有一个模型。获取推荐的模型，然后开启它。",
+    action: "获取模型",
+    recommended: "推荐",
+    size: "约 {size}",
+    storeLabel: "保存到",
+    estimatedNote: "我们无法检测你的硬件，因此这是安全的选择。",
+    sttNote: "你的语音引擎也可以在第一次听写时自动下载它。",
+    noSourceNote: "请在“模型”页面配置此模型。",
+    notNow: "稍后",
+    openModels: "打开“模型”",
+    download: "下载",
+    downloading: "正在下载…",
+    progress: "{done} / {total}",
+    starting: "正在开始下载…",
+    stop: "停止",
+    failedTitle: "下载失败",
+    failedBody: "下载未完成。请检查网络连接后重试。",
+    retry: "重试",
+    doneTitle: "模型已就绪",
+    doneBody: "{name} 已可使用。",
+    done: "完成",
+  },
+
   nav: {
     sections: "部分",
     groups: {

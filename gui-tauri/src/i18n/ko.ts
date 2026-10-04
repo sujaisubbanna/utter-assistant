@@ -184,6 +184,33 @@ export const ko: Messages = {
     px: "px",
   },
 
+  modelRequired: {
+    title: "먼저 모델이 필요합니다",
+    sttBody:
+      "음성 인식에는 모델이 필요합니다. 추천 모델을 받거나, 처음 받아쓸 때 엔진이 내려받게 하세요.",
+    visionBody: "화면 비전은 이 컴퓨터에 모델이 필요합니다. 추천 모델을 받은 뒤 켜세요.",
+    action: "모델 받기",
+    recommended: "추천",
+    size: "약 {size}",
+    storeLabel: "저장 위치",
+    estimatedNote: "하드웨어를 확인할 수 없어 안전한 기본값을 선택했습니다.",
+    sttNote: "음성 엔진이 처음 받아쓸 때 자동으로 내려받을 수도 있습니다.",
+    noSourceNote: "이 모델은 모델 페이지에서 설정하세요.",
+    notNow: "나중에",
+    openModels: "모델 열기",
+    download: "다운로드",
+    downloading: "다운로드 중…",
+    progress: "{done} / {total}",
+    starting: "다운로드를 시작하는 중…",
+    stop: "중지",
+    failedTitle: "다운로드 실패",
+    failedBody: "다운로드가 끝나지 않았습니다. 연결을 확인하고 다시 시도하세요.",
+    retry: "다시 시도",
+    doneTitle: "모델 준비 완료",
+    doneBody: "{name}을(를) 사용할 수 있습니다.",
+    done: "완료",
+  },
+
   nav: {
     sections: "섹션",
     groups: {

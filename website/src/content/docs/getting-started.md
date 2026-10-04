@@ -17,6 +17,12 @@ This page assumes Utter is installed. If it is not, start with the [install over
 
 ## 1. Start the runner and open the settings app
 
+**Open Utter from your application menu.** The installer registers an **Utter** entry under
+Utilities/Accessibility; launching it opens the settings app, and the first-run wizard starts the
+background runner for you.
+
+Prefer the terminal? The same three commands:
+
 ```bash
 systemctl --user enable --now utter-runner.service   # start the background runner
 assistant doctor                                     # check tools, plugins and permissions

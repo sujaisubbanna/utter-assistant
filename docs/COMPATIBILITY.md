@@ -44,6 +44,9 @@
   per-plugin `name → {version, protocol, abi, digest}` map or digests.
 - `doctor` compares the recorded **protocol** and **version** against the running runner and
   reports drift (`assistant/doctor.py`); upgrades are explicit.
+- The runner's `version` is the **release version**, resolved from `pyproject.toml` /
+  distribution metadata (`runner/__init__.py`, `assistant/__init__.py`) — never a hardcoded
+  component constant. A healthy install therefore reports no version drift.
 
 ## 7. SDK versioning
 - The protocol, manifest schema and capability registry are the compatibility contract for

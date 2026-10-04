@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Icon } from "../components/icons";
+import { ModelRequiredBanner } from "../components/ModelRequired";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { ConfigText, SelectSetting } from "../components/Setting";
 import { Badge } from "../components/ui/Badge";
@@ -255,6 +256,8 @@ function VoiceLinuxPage() {
     <>
       <PageHeader title={t("voice.title")} description={t("voice.description")} />
       <PageBody config>
+        <ModelRequiredBanner kind="stt" />
+
         <Section title={t("voice.keys.title")} description={t("voice.keys.description")}>
           <KeyRow title={t("voice.keys.assistant")} description={t("voice.keys.assistantHint")} field="assistant_key" />
           <KeyRow title={t("voice.keys.dictation")} description={t("voice.keys.dictationHint")} field="dictation_key" />

@@ -184,6 +184,34 @@ export const pt: Messages = {
     px: "pixels",
   },
 
+  modelRequired: {
+    title: "Você precisa de um modelo primeiro",
+    sttBody:
+      "O reconhecimento de fala precisa de um modelo. Obtenha o recomendado, ou deixe o mecanismo baixá-lo na primeira vez que você ditar.",
+    visionBody:
+      "A visão de tela precisa de um modelo neste computador. Obtenha o recomendado e ative-a.",
+    action: "Obter um modelo",
+    recommended: "Recomendado",
+    size: "Cerca de {size}",
+    storeLabel: "Salvo em",
+    estimatedNote: "Não conseguimos verificar seu hardware, então esta é uma escolha segura.",
+    sttNote: "Seu mecanismo de fala também pode baixá-lo na primeira vez que você ditar.",
+    noSourceNote: "Configure este modelo na página Modelos.",
+    notNow: "Agora não",
+    openModels: "Abrir Modelos",
+    download: "Baixar",
+    downloading: "Baixando…",
+    progress: "{done} de {total}",
+    starting: "Iniciando o download…",
+    stop: "Parar",
+    failedTitle: "Falha no download",
+    failedBody: "O download não terminou. Verifique sua conexão e tente de novo.",
+    retry: "Tentar de novo",
+    doneTitle: "Modelo pronto",
+    doneBody: "{name} está pronto para uso.",
+    done: "Concluído",
+  },
+
   nav: {
     sections: "Seções",
     groups: {

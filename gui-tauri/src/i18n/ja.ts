@@ -184,6 +184,34 @@ export const ja: Messages = {
     px: "ピクセル",
   },
 
+  modelRequired: {
+    title: "先にモデルが必要です",
+    sttBody:
+      "音声認識にはモデルが必要です。おすすめのモデルを入手するか、最初の口述時にエンジンに取得させてください。",
+    visionBody:
+      "画面ビジョンにはこのコンピューター上のモデルが必要です。おすすめのモデルを入手してから有効にしてください。",
+    action: "モデルを入手",
+    recommended: "おすすめ",
+    size: "約 {size}",
+    storeLabel: "保存先",
+    estimatedNote: "ハードウェアを確認できなかったため、安全な既定を選びました。",
+    sttNote: "音声エンジンは最初の口述時に自動でダウンロードすることもできます。",
+    noSourceNote: "このモデルは「モデル」ページで設定してください。",
+    notNow: "後で",
+    openModels: "モデルを開く",
+    download: "ダウンロード",
+    downloading: "ダウンロード中…",
+    progress: "{done} / {total}",
+    starting: "ダウンロードを開始しています…",
+    stop: "停止",
+    failedTitle: "ダウンロードに失敗しました",
+    failedBody: "ダウンロードが完了しませんでした。接続を確認して、もう一度お試しください。",
+    retry: "再試行",
+    doneTitle: "モデルの準備ができました",
+    doneBody: "{name} が使えるようになりました。",
+    done: "完了",
+  },
+
   nav: {
     sections: "セクション",
     groups: {
