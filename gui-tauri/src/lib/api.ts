@@ -10,6 +10,7 @@ import type {
   Config,
   DoctorReport,
   ModelEntry,
+  ModelStoreInfo,
   Palette,
   InstallStatus,
   PermissionReport,
@@ -39,7 +40,8 @@ export const api = {
   doctor: (timeout?: number) => invoke<DoctorReport>("doctor", { timeout }),
   recommend: () => invoke<Recommendation>("recommend"),
 
-  modelsList: () => invoke<{ models?: ModelEntry[] }>("models_list"),
+  modelsList: () =>
+    invoke<{ models?: ModelEntry[]; store?: ModelStoreInfo }>("models_list"),
   modelsShow: (name: string) => invoke<unknown>("models_show", { name }),
   modelsRemove: (name: string) => invoke<CmdResult>("models_remove", { name }),
   modelsPrune: () => invoke<CmdResult>("models_prune"),

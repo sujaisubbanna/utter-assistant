@@ -119,7 +119,7 @@ Utter guarda una pequeña cantidad de estado en disco. Estado persistente (sobre
 |---|---|
 | `~/.config/utter/config.toml` | tus ajustes |
 | `~/.local/share/utter/generated.yaml` | el catálogo de aplicaciones generado a partir de tus aplicaciones instaladas |
-| `~/.local/share/utter/models/` | pesos de modelos descargados |
+| `~/.local/share/utter-models/` | pesos de modelos descargados; se conservan al desinstalar |
 | `~/.local/state/utter/install.json` | estado de instalación, reversible |
 
 Estado solo en tiempo de ejecución (vive en `$XDG_RUNTIME_DIR`, se borra al cerrar sesión):

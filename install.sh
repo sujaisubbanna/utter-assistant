@@ -61,6 +61,7 @@ PREFIX="${PREFIX:-$HOME/.local}"
 MODE="appimage"        # appimage | package
 DRY_RUN=0
 UNINSTALL=0
+PURGE=0
 ASSUME_YES=0
 ONLY_CSV=""
 SKIP_CSV=""
@@ -108,6 +109,7 @@ Flags:
   --with-noctalia    mark the optional Noctalia widget as recommended
   --dry-run          run the walk, print the plan, change nothing
   --uninstall        menu of installed components (per-component install-state)
+  --purge            with --uninstall: also remove downloaded models
   --yes, -y          accept all recommended defaults, no prompts
     -h, --help         show this help
 USAGE
@@ -163,6 +165,7 @@ while [[ $# -gt 0 ]]; do
         --with-noctalia)  WITH_NOCTALIA=1 ;;
         --dry-run)        DRY_RUN=1 ;;
         --uninstall)      UNINSTALL=1 ;;
+        --purge)          PURGE=1 ;;
         --yes|-y)         ASSUME_YES=1 ;;
         -h|--help)
             if [[ "$(uname -s)" == "Darwin" ]]; then macos_usage; else usage; fi
@@ -1376,6 +1379,9 @@ ui_gum_ask() {
 # --------------------------------------------------------------------------- #
 BIN_DIR="$PREFIX/bin"
 SHARE_DIR="$PREFIX/share/utter"
+# The model store sits beside the install tree, not inside it, so removing
+# "$SHARE_DIR" on uninstall never deletes downloaded models. --purge removes it.
+MODELS_DIR="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter-models}"
 APPS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/utter"
@@ -1563,12 +1569,17 @@ found_gui() {
 }
 
 found_models() {
-    local root="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter/models}"
+    local root="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter-models}"
+    local legacy="${XDG_DATA_HOME:-$HOME/.local/share}/utter/models"
     local n=0
     if [[ -d "$root/manifests" ]]; then
         n="$(find "$root/manifests" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
     fi
-    field_f "found:" "{1} model manifest(s) under {2}" "$n" "$root"
+    if (( n == 0 )) && [[ -d "$legacy/manifests" ]]; then
+        field_f "found:" "legacy models under {1} (migrated on first use)" "$legacy"
+    else
+        field_f "found:" "{1} model manifest(s) under {2}" "$n" "$root"
+    fi
 }
 
 found_config() {
@@ -2277,8 +2288,22 @@ do_uninstall() {
         fi
     fi
 
+    if (( PURGE )); then
+        if [[ -d "$MODELS_DIR" ]]; then
+            run "--purge: remove downloaded models $MODELS_DIR" rm -rf "$MODELS_DIR"
+        else
+            note "no models dir at $MODELS_DIR"
+        fi
+    else
+        note "downloaded models kept at $MODELS_DIR (pass --uninstall --purge to remove)"
+    fi
+
     section "done"
-    say_f "Uninstalled. User config in {1} and downloaded models are kept." "$CONFIG_DIR"
+    if (( PURGE )); then
+        say_f "Uninstalled. User config in {1} and downloaded models were removed (--purge)." "$CONFIG_DIR"
+    else
+        say_f "Uninstalled. User config in {1} and downloaded models are kept." "$CONFIG_DIR"
+    fi
 }
 
 remove_component() {
@@ -2334,8 +2359,19 @@ do_uninstall_legacy() {
         run "reload systemd user manager" systemctl --user daemon-reload || true
     fi
     [[ -f "$STATE_FILE" ]] && run_f "remove {1}" "$STATE_FILE" rm -f "$STATE_FILE" || true
-    section "done"
-    say_f "Uninstalled. User config in {1} and models are kept." "$CONFIG_DIR"
+    if (( PURGE )); then
+        if [[ -d "$MODELS_DIR" ]]; then
+            run "--purge: remove downloaded models $MODELS_DIR" rm -rf "$MODELS_DIR"
+        else
+            note "no models dir at $MODELS_DIR"
+        fi
+        section "done"
+        say_f "Uninstalled. User config in {1} and models were removed (--purge)." "$CONFIG_DIR"
+    else
+        note "downloaded models kept at $MODELS_DIR"
+        section "done"
+        say_f "Uninstalled. User config in {1} and models are kept." "$CONFIG_DIR"
+    fi
 }
 
 if (( UNINSTALL )); then

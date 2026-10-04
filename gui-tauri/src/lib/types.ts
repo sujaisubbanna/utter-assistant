@@ -156,6 +156,7 @@ export interface DoctorReport {
   deps?: Record<string, boolean>;
   compositor?: CompositorInfo;
   runtime?: RuntimeInfo;
+  models?: ModelStoreInfo;
 }
 
 export interface StatusReport {
@@ -173,6 +174,15 @@ export interface ModelEntry {
   bytes?: number;
   files?: number;
   manifest?: string;
+}
+
+export interface ModelStoreInfo {
+  root?: string;
+  legacy_root?: string;
+  legacy_present?: boolean;
+  override?: string | null;
+  migrated_from?: string | null;
+  fallback_to?: string | null;
 }
 
 export interface Recommendation {

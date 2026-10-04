@@ -106,7 +106,7 @@ list of permissions with whether each is enforced or advisory. The full command 
 Models live in an Ollama-style, XDG-compliant store:
 
 ```text
-$XDG_DATA_HOME/utter/models/      # override with UTTER_MODELS
+$XDG_DATA_HOME/utter-models/      # override with UTTER_MODELS
   manifests/<host>/<ns>/<name>/<tag>.json
   blobs/sha256-<hex>
 ```

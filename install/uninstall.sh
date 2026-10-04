@@ -30,7 +30,9 @@ UNIT_DST="$UNIT_DST_DIR/utter-runner.service"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/utter"
 STATE_FILE="$STATE_DIR/install.json"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/utter"
-MODELS_DIR="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter/models}"
+MODELS_DIR="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter-models}"
+# Pre-decoupling location (inside the install tree); removed only with --purge.
+LEGACY_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/utter/models"
 
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n== %s ==\n' "$*"; }
@@ -108,6 +110,9 @@ if (( PURGE )); then
         run "remove models dir $MODELS_DIR" rm -rf "$MODELS_DIR"
     else
         note "no models dir: $MODELS_DIR"
+    fi
+    if [[ "$LEGACY_MODELS_DIR" != "$MODELS_DIR" && -d "$LEGACY_MODELS_DIR" ]]; then
+        run "remove legacy models dir $LEGACY_MODELS_DIR" rm -rf "$LEGACY_MODELS_DIR"
     fi
     if [[ -d "$CONFIG_DIR" ]]; then
         run "remove config dir $CONFIG_DIR" rm -rf "$CONFIG_DIR"

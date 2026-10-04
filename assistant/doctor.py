@@ -69,6 +69,7 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
         "deps": deps_mod.probe_deps(),
         "compositor": compositor_section(),
         "runtime": runtime.probe_runtime(),
+        "models": util.models_status(),
         "connected": False,
     }
 
@@ -259,5 +260,16 @@ def human(report: dict) -> str:
 
     drift = report.get("drift", [])
     lines.append(f"drift: {drift if drift else 'none'}")
+    models = report.get("models") or {}
+    if models:
+        lines.append(f"models: {models.get('root')}"
+                     + (" (override)" if models.get("override") else ""))
+        if models.get("migrated_from"):
+            lines.append(f"  migrated from: {models['migrated_from']} (kept outside the install tree)")
+        if models.get("fallback_to"):
+            lines.append(f"  kept at: {models['fallback_to']} "
+                         "(legacy path; move it or set UTTER_MODELS to relocate)")
+        elif not models.get("override"):
+            lines.append("  kept on uninstall; set UTTER_MODELS to relocate")
     lines.append(f"ok: {report.get('ok')}")
     return "\n".join(lines)

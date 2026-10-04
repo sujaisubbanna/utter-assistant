@@ -177,6 +177,7 @@ curl -fsSL https://utter.sujaisubbanna.com/install.sh \
 | `assistant` wrapper | `$PREFIX/bin/assistant` |
 | Runner user unit | `~/.config/systemd/user/utter-runner.service` |
 | Config | `~/.config/utter/config.toml` (created if absent; kept on uninstall) |
+| Models | `$XDG_DATA_HOME/utter-models/` (kept on uninstall; beside, never inside, the core tree) |
 | Noctalia widget (optional) | `~/.local/share/noctalia/plugins/utter` |
 | Install state | `~/.local/state/utter/install.json` (+ per-component records) |
 
@@ -210,7 +211,9 @@ and lets you pick which to remove (Enter = all except those marked *kept*,
 numbers/commas, `a` = all, `q` = quit). It removes the GUI binary, the
 `assistant` wrapper, the desktop entry, the runner unit, the extracted core
 tree and the optional Noctalia widget. Your config
-(`~/.config/utter`) and downloaded models are **kept** by default.
+(`~/.config/utter`) and downloaded models are **kept** by default. Add
+`--purge` (e.g. `bash -s -- --uninstall --purge --yes`) to also remove the
+downloaded models.
 
 ## After installing
 

@@ -48,6 +48,7 @@ export function ModelsPage() {
   const toast = useToast();
   const { setMany } = useConfig();
   const [models, setModels] = useState<ModelEntry[] | null>(null);
+  const [storeRoot, setStoreRoot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
@@ -66,6 +67,7 @@ export function ModelsPage() {
     try {
       const data = await api.modelsList();
       setModels(data?.models ?? []);
+      setStoreRoot(data?.store?.root ?? null);
       setError(null);
     } catch (err) {
       setError(String((err as Error)?.message ?? err));
@@ -203,7 +205,7 @@ export function ModelsPage() {
   const totalBytes = (models ?? []).reduce((sum, model) => sum + (model.bytes ?? 0), 0);
   const suggestions = recommendation?.suggestions;
   const hardware = recommendation?.hardware;
-  const storePath = info ? `${info.repo}/models` : "~/.local/share/utter/models";
+  const storePath = storeRoot ?? (info ? `${info.repo}/models` : "~/.local/share/utter-models");
 
   const useStt = () => {
     const stt = (suggestions?.stt ?? {}) as Record<string, unknown>;

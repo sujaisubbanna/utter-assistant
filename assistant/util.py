@@ -33,11 +33,97 @@ def xdg_runtime_dir() -> Path:
     return Path(tempfile.gettempdir()) / f"utter-{os.getuid()}"
 
 
+# The model store lives at ``$XDG_DATA_HOME/utter-models`` — a sibling of the
+# install tree (``$PREFIX/share/utter``), NOT inside it. When the default prefix
+# is ``~/.local`` the install tree is ``~/.local/share/utter`` (= XDG_DATA_HOME/
+# utter), so keeping the store under ``.../utter/models`` would let an uninstall
+# of the core tree delete the downloaded models. The old location is kept as a
+# one-time migration source only.
+_MODELS_DIRNAME = "utter-models"
+_LEGACY_MODELS_DIRNAME = "utter"
+_LEGACY_MIGRATION: dict[str, str] = {}
+
+
+def legacy_models_root() -> Path:
+    """The pre-decoupling store: ``$XDG_DATA_HOME/utter/models`` (inside the tree)."""
+    return xdg_data_home() / _LEGACY_MODELS_DIRNAME / "models"
+
+
+def _dir_has_entries(path: Path) -> bool:
+    try:
+        return path.is_dir() and next(path.iterdir(), None) is not None
+    except OSError:
+        return False
+
+
+def _rewrite_manifest_paths(root: Path, old_prefix: str, new_prefix: str) -> None:
+    """Re-point absolute blob paths recorded in manifests after a store move."""
+    base = root / "manifests"
+    if not base.is_dir():
+        return
+    prefix = old_prefix + os.sep
+    for path in sorted(base.glob("*/*/*/*.json")):
+        data = read_json(path)
+        if not isinstance(data, dict):
+            continue
+        changed = False
+        for entry in data.get("files", []) or []:
+            p = entry.get("path") if isinstance(entry, dict) else None
+            if isinstance(p, str) and p.startswith(prefix):
+                entry["path"] = new_prefix + p[len(old_prefix):]
+                changed = True
+        if changed:
+            atomic_write_json(path, data)
+
+
+def _migrate_models(src: Path, dst: Path) -> None:
+    """Move a legacy store once; raise OSError (source left intact) on failure."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists():
+        try:
+            dst.rmdir()  # the caller only migrates into an empty/absent dst
+        except OSError:
+            pass
+    shutil.move(str(src), str(dst))
+    _rewrite_manifest_paths(dst, str(src), str(dst))
+    eprint(f"assistant: moved model store {src} -> {dst} (now outside the install tree)")
+
+
 def models_root() -> Path:
     override = os.environ.get("UTTER_MODELS")
     if override:
         return Path(override)
-    return xdg_data_home() / "utter" / "models"
+    canonical = xdg_data_home() / _MODELS_DIRNAME
+    if _dir_has_entries(canonical):
+        return canonical
+    legacy = legacy_models_root()
+    if _dir_has_entries(legacy) and legacy.resolve() != canonical.resolve():
+        try:
+            _migrate_models(legacy, canonical)
+        except OSError as exc:
+            if _dir_has_entries(canonical):
+                return canonical  # another process completed the move first
+            eprint(f"assistant: could not move models {legacy} -> {canonical}: {exc}; "
+                   "keeping them where they are (not deleted)")
+            _LEGACY_MIGRATION["fallback_to"] = str(legacy)
+            return legacy
+        _LEGACY_MIGRATION["migrated_from"] = str(legacy)
+        return canonical
+    return canonical
+
+
+def models_status() -> dict[str, Any]:
+    """Where the store is, plus any one-time legacy migration/fallback."""
+    root = models_root()
+    legacy = legacy_models_root()
+    return {
+        "root": str(root),
+        "legacy_root": str(legacy),
+        "legacy_present": _dir_has_entries(legacy),
+        "override": os.environ.get("UTTER_MODELS"),
+        "migrated_from": _LEGACY_MIGRATION.get("migrated_from"),
+        "fallback_to": _LEGACY_MIGRATION.get("fallback_to"),
+    }
 
 
 def state_dir() -> Path:

@@ -52,7 +52,7 @@ Utter keeps a small amount of state on disk. Persistent state (survives reboot):
 |---|---|
 | `~/.config/utter/config.toml` | your settings (`utter/config.py`) |
 | `~/.local/share/utter/generated.yaml` | app catalogue generated from your installed apps (`utter/router/profiles.py`; written by `scripts/gen_app_catalog.py`) |
-| `~/.local/share/utter/models/` | downloaded model weights (`assistant/models.py`) |
+| `~/.local/share/utter-models/` | downloaded model weights (`assistant/models.py`); kept on uninstall |
 | `~/.local/state/utter/install.json` | install state, reversible (`assistant/install_state.py`, `assistant/util.py`) |
 
 Runtime-only state (lives under `$XDG_RUNTIME_DIR`, cleared on logout):

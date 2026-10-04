@@ -109,8 +109,10 @@ def cmd_models(args: argparse.Namespace) -> int:
     if action == "list":
         entries = models.list_models()
         if args.json:
-            util.emit({"models": entries})
+            util.emit({"models": entries, "store": util.models_status()})
         else:
+            status = util.models_status()
+            print(f"store: {status['root']} (kept on uninstall; override with UTTER_MODELS)")
             print(models.human_list(entries))
         return 0
     if action == "show":

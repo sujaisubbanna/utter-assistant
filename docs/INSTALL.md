@@ -86,10 +86,13 @@ the per-plugin `negotiated`, `unknown_capabilities`, `missing_requires`, and
 
 Layout (Ollama-style, XDG):
 ```
-$XDG_DATA_HOME/utter/models/      # override with UTTER_MODELS
+$XDG_DATA_HOME/utter-models/      # override with UTTER_MODELS
   manifests/<host>/<ns>/<name>/<tag>.json
   blobs/sha256-<hex>
 ```
+The store is a sibling of the install tree (`$PREFIX/share/utter`), never inside
+it, so uninstalling the core tree keeps your models. An older store at
+`$XDG_DATA_HOME/utter/models` is moved here once, on first use.
 - Sources: `hf:org/repo[:file]` → resolved to `https://huggingface.co/org/repo/resolve/main/file`;
   bare `https://…`; local `file://`.
 - **Resumable**: partial file + `curl -C -` (or urllib `Range`), retry/backoff, sha256 verify,
