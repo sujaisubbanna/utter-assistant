@@ -178,6 +178,34 @@ export const es: Messages = {
     px: "px",
   },
 
+  modelRequired: {
+    title: "Primero necesitas un modelo",
+    sttBody:
+      "El reconocimiento de voz necesita un modelo. Consigue el recomendado, o deja que tu motor lo descargue la primera vez que dictes.",
+    visionBody:
+      "La visión de pantalla necesita un modelo en este equipo. Consigue el recomendado y actívala.",
+    action: "Consigue un modelo",
+    recommended: "Recomendado",
+    size: "Unos {size}",
+    storeLabel: "Guardado en",
+    estimatedNote: "No pudimos revisar tu equipo, así que esta es una opción segura.",
+    sttNote: "Tu motor de voz también puede descargarlo la primera vez que dictes.",
+    noSourceNote: "Configura este modelo desde la página Modelos.",
+    notNow: "Ahora no",
+    openModels: "Abrir Modelos",
+    download: "Descargar",
+    downloading: "Descargando…",
+    progress: "{done} de {total}",
+    starting: "Iniciando la descarga…",
+    stop: "Detener",
+    failedTitle: "Falló la descarga",
+    failedBody: "La descarga no terminó. Revisa tu conexión e inténtalo de nuevo.",
+    retry: "Reintentar",
+    doneTitle: "Modelo listo",
+    doneBody: "{name} está listo para usarse.",
+    done: "Hecho",
+  },
+
   nav: {
     sections: "Secciones",
     groups: {

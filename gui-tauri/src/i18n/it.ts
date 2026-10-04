@@ -184,6 +184,34 @@ export const it: Messages = {
     px: "px",
   },
 
+  modelRequired: {
+    title: "Prima serve un modello",
+    sttBody:
+      "Il riconoscimento vocale richiede un modello. Prendi quello consigliato, oppure lascia che il motore lo scarichi alla prima dettatura.",
+    visionBody:
+      "La visione dello schermo richiede un modello su questo computer. Prendi quello consigliato, poi attivala.",
+    action: "Ottieni un modello",
+    recommended: "Consigliato",
+    size: "Circa {size}",
+    storeLabel: "Salvato in",
+    estimatedNote: "Non abbiamo potuto controllare l'hardware, quindi questa è una scelta sicura.",
+    sttNote: "Il motore vocale può anche scaricarlo alla prima dettatura.",
+    noSourceNote: "Configura questo modello dalla pagina Modelli.",
+    notNow: "Più tardi",
+    openModels: "Apri Modelli",
+    download: "Scarica",
+    downloading: "Scaricamento…",
+    progress: "{done} di {total}",
+    starting: "Avvio del download…",
+    stop: "Ferma",
+    failedTitle: "Download non riuscito",
+    failedBody: "Il download non è terminato. Controlla la connessione e riprova.",
+    retry: "Riprova",
+    doneTitle: "Modello pronto",
+    doneBody: "{name} è pronto all'uso.",
+    done: "Fatto",
+  },
+
   nav: {
     sections: "Sezioni",
     groups: {
