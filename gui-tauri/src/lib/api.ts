@@ -42,6 +42,11 @@ export const api = {
   setRunnerPolicy: (enabledOps: string[]) =>
     invoke<RunnerPolicy>("set_runner_policy", { enabledOps }),
 
+  // Plugin opt-out is read by the runner's own config, not the GUI config.
+  getRunnerPlugins: () => invoke<string[]>("get_runner_plugins"),
+  setRunnerPlugins: (disabled: string[]) =>
+    invoke<string[]>("set_runner_plugins", { disabled }),
+
   status: () => invoke<StatusReport>("status"),
   doctor: (timeout?: number) => invoke<DoctorReport>("doctor", { timeout }),
   recommend: () => invoke<Recommendation>("recommend"),

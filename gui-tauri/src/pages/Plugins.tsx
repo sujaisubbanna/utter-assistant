@@ -14,7 +14,6 @@ import { Switch } from "../components/ui/Switch";
 import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
-import { useConfig } from "../lib/config";
 import { titleCase } from "../lib/format";
 import { DEP_HELP } from "../lib/links";
 import { cn } from "../lib/utils";
@@ -71,22 +70,21 @@ function PermissionDialog({ plugin, onClose }: { plugin: Plugin; onClose: () => 
   );
 }
 
-function PluginEntry({ plugin }: { plugin: Plugin }) {
+function PluginEntry({
+  plugin,
+  disabled,
+  onToggle,
+}: {
+  plugin: Plugin;
+  disabled: boolean;
+  onToggle: (name: string, next: boolean) => void;
+}) {
   const { t, tn } = useI18n();
-  const { get, set } = useConfig();
-  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [permissions, setPermissions] = useState(false);
 
   const name = String(plugin.id);
-  const disabled = get<string[]>("plugins", "disabled", []);
-  const enabled = !disabled.includes(name);
-
-  const toggle = (next: boolean) => {
-    const list = next ? disabled.filter((item) => item !== name) : [...disabled, name];
-    void set("plugins", "disabled", list);
-    toast(t(next ? "plugins.list.enabledToast" : "plugins.list.disabledToast", { name }), next ? "ok" : "warn");
-  };
+  const enabled = !disabled;
 
   const negotiated = plugin.negotiated ?? {};
   const detailId = `plugin-${name.replace(/\W+/g, "-")}`;
@@ -106,7 +104,11 @@ function PluginEntry({ plugin }: { plugin: Plugin }) {
         </div>
         {(plugin.unknown_capabilities?.length ?? 0) > 0 && <Badge tone="warn">{t("plugins.list.unknownCap")}</Badge>}
         {(plugin.missing_requires?.length ?? 0) > 0 && <Badge tone="danger">{t("plugins.list.missingReq")}</Badge>}
-        <Switch checked={enabled} onCheckedChange={toggle} ariaLabel={t("plugins.list.toggle", { name })} />
+        <Switch
+          checked={enabled}
+          onCheckedChange={(next) => onToggle(name, next)}
+          ariaLabel={t("plugins.list.toggle", { name })}
+        />
         <Button
           size="icon-sm"
           variant="ghost"
@@ -178,6 +180,8 @@ export function PluginsPage() {
   const [report, setReport] = useState<DoctorReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  // Ids disabled in the runner's `[plugins] disabled` list.
+  const [disabledPlugins, setDisabledPlugins] = useState<string[]>([]);
 
   const run = useCallback(async () => {
     setLoading(true);
@@ -192,7 +196,25 @@ export function PluginsPage() {
 
   useEffect(() => {
     void run();
+    api
+      .getRunnerPlugins()
+      .then(setDisabledPlugins)
+      .catch(() => {});
   }, [run]);
+
+  const togglePlugin = async (name: string, next: boolean) => {
+    const list = next
+      ? disabledPlugins.filter((item) => item !== name)
+      : [...disabledPlugins, name];
+    try {
+      setDisabledPlugins(await api.setRunnerPlugins(list));
+      toast(t(next ? "plugins.list.enabledToast" : "plugins.list.disabledToast", { name }), next ? "ok" : "warn");
+      // The backend restarts the runner so the change applies.
+      window.setTimeout(() => void run(), 800);
+    } catch (error) {
+      toast(t("common.saveFailed", { what: `plugins.disabled`, error: String(error) }), "error");
+    }
+  };
 
   const restart = async () => {
     setRestarting(true);
@@ -257,7 +279,14 @@ export function PluginsPage() {
           ) : (report.plugins ?? []).length === 0 ? (
             <EmptyState icon="puzzle" title={t("plugins.list.emptyTitle")} description={t("plugins.list.emptyBody")} />
           ) : (
-            (report.plugins ?? []).map((plugin) => <PluginEntry key={plugin.id} plugin={plugin} />)
+            (report.plugins ?? []).map((plugin) => (
+              <PluginEntry
+                key={plugin.id}
+                plugin={plugin}
+                disabled={disabledPlugins.includes(String(plugin.id))}
+                onToggle={(name, next) => void togglePlugin(name, next)}
+              />
+            ))
           )}
         </Section>
 

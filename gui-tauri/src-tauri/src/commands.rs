@@ -487,6 +487,64 @@ pub fn set_runner_policy(
     })
 }
 
+fn read_runner_disabled_plugins(path: &Path) -> Vec<String> {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    let value: toml::Value = match toml::from_str(&text) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+    value
+        .get("plugins")
+        .and_then(|plugins| plugins.get("disabled"))
+        .and_then(|disabled| disabled.as_array())
+        .map(|ids| {
+            ids.iter()
+                .filter_map(|id| id.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn valid_plugin_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+}
+
+/// Plugin ids disabled via `[plugins] disabled` in the runner config.
+#[tauri::command]
+pub fn get_runner_plugins(state: State<AppState>) -> Result<Vec<String>, String> {
+    Ok(read_runner_disabled_plugins(&runner_config_path(&state)))
+}
+
+/// Enable/disable plugins where the runner reads it, then restart the unit.
+/// `disabled` is the full set of disabled ids (the inverse of the UI toggle).
+#[tauri::command(rename_all = "camelCase")]
+pub fn set_runner_plugins(
+    state: State<AppState>,
+    disabled: Vec<String>,
+) -> Result<Vec<String>, String> {
+    for id in &disabled {
+        if !valid_plugin_id(id) {
+            return Err(format!("invalid plugin id: {id}"));
+        }
+    }
+    let path = runner_config_path(&state);
+    let default_config = state.repo().join("runner/config.example.toml");
+    let value = Value::Array(
+        disabled
+            .iter()
+            .map(|id| Value::String(id.clone()))
+            .collect(),
+    );
+    config::set_key_at(&path, &default_config, "plugins", "disabled", &value)?;
+    // Plugin enablement is read once at startup.
+    let _ = state.systemctl(&["restart", "utter-runner"]).output();
+    Ok(disabled)
+}
+
 // --------------------------------------------------------------------------- //
 // assistant CLI passthroughs
 // --------------------------------------------------------------------------- //
@@ -1329,5 +1387,17 @@ mod runner_policy_tests {
         let broken = temp_file("broken.toml", "[policy\nenabled_ops = [\n");
         assert!(read_runner_policy(&broken).is_empty());
         let _ = std::fs::remove_file(&broken);
+    }
+
+    #[test]
+    fn reads_disabled_plugins_and_validates_ids() {
+        let path = temp_file("plugins.toml", "[plugins]\ndisabled = [\"b\"]\n");
+        assert_eq!(read_runner_disabled_plugins(&path), vec!["b".to_string()]);
+        let _ = std::fs::remove_file(&path);
+
+        assert!(valid_plugin_id("utter"));
+        assert!(valid_plugin_id("example_quicknote"));
+        assert!(!valid_plugin_id(""));
+        assert!(!valid_plugin_id("bad id"));
     }
 }

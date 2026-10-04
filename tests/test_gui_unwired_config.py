@@ -55,6 +55,23 @@ class ConfigDefaultsTests(unittest.TestCase):
         self.assertFalse(cfg.perception.accessibility_enabled)
 
 
+class PluginGateTests(unittest.TestCase):
+    def test_plugins_disabled_overrides_the_plugin_enabled_flag(self):
+        from runner.config import load_config as load_runner_config
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "runner.toml"
+            path.write_text(
+                '[plugins]\ndisabled = ["b"]\n'
+                '[[plugin]]\nid = "a"\nentrypoint = ["x"]\n'
+                '[[plugin]]\nid = "b"\nentrypoint = ["y"]\n',
+                encoding="utf-8",
+            )
+            cfg = load_runner_config(path)
+        enabled = {plugin.id: plugin.enabled for plugin in cfg.plugins}
+        self.assertEqual(enabled, {"a": True, "b": False})
+
+
 class DecisionHeadTests(unittest.TestCase):
     def test_disabled_head_abstains_before_touching_the_network(self):
         cfg = Config()

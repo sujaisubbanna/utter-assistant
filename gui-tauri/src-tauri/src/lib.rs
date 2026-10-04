@@ -237,6 +237,8 @@ pub fn run() {
             commands::set_config_many,
             commands::get_runner_policy,
             commands::set_runner_policy,
+            commands::get_runner_plugins,
+            commands::set_runner_plugins,
             commands::status,
             commands::doctor,
             commands::recommend,
