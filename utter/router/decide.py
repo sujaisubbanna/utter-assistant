@@ -38,6 +38,8 @@ def decide(utterance: str, ctx: Context, profiles: dict, cfg=None):
     treated as an abstention *by this function only*; use :func:`decide_debug`
     to always see the raw decision.
     """
+    if cfg is not None and not getattr(cfg, "decision_head_enabled", True):
+        return None
     candidates = build_candidates(utterance, ctx, profiles)
     if _should_skip(candidates):
         return None

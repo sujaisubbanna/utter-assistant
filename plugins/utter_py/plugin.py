@@ -141,6 +141,10 @@ def _needs_confirm(op: str, args: dict) -> bool:
         return True
     if op == "niri" and str(args.get("command", "")) == "close-window":
         return True
+    # The Settings "Ask before acting" master switch gates only the discretionary
+    # word list; the runner still confirms the consequential ops above.
+    if _CFG is not None and not getattr(_CFG.actions, "confirm_enabled", True):
+        return False
     require = _DEFAULT_REQUIRE_CONFIRM
     if _CFG is not None:
         require = getattr(_CFG.actions, "require_confirm", require) or require

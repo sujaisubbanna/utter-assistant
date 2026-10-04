@@ -11,17 +11,22 @@ import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
 import { linkFor } from "../lib/links";
+import { usePlatform } from "../lib/platform";
 import { LLM_PROVIDERS, optionLabel } from "../lib/services";
 
 export function LlmPage() {
   const t = useT();
   const { get, set } = useConfig();
+  const { isMac } = usePlatform();
   const toast = useToast();
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const provider = String(get("router", "llm_provider", "vllm"));
-  const baseUrl = String(get("router", "llm_base_url", ""));
+  // On macOS the effective endpoint comes from [macos.runtime] — editing
+  // [router] there is silently overridden by resolve_router().
+  const section = isMac ? "macos.runtime" : "router";
+  const provider = String(get(section, "llm_provider", isMac ? "ollama" : "vllm"));
+  const baseUrl = String(get(section, "llm_base_url", ""));
   const providerDef = LLM_PROVIDERS.find((item) => item.value === provider);
   const providerLink = providerDef?.link ? linkFor(providerDef.link) : undefined;
   const probe = `${(baseUrl || "…").replace(/\/+$/, "")}/models`;
@@ -57,9 +62,13 @@ export function LlmPage() {
         title={t("llm.title")}
         description={t("llm.description")}
         actions={
-          <Badge tone="accent" dot>
-            {t("llm.badge")}
-          </Badge>
+          provider === "remote" ? (
+            <Badge tone="muted">{t("llm.provider.remote")}</Badge>
+          ) : (
+            <Badge tone="accent" dot>
+              {t("llm.badge")}
+            </Badge>
+          )
         }
       />
       <PageBody config>
@@ -75,13 +84,13 @@ export function LlmPage() {
               ) : undefined
             }
             onChange={(next) => {
-              void set("router", "llm_provider", next);
+              void set(section, "llm_provider", next);
               const fallback = LLM_PROVIDERS.find((item) => item.value === next)?.url ?? "";
-              if (fallback && !baseUrl.trim()) void set("router", "llm_base_url", fallback);
+              if (fallback && !baseUrl.trim()) void set(section, "llm_base_url", fallback);
             }}
           />
           <ConfigText
-            section="router"
+            section={section}
             k="llm_base_url"
             title={t("llm.provider.url")}
             description={t("llm.provider.urlHint")}
@@ -89,7 +98,7 @@ export function LlmPage() {
             monospace
           />
           <ConfigText
-            section="router"
+            section={section}
             k="llm_model"
             title={t("llm.provider.model")}
             description={t("llm.provider.modelHint")}

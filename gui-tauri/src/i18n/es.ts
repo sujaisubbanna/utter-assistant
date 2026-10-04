@@ -836,20 +836,6 @@ export const es: Messages = {
       enabledToast: "{name} activado",
       disabledToast: "{name} desactivado",
     },
-    limits: {
-      title: "Límites",
-      description: "Control detallado de lo que está permitido.",
-      commands: "Comandos de terminal permitidos",
-      commandsHint: "Déjalo vacío para permitir cualquier comando.",
-      blocked: "No hacer nunca",
-      blockedHint: "Se rechazan las peticiones que contengan estas frases.",
-    },
-    tuning: {
-      title: "Ajuste fino",
-      description: "Pequeños ajustes sobre cómo se realizan las acciones.",
-      click: "Duración del clic",
-      clickHint: "Cuánto se mantiene cada clic simulado.",
-    },
     targeting: {
       title: "Objetivo de aplicaciones",
       description:

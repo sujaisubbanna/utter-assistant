@@ -5,26 +5,30 @@
 //! — the same contract the GTK4 app had.
 
 use std::fs;
+use std::path::Path;
 
 use serde_json::Value;
 
 use crate::state::AppState;
 
-pub fn ensure(state: &AppState) -> std::io::Result<()> {
-    let path = &state.config_path;
+/// Create `path` from `default_config` (or an empty stub) when it is missing.
+pub fn ensure_at(path: &Path, default_config: &Path) -> std::io::Result<()> {
     if path.exists() {
         return Ok(());
     }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let default_config = state.default_config();
     if default_config.exists() {
-        fs::copy(&default_config, path)?;
+        fs::copy(default_config, path)?;
     } else {
         fs::write(path, "# utter configuration (created by utter-gui)\n")?;
     }
     Ok(())
+}
+
+pub fn ensure(state: &AppState) -> std::io::Result<()> {
+    ensure_at(&state.config_path, &state.default_config())
 }
 
 pub fn read_text(state: &AppState) -> String {
@@ -112,8 +116,7 @@ fn parse_assignment(line: &str) -> Option<(String, String, String)> {
     Some((indent, key.to_string(), comment))
 }
 
-fn write_atomic(state: &AppState, text: &str) -> Result<(), String> {
-    let path = &state.config_path;
+fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
@@ -127,10 +130,17 @@ fn write_atomic(state: &AppState, text: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Set `[section] key = value`, preserving the rest of the file byte-for-byte.
-pub fn set_key(state: &AppState, section: &str, key: &str, value: &Value) -> Result<(), String> {
-    ensure(state).map_err(|err| err.to_string())?;
-    let mut text = read_text(state);
+/// Set `[section] key = value` in `path`, preserving the rest of the file
+/// byte-for-byte. `default_config` seeds the file when it does not exist yet.
+pub fn set_key_at(
+    path: &Path,
+    default_config: &Path,
+    section: &str,
+    key: &str,
+    value: &Value,
+) -> Result<(), String> {
+    ensure_at(path, default_config).map_err(|err| err.to_string())?;
+    let mut text = fs::read_to_string(path).unwrap_or_default();
     if !text.is_empty() && !text.ends_with('\n') {
         text.push('\n');
     }
@@ -155,7 +165,7 @@ pub fn set_key(state: &AppState, section: &str, key: &str, value: &Value) -> Res
         lines.push(String::new());
         lines.push(header);
         lines.push(format!("{key} = {serialised}"));
-        return write_atomic(state, &lines.join("\n"));
+        return write_atomic(path, &lines.join("\n"));
     };
 
     let mut section_end = lines.len();
@@ -175,7 +185,7 @@ pub fn set_key(state: &AppState, section: &str, key: &str, value: &Value) -> Res
                     format!("  {}", comment.trim_start())
                 };
                 lines[index] = format!("{indent}{key} = {serialised}{suffix}");
-                return write_atomic(state, &lines.join("\n"));
+                return write_atomic(path, &lines.join("\n"));
             }
         }
     }
@@ -185,7 +195,12 @@ pub fn set_key(state: &AppState, section: &str, key: &str, value: &Value) -> Res
         insert_at -= 1;
     }
     lines.insert(insert_at, format!("{key} = {serialised}"));
-    write_atomic(state, &lines.join("\n"))
+    write_atomic(path, &lines.join("\n"))
+}
+
+/// Set `[section] key = value` in the GUI's own `~/.config/utter/config.toml`.
+pub fn set_key(state: &AppState, section: &str, key: &str, value: &Value) -> Result<(), String> {
+    set_key_at(&state.config_path, &state.default_config(), section, key, value)
 }
 
 pub fn set_many(state: &AppState, section: &str, values: &Value) -> Result<(), String> {
@@ -196,4 +211,50 @@ pub fn set_many(state: &AppState, section: &str, values: &Value) -> Result<(), S
         set_key(state, section, key, value)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("utter-cfg-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join(name)
+    }
+
+    #[test]
+    fn set_key_at_updates_existing_key_and_keeps_comments() {
+        let path = temp_path("existing.toml");
+        std::fs::write(
+            &path,
+            "# keep me\n[policy]\nenabled_ops = []  # the gate\n\n[[plugin]]\nid = \"utter\"\n",
+        )
+        .unwrap();
+        let value = serde_json::json!(["action.terminal"]);
+        set_key_at(&path, &path, "policy", "enabled_ops", &value).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("# keep me"));
+        assert!(text.contains("# the gate"));
+        assert!(text.contains("enabled_ops = [\"action.terminal\"]"));
+        assert!(text.contains("[[plugin]]"));
+        // Still valid TOML.
+        let parsed: toml::Value = toml::from_str(&text).unwrap();
+        assert_eq!(parsed["policy"]["enabled_ops"][0].as_str(), Some("action.terminal"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn set_key_at_appends_new_section() {
+        let seed = temp_path("seed.toml");
+        std::fs::write(&seed, "[runner]\nrpc_timeout_ms = 1\n").unwrap();
+        let path = temp_path("fresh.toml");
+        let _ = std::fs::remove_file(&path);
+        set_key_at(&path, &seed, "policy", "enabled_ops", &serde_json::json!([])).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("[policy]"));
+        assert!(text.contains("enabled_ops = []"));
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(&seed);
+    }
 }

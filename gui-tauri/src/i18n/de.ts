@@ -834,20 +834,6 @@ export const de: Messages = {
       enabledToast: "{name} eingeschaltet",
       disabledToast: "{name} ausgeschaltet",
     },
-    limits: {
-      title: "Grenzen",
-      description: "Fein abgestimmte Kontrolle darüber, was erlaubt ist.",
-      commands: "Erlaubte Terminalbefehle",
-      commandsHint: "Lassen Sie das Feld leer, um beliebige Befehle zuzulassen.",
-      blocked: "Tun Sie dies niemals",
-      blockedHint: "Anfragen, die diese Phrasen enthalten, werden abgelehnt.",
-    },
-    tuning: {
-      title: "Feinabstimmung",
-      description: "Kleine Anpassungen für die Art und Weise, wie Aktionen ausgeführt werden.",
-      click: "Klicken Sie auf die Länge",
-      clickHint: "Wie lange jeder simulierte Klick gehalten wird.",
-    },
     targeting: {
       title: "App-Targeting",
       description:

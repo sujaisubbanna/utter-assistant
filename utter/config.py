@@ -68,7 +68,9 @@ class RouterConfig:
     llm_fallback: bool = True
     llm_base_url: str = "http://127.0.0.1:8001/v1"
     llm_model: str = "qwen3-4b"
-    # Jev-style constrained decision head: minimum probability to act.
+    # Jev-style constrained decision head: when off, only deterministic rules run.
+    decision_head_enabled: bool = True
+    # Minimum probability for the decision head to act.
     decide_threshold: float = 0.5
 
 
@@ -83,6 +85,9 @@ class VisionConfig:
 
 @dataclass
 class ActionsConfig:
+    # Master switch for the discretionary confirmation list below. Consequential
+    # ops (terminal/input/close) are always confirmed by the runner regardless.
+    confirm_enabled: bool = True
     require_confirm: list[str] = field(
         default_factory=lambda: ["send", "submit", "delete", "purchase", "pay", "confirm order"]
     )
@@ -91,6 +96,14 @@ class ActionsConfig:
     # Empty = the browser you're looking at, else any open one, else the
     # desktop default.
     preferred_browser: str = ""
+
+
+@dataclass
+class PerceptionConfig:
+    """Screen perception (``[perception]``)."""
+    # Read buttons/labels via the accessibility tree (AT-SPI) before falling
+    # back to screenshots + a vision model.
+    accessibility_enabled: bool = True
 
 
 @dataclass
@@ -271,6 +284,7 @@ class Config:
     router: RouterConfig = field(default_factory=RouterConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     actions: ActionsConfig = field(default_factory=ActionsConfig)
+    perception: PerceptionConfig = field(default_factory=PerceptionConfig)
     sleep: SleepConfig = field(default_factory=SleepConfig)
     osd: OsdConfig = field(default_factory=OsdConfig)
     macos: MacosConfig = field(default_factory=MacosConfig)
@@ -309,6 +323,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.router, raw.get("router", {}))
         _merge(cfg.vision, raw.get("vision", {}))
         _merge(cfg.actions, raw.get("actions", {}))
+        _merge(cfg.perception, raw.get("perception", {}))
         _merge(cfg.sleep, raw.get("sleep", {}))
         _merge(cfg.osd, raw.get("osd", {}))
         _merge(cfg.macos, raw.get("macos", {}))

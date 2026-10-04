@@ -7,6 +7,7 @@ import { Section } from "../components/ui/Card";
 import { Row } from "../components/ui/Row";
 import { useT, type MessageKey } from "../i18n";
 import { LINKS } from "../lib/links";
+import { usePlatform } from "../lib/platform";
 
 const TIERS: { id: string; icon: IconName }[] = [
   { id: "t0", icon: "window" },
@@ -23,6 +24,11 @@ const TRUST: { icon: IconName; title: MessageKey; body: MessageKey }[] = [
 
 export function PerceptionPage() {
   const t = useT();
+  // On macOS the effective VLM endpoint/model come from [macos.runtime]
+  // (resolve_vision overrides [vision]); only enabled/target_width are read
+  // from [vision], and CUDA is never used.
+  const { isMac } = usePlatform();
+  const visionSection = isMac ? "macos.runtime" : "vision";
   return (
     <>
       <PageHeader title={t("perception.title")} description={t("perception.description")} />
@@ -77,11 +83,11 @@ export function PerceptionPage() {
             fallback
           />
           <ConfigText
-            section="vision"
-            k="model"
+            section={visionSection}
+            k={isMac ? "vision_model" : "model"}
             title={t("perception.vision.model")}
             description={t("perception.vision.modelHint")}
-            fallback="uitars"
+            fallback={isMac ? "llama3.2-vision:11b" : "uitars"}
             monospace
             width="w-44"
           />
@@ -91,10 +97,10 @@ export function PerceptionPage() {
             </LinkButton>
           </Row>
           <ConfigText
-            section="vision"
-            k="base_url"
+            section={visionSection}
+            k={isMac ? "vision_base_url" : "base_url"}
             title={t("perception.vision.endpoint")}
-            placeholder="http://127.0.0.1:8000/v1"
+            placeholder={isMac ? "http://127.0.0.1:11434/v1" : "http://127.0.0.1:8000/v1"}
             monospace
           />
           <ConfigNumber
@@ -108,15 +114,17 @@ export function PerceptionPage() {
             step={64}
             suffix={t("common.px")}
           />
-          <ConfigText
-            section="vision"
-            k="cuda_visible_devices"
-            title={t("perception.vision.gpu")}
-            description={t("perception.vision.gpuHint")}
-            placeholder="0"
-            monospace
-            width="w-20"
-          />
+          {!isMac && (
+            <ConfigText
+              section="vision"
+              k="cuda_visible_devices"
+              title={t("perception.vision.gpu")}
+              description={t("perception.vision.gpuHint")}
+              placeholder="0"
+              monospace
+              width="w-20"
+            />
+          )}
         </Section>
 
         <Section title={t("perception.trust.title")} description={t("perception.trust.description")}>
