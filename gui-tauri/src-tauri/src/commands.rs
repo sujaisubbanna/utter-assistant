@@ -294,7 +294,7 @@ pub struct AppInfo {
     pub runner_sock: String,
 }
 
-/// `$UTTER_MODELS`, else `$XDG_DATA_HOME/utter/models` — mirrors
+/// `$UTTER_MODELS`, else `$XDG_DATA_HOME/utter-models` — mirrors
 /// `assistant/util.py::models_root`.
 fn models_path() -> PathBuf {
     if let Ok(value) = std::env::var("UTTER_MODELS") {
@@ -311,7 +311,7 @@ fn models_path() -> PathBuf {
                 .map(|home| PathBuf::from(home).join(".local/share"))
                 .unwrap_or_else(|_| PathBuf::from(".local/share"))
         });
-    data_home.join("utter/models")
+    data_home.join("utter-models")
 }
 
 #[tauri::command]
