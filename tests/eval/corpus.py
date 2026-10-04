@@ -179,9 +179,6 @@ CASES = [
     ("niri_move_window_up", "niri", "move window up", "browser", plan_of(niri("move-window-up", "move window up"))),
     ("niri_move_window_down", "niri", "move window down", "browser", plan_of(niri("move-window-down", "move window down"))),
     ("niri_close_window", "niri", "close window", "browser", plan_of(niri("close-window", "close window"))),
-    # NOTE: "close tab" is claimed by _close (generic window/tab) before the
-    # browser shortcut matcher; the plan is a niri close, not ctrl+w. Finding.
-    ("niri_close_tab_generic_shadow", "niri", "close tab", "browser", plan_of(niri("close-window", "close window"))),
     ("niri_fullscreen", "niri", "fullscreen", "browser", plan_of(niri("fullscreen-window", "fullscreen"))),
     ("niri_toggle_fullscreen", "niri", "toggle fullscreen", "browser", plan_of(niri("fullscreen-window", "toggle fullscreen"))),
     ("niri_maximize_column", "niri", "maximize column", "browser", plan_of(niri("maximize-column", "maximize column"))),
@@ -308,13 +305,21 @@ CASES = [
     # open_url_site_app: explicit open + switch/focus + comfy + escalation
     # ===================================================================== #
     ("open_url", "open_url_site_app", "open https://example.com/x", "none",
-     plan_of(url("https://example.com/x", "x", "open https://example.com/x"))),
+     plan_of(url("https://example.com/x", "example", "open https://example.com/x"))),
     ("open_domain", "open_url_site_app", "open example.com/path", "none",
-     plan_of(url("https://example.com/path", "x", "open example.com/path"))),
+     plan_of(url("https://example.com/path", "example", "open example.com/path"))),
     ("open_domain_plain", "open_url_site_app", "open test.dev", "none",
      plan_of(url("https://test.dev", "test", "open test.dev"))),
     ("open_domain_youtube_com", "open_url_site_app", "open youtube.com", "none",
      plan_of(url("https://youtube.com", "youtube", "open youtube.com"))),
+    # A short SITES key ("x") must not match inside another host or path; the
+    # URL/domain's own host label wins, and standalone short keys still resolve.
+    ("open_domain_x_com", "open_url_site_app", "open x.com", "none",
+     plan_of(url("https://x.com", "x", "open x.com"))),
+    ("open_domain_netflix", "open_url_site_app", "open netflix.com", "none",
+     plan_of(url("https://netflix.com", "netflix", "open netflix.com"))),
+    ("open_site_yt", "open_url_site_app", "open yt", "none",
+     plan_of(url("https://www.youtube.com", "yt", "open yt"))),
     ("open_site_youtube", "open_url_site_app", "open youtube", "none",
      plan_of(url("https://www.youtube.com", "youtube", "open youtube"))),
     ("open_site_github", "open_url_site_app", "open github", "none",
@@ -472,6 +477,10 @@ CASES = [
      plan_of(key("ctrl+shift+Tab", "prev_tab in firefox"))),
     ("shortcut_new_tab_zen", "shortcuts", "new tab", "zen",
      plan_of(key("ctrl+t", "new_tab in zen"))),
+    ("shortcut_close_tab", "shortcuts", "close tab", "browser",
+     plan_of(key("ctrl+w", "close_tab in firefox"))),
+    ("shortcut_close_tab_zen", "shortcuts", "close tab", "zen",
+     plan_of(key("ctrl+w", "close_tab in zen"))),
     ("shortcut_needs_browser", "shortcuts", "new tab", "none", None),
     ("shortcut_needs_browser_terminal", "shortcuts", "new tab", "terminal", None),
 
@@ -577,6 +586,8 @@ CASES = [
     ("negative_please_type", "negatives", "please type hello", "none", None),
     ("negative_terminal_run_needs_terminal", "negatives", "run echo hello", "none", None),
     ("negative_shortcut_needs_browser", "negatives", "new tab", "none", None),
+    # "close tab" must never fall back to closing the whole window.
+    ("negative_close_tab_no_browser", "negatives", "close tab", "none", None),
     ("negative_generic_alias_music_pause", "negatives", "music pause", "none", None),
     ("negative_generic_alias_close_music", "negatives", "close music", "none", None),
     ("negative_close_code_generic_alias", "negatives", "close code", "none", None),

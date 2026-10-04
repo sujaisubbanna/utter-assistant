@@ -501,7 +501,16 @@ def _close(utterance: str, t: str, raw: str, ctx: Context, profiles: dict) -> Op
     if prof is not None:
         return _make_plan(utterance, [Step(Action.CLOSE_APP, {"app": prof.id}, tier=Tier.APP,
                                           description=f"close {prof.name}")])
-    if tgt in ("window", "tab"):
+    if tgt == "tab":
+        # "close tab" is the browser shortcut (ctrl+w), not a window close.
+        # Without a focused browser that binds close_tab there is no cheap plan,
+        # so escalate rather than kill the whole window.
+        if _is_browser(ctx, profiles):
+            step = _shortcut_step(ctx, profiles, "close_tab")
+            if step:
+                return _make_plan(utterance, [step])
+        return None
+    if tgt == "window":
         return _make_plan(utterance, [Step(Action.NIRI, {"command": "close-window", "args": []},
                                           tier=Tier.APP, description="close window")])
     return None
@@ -658,21 +667,34 @@ def plan(utterance: str, ctx: Context, profiles: dict) -> Optional[Plan]:
 
 
 
-def _site_key(text: str) -> str:
-    """Best keyword to match a site against a browser window title."""
-    t = (text or "").lower()
-    for host in SITES:
-        if host in t:
-            return host
+def _host_site_key(text: str) -> str:
+    """Registrable host label of a URL/domain (``www.youtube.com`` -> ``youtube``)."""
     from urllib.parse import urlparse
     try:
-        host = urlparse(t if "://" in t else "https://" + t).netloc.split(":")[0]
+        host = urlparse(text if "://" in text else "https://" + text).netloc.split(":")[0]
     except Exception:
-        return t
+        return text
     if host.startswith("www."):
         host = host[4:]
     parts = host.split(".")
     return parts[-2] if len(parts) >= 2 else host
+
+
+def _site_key(text: str) -> str:
+    """Best keyword to match a site against a browser window title.
+
+    A known site name only matches as a whole word/phrase (longest wins), so a
+    short key such as ``x`` cannot match inside ``example.com``. A URL/domain is
+    authoritative about itself, so its host label wins over any keyword; that
+    keeps path segments (``.../x``) out of the site key.
+    """
+    t = (text or "").lower()
+    if URL_RE.match(t) or DOMAIN_RE.match(t):
+        return _host_site_key(t)
+    for site in sorted(SITES, key=len, reverse=True):
+        if re.search(r"\b" + re.escape(site) + r"\b", t):
+            return site
+    return _host_site_key(t)
 
 
 def _resolve(profiles: dict, name: str):
