@@ -67,7 +67,8 @@ turns into a progress bar. Pulls are resumable and verified by SHA-256; `rm` rem
 and any blob nothing else references; `prune` collects orphans and unfinished downloads. Ctrl-C
 stops an in-flight download cleanly.
 
-Store location: `$XDG_DATA_HOME/utter/models/`, or `UTTER_MODELS`.
+Store location: `$XDG_DATA_HOME/utter-models/`, or `UTTER_MODELS`. It sits beside the
+install tree and is kept on uninstall.
 
 ## `status`
 

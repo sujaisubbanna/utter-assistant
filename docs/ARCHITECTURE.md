@@ -62,7 +62,8 @@ Manifest: `utter-plugin.toml` validated by `protocol/plugin.schema.json`.
 - **Runner-enforced, argument-bearing confirmation** with post-approval re-validation (TOCTOU).
 - **Dangerous ops off by default** (`terminal`, `input`); `open_url` scheme allow-list.
 - **Socket default-deny** (`SO_PEERCRED` allow-list / token); **`[security] enforce`** sandboxes
-  plugin subprocesses (systemd-run/bwrap) and reports enforced vs advisory.
+  plugin subprocesses (systemd-run/bwrap: `NoNewPrivileges`, `RestrictAddressFamilies`,
+  private `/tmp`, default-deny device cgroup, read-only paths) and reports enforced vs advisory.
 
 ## 7. Lifecycle & failure handling
 - Plugin instances are `(plugin_id, epoch)`; **restart increments the epoch** and stale-epoch

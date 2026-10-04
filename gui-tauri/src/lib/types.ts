@@ -16,6 +16,8 @@ export interface AppInfo {
   python: string;
   config_path: string;
   theme_path: string;
+  /** The real model store (`$XDG_DATA_HOME/utter/models`). */
+  models_path: string;
   runner_sock: string;
 }
 
@@ -156,6 +158,7 @@ export interface DoctorReport {
   deps?: Record<string, boolean>;
   compositor?: CompositorInfo;
   runtime?: RuntimeInfo;
+  models?: ModelStoreInfo;
 }
 
 export interface StatusReport {
@@ -173,6 +176,15 @@ export interface ModelEntry {
   bytes?: number;
   files?: number;
   manifest?: string;
+}
+
+export interface ModelStoreInfo {
+  root?: string;
+  legacy_root?: string;
+  legacy_present?: boolean;
+  override?: string | null;
+  migrated_from?: string | null;
+  fallback_to?: string | null;
 }
 
 export interface Recommendation {
@@ -251,4 +263,13 @@ export interface AppCatalog {
   apps: AppCatalogEntry[];
   /** False when the rich catalogue isn't available and the list was derived. */
   detected?: boolean;
+}
+
+/** The runner's risky-action allow-list (`[policy] enabled_ops`). */
+export interface RunnerPolicy {
+  /** The runner config file the policy is read from / written to. */
+  path: string;
+  enabled_ops: string[];
+  /** True when the runner unit was restarted so the change took effect. */
+  restarted: boolean;
 }

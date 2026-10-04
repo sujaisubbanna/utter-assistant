@@ -71,10 +71,14 @@ is a 16 GB or larger NVIDIA GPU. Speech recognition alone runs happily on CPU.
 ## The model store
 
 ```text
-$XDG_DATA_HOME/utter/models/      # override with UTTER_MODELS
+$XDG_DATA_HOME/utter-models/      # override with UTTER_MODELS
   manifests/<host>/<ns>/<name>/<tag>.json
   blobs/sha256-<hex>
 ```
+
+The store sits beside the install tree (`$PREFIX/share/utter`), not inside it, so
+uninstalling keeps your models. An older store at `$XDG_DATA_HOME/utter/models`
+is moved here once, on first use.
 
 The layout is Ollama-style: manifests name a model and tag; blobs are content-addressed by
 SHA-256, so two models that share a file share one blob.

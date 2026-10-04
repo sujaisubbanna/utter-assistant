@@ -21,6 +21,7 @@ import { displayMacKey, displayName } from "../../lib/keys";
 import { PULL_SOURCES } from "../../lib/links";
 import type { ModelChoice, OnboardingData } from "../../lib/onboarding";
 import { usePlatform } from "../../lib/platform";
+import { normalizeSttBackend } from "../../lib/services";
 import type { AppCatalogEntry, ModelEntry, PermissionItem, PermissionReport, Recommendation, UnitStatus } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import {
@@ -624,10 +625,16 @@ export function AppsStep({ data, commit }: StepProps) {
   }, [load]);
 
   // Apply the curated defaults once, then remember the user's own selection.
+  // The picker is the opt-in gate, so the choice must reach the backend — not
+  // just localStorage. `app_profiles_set_enabled` writes the override files the
+  // assistant loader reads.
   useEffect(() => {
     if (!entries || data.appsLoaded) return;
     const defaults = entries.filter((entry) => entry.preselected).map((entry) => entry.id);
     commit({ apps: defaults, appsLoaded: true });
+    if (defaults.length) {
+      void api.appProfilesSetEnabled(defaults, true).catch(() => {});
+    }
   }, [entries, data.appsLoaded, commit]);
 
   const toggle = (id: string) => {
@@ -635,10 +642,13 @@ export function AppsStep({ data, commit }: StepProps) {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     commit({ apps: [...next] });
+    void api.appProfilesSetEnabled([id], next.has(id)).catch(() => {});
   };
 
   const selectAll = (on: boolean) => {
-    commit({ apps: on ? (entries ?? []).map((entry) => entry.id) : [] });
+    const ids = (entries ?? []).map((entry) => entry.id);
+    commit({ apps: on ? ids : [] });
+    if (ids.length) void api.appProfilesSetEnabled(ids, on).catch(() => {});
   };
 
   const visible = useMemo(() => {
@@ -828,7 +838,7 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
   const hw = recommendation?.hardware;
   const gpu = Boolean(isMac || (hw?.gpus && hw.gpus.length > 0));
   const recModel = String(sugg?.stt?.model || "distil-small.en");
-  const recBackend = String(sugg?.stt?.backend || "faster_whisper");
+  const recBackend = normalizeSttBackend(String(sugg?.stt?.backend || "faster_whisper"));
   const visionModel = String(sugg?.vision?.model || "");
   const visionSource = visionModel && visionModel !== "none" ? PULL_SOURCES[visionModel] : undefined;
   const includeVision = !isMac && gpu && Boolean(visionSource);

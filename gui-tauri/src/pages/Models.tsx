@@ -17,6 +17,7 @@ import { useConfig } from "../lib/config";
 import { useTauriEvent } from "../lib/events";
 import { humanBytes, parseJsonLine } from "../lib/format";
 import { HF_MODELS, LINKS, PULL_SOURCES } from "../lib/links";
+import { normalizeSttBackend } from "../lib/services";
 import type { AppInfo, ModelEntry, Recommendation } from "../lib/types";
 
 type PullPhase = "idle" | "starting" | "downloading" | "done" | "error";
@@ -48,6 +49,7 @@ export function ModelsPage() {
   const toast = useToast();
   const { setMany } = useConfig();
   const [models, setModels] = useState<ModelEntry[] | null>(null);
+  const [storeRoot, setStoreRoot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
@@ -66,6 +68,7 @@ export function ModelsPage() {
     try {
       const data = await api.modelsList();
       setModels(data?.models ?? []);
+      setStoreRoot(data?.store?.root ?? null);
       setError(null);
     } catch (err) {
       setError(String((err as Error)?.message ?? err));
@@ -203,15 +206,13 @@ export function ModelsPage() {
   const totalBytes = (models ?? []).reduce((sum, model) => sum + (model.bytes ?? 0), 0);
   const suggestions = recommendation?.suggestions;
   const hardware = recommendation?.hardware;
-  const storePath = info ? `${info.repo}/models` : "~/.local/share/utter/models";
+  // Prefer the live store root reported by the CLI, then the backend's path,
+  // then the documented default location.
+  const storePath = storeRoot ?? info?.models_path ?? "~/.local/share/utter-models";
 
   const useStt = () => {
     const stt = (suggestions?.stt ?? {}) as Record<string, unknown>;
-    const backends: Record<string, string> = {
-      "faster-whisper": "faster_whisper",
-      "whisper.cpp": "whisper_cpp",
-    };
-    const backend = backends[String(stt.backend)] ?? String(stt.backend ?? "faster_whisper");
+    const backend = normalizeSttBackend(String(stt.backend ?? "faster_whisper"));
     void setMany("stt", {
       backend,
       model: stt.model ?? "",

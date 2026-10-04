@@ -44,16 +44,30 @@ export const TRIGGERS: OptionDef[] = [
   { value: "hotkey", labelKey: "general.trigger.hotkey" },
 ];
 
+// Linux STT backends the daemon actually implements (see utter/voice/stt.py).
 export const STT_BACKENDS: OptionDef[] = [
   { value: "faster_whisper", label: "faster-whisper", link: "faster_whisper" },
   { value: "whisper_cpp", label: "whisper.cpp", link: "whisper_cpp" },
-  { value: "vosk", label: "Vosk", link: "vosk" },
-  { value: "parakeet", label: "Parakeet", link: "parakeet" },
-  { value: "remote", labelKey: "voice.stt.remote" },
   { value: "none", labelKey: "voice.stt.none" },
 ];
 
-export const STT_DEVICES = ["cuda", "cpu", "auto", "int8"];
+// Device selectors map to CTranslate2 devices; "int8" is a compute type, not a
+// device, so it is intentionally absent (see [stt] compute_type).
+export const STT_DEVICES = ["cuda", "cpu", "auto"];
+
+/**
+ * `assistant recommend` reports human-friendly backend names with hyphens
+ * ("faster-whisper", "whisper.cpp"); the daemon needs the config keys with
+ * underscores. Normalise before writing `[stt] backend` / `[macos] stt_backend`.
+ */
+const STT_BACKEND_ALIASES: Record<string, string> = {
+  "faster-whisper": "faster_whisper",
+  "whisper.cpp": "whisper_cpp",
+};
+
+export function normalizeSttBackend(value: string): string {
+  return STT_BACKEND_ALIASES[value] ?? value;
+}
 
 /** macOS (`[macos]` section). Apple Speech needs no model; whisper.cpp is the offline fallback. */
 export const MAC_STT_BACKENDS: OptionDef[] = [
@@ -82,11 +96,15 @@ export const LLM_PROVIDERS: (OptionDef & { url: string })[] = [
   { value: "remote", labelKey: "llm.provider.remote", url: "" },
 ];
 
+// `auto` and `none` are the documented config values (utter/voice/tts.py); the
+// rest are concrete engine binaries.
 export const TTS_ENGINES: OptionDef[] = [
+  { value: "auto", label: "Auto" },
   { value: "espeak-ng", label: "eSpeak NG", link: "espeak-ng" },
   { value: "espeak", label: "eSpeak", link: "espeak" },
   { value: "spd-say", label: "Speech Dispatcher", link: "spd-say" },
   { value: "piper", label: "Piper", link: "piper" },
+  { value: "none", labelKey: "common.none" },
 ];
 
 export const DANGEROUS_OPS: { op: string; titleKey: MessageKey; descKey: MessageKey }[] = [

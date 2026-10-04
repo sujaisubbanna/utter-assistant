@@ -30,7 +30,9 @@ UNIT_DST="$UNIT_DST_DIR/utter-runner.service"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/utter"
 STATE_FILE="$STATE_DIR/install.json"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/utter"
-MODELS_DIR="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter/models}"
+MODELS_DIR="${UTTER_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/utter-models}"
+# Pre-decoupling location (inside the install tree); removed only with --purge.
+LEGACY_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/utter/models"
 
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n== %s ==\n' "$*"; }
@@ -109,6 +111,9 @@ if (( PURGE )); then
     else
         note "no models dir: $MODELS_DIR"
     fi
+    if [[ "$LEGACY_MODELS_DIR" != "$MODELS_DIR" && -d "$LEGACY_MODELS_DIR" ]]; then
+        run "remove legacy models dir $LEGACY_MODELS_DIR" rm -rf "$LEGACY_MODELS_DIR"
+    fi
     if [[ -d "$CONFIG_DIR" ]]; then
         run "remove config dir $CONFIG_DIR" rm -rf "$CONFIG_DIR"
     else
@@ -123,11 +128,11 @@ fi
 # --------------------------------------------------------------------------- #
 step "5. package removals (printed, never performed)"
 say "  The installer does not remove system packages. If you want to, review and run:"
-say "      sudo pacman -Rns wtype ydotool grim wl-clipboard pipewire gtk4 libadwaita"
-say "      sudo apt-get remove wtype ydotool grim wl-clipboard pipewire libgtk-4-1 libadwaita-1-0"
-say "      sudo dnf remove wtype ydotool grim wl-clipboard pipewire gtk4 libadwaita"
-say "      sudo zypper remove wtype ydotool grim wl-clipboard pipewire gtk4-devel libadwaita-1-0"
-note "pipewire/gtk4/libadwaita are commonly used by other apps — remove with care."
+say "      sudo pacman -Rns wtype ydotool grim wl-clipboard pipewire webkit2gtk libsoup"
+say "      sudo apt-get remove wtype ydotool grim wl-clipboard pipewire libwebkit2gtk-4.1-0 libsoup-3.0-0"
+say "      sudo dnf remove wtype ydotool grim wl-clipboard pipewire webkit2gtk4.1 libsoup3"
+say "      sudo zypper remove wtype ydotool grim wl-clipboard pipewire libwebkit2gtk-4_1-0 libsoup-3_0-0"
+note "pipewire/webkit2gtk/libsoup are commonly used by other apps — remove with care."
 
 # --------------------------------------------------------------------------- #
 # 6. group note

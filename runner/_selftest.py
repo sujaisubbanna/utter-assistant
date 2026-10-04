@@ -392,6 +392,37 @@ async def test_security() -> None:
     argv = security.plugin_argv(["python", "-m", "x"], sysd, plugin_id="p")
     check("security: wrapper argv",
           argv[0] == "systemd-run" and "--" in argv and argv[-1] == "x", str(argv))
+    opts = [argv[i + 1] for i, a in enumerate(argv) if a == "-p"]
+    joined = " ".join(argv)
+    check("security: emits NoNewPrivileges/RAF/PrivateTmp",
+          "NoNewPrivileges=yes" in joined and "RestrictAddressFamilies=AF_UNIX" in joined
+          and "PrivateTmp=yes" in joined, joined)
+    check("security: device cgroup default-deny + needed nodes",
+          "DevicePolicy=closed" in joined and "DeviceAllow=/dev/null" in joined
+          and "DeviceAllow=/dev/urandom" in joined, joined)
+    check("security: no audio device unless microphone declared",
+          "DeviceAllow=/dev/snd" not in joined, joined)
+    check("security: read paths are read-only",
+          any(o.startswith("ReadOnlyPaths=/usr") for o in opts), joined)
+    flown = security.plugin_argv(
+        ["python", "-m", "x"], sysd, plugin_id="p",
+        permissions=["microphone"], read_paths=["/data/ro"], write_paths=["/data/rw"])
+    check("security: declared read/write paths flow through",
+          "ReadOnlyPaths=/data/ro" in flown and "ReadWritePaths=/data/rw" in flown,
+          " ".join(flown))
+    # Audio is only allowed when declared *and* the node exists on this host.
+    if os.path.exists("/dev/snd"):
+        check("security: microphone adds the audio device",
+              "DeviceAllow=/dev/snd" in flown, " ".join(flown))
+    bwrap = security.detect_wrapper(
+        which=lambda n: "/usr/bin/bwrap" if n == "bwrap" else None, probe=ok_probe)
+    bargv = security.plugin_argv(
+        ["python", "-m", "x"], bwrap, plugin_id="p",
+        permissions=["microphone"], write_paths=["/data/rw"])
+    bj = " ".join(bargv)
+    check("security: bwrap private tmp + write bind",
+          "--tmpfs /tmp" in bj and "--tmpfs /var/tmp" in bj and "--bind /data/rw /data/rw" in bj,
+          bj)
     perms = security.permission_status(["filesystem.read", "weird"], sysd)
     check("security: permission enforced/advisory",
           perms[0]["enforced"] is True and perms[1]["enforced"] is False, str(perms))

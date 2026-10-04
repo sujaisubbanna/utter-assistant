@@ -7,11 +7,27 @@ typing, launching; no window actions). Dictation and the assistant key work on L
 
 ## 1. Installer
 
+There are two scripts on a source checkout:
+
+- **`install/install.sh`** — the minimal **developer installer**: distro deps, the runner
+  service, install-state and a `doctor`/`recommend` check. It has **no language or model step**.
+- **root `install.sh`** — the **full wizard** (the same one served from
+  `https://utter.sujaisubbanna.com/install.sh`): it additionally walks components, the
+  **spoken-language** step, model tiers, the GUI and the optional Noctalia widget, with
+  `--only`/`--skip`/`--with-noctalia`/`--package`.
+
 ```bash
-install/install.sh --dry-run     # default: print exactly what it would do
-install/install.sh --yes         # actually install deps + enable the runner unit
+./install.sh --dry-run               # full wizard (default: print exactly what it would do)
+./install.sh --yes                   # apply recommended defaults, no prompts
+./install.sh --yes --only core,gui   # apply only chosen components
+
+install/install.sh --dry-run         # minimal developer installer
+install/install.sh --yes             # deps + runner unit
 install/install.sh --yes --no-deps   # skip distro packages, only wire the service
 ```
+
+The walk below (steps 1–7) describes the **full root `install.sh` wizard**, which is what the
+hosted one-liner runs; `install/install.sh` covers steps 1, 3–4 and 7 only.
 
 **Agent-driven install.** Any of these can also be driven by an AI coding agent: point it at
 [`INSTALL-AGENT.md`](INSTALL-AGENT.md) (also on the site as
@@ -86,10 +102,13 @@ the per-plugin `negotiated`, `unknown_capabilities`, `missing_requires`, and
 
 Layout (Ollama-style, XDG):
 ```
-$XDG_DATA_HOME/utter/models/      # override with UTTER_MODELS
+$XDG_DATA_HOME/utter-models/      # override with UTTER_MODELS
   manifests/<host>/<ns>/<name>/<tag>.json
   blobs/sha256-<hex>
 ```
+The store is a sibling of the install tree (`$PREFIX/share/utter`), never inside
+it, so uninstalling the core tree keeps your models. An older store at
+`$XDG_DATA_HOME/utter/models` is moved here once, on first use.
 - Sources: `hf:org/repo[:file]` → resolved to `https://huggingface.co/org/repo/resolve/main/file`;
   bare `https://…`; local `file://`.
 - **Resumable**: partial file + `curl -C -` (or urllib `Range`), retry/backoff, sha256 verify,

@@ -118,7 +118,7 @@ Utter keeps a small amount of state on disk. Persistent state (survives reboot):
 |---|---|
 | `~/.config/utter/config.toml` | your settings |
 | `~/.local/share/utter/generated.yaml` | the app catalogue generated from your installed apps |
-| `~/.local/share/utter/models/` | downloaded model weights |
+| `~/.local/share/utter-models/` | downloaded model weights; kept on uninstall |
 | `~/.local/state/utter/install.json` | install state, reversible |
 
 Runtime-only state (lives under `$XDG_RUNTIME_DIR`, cleared on logout):

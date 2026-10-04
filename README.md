@@ -56,10 +56,13 @@ Utter is a context-aware desktop assistant, natively supported on **Linux (Wayla
 ### Multilingual
 
 Use Utter in your own language — the settings app ships **10 UI locales** (English, Spanish,
-German, French, Italian, Portuguese, Chinese, Japanese, Korean, Russian) and the installer
-speaks the same set. The **spoken language** (speech-to-text and spoken replies) is a *separate*
-setting: it resolves `auto` from your system locale, or you set `[stt] language` / `[tts] language`
-directly. There are two independent axes, so you can run a Spanish UI and speak English.
+German, French, Italian, Portuguese, Chinese, Japanese, Korean, Russian). The **published web
+installer (`curl … | bash`) runs in English only**: the one-line path ships just `install.sh` and
+does not carry the translation files, so the installer stays English there. A source checkout or
+the full installer tree does speak the same 10 locales. The **spoken language** (speech-to-text
+and spoken replies) is a *separate* setting: it resolves `auto` from your system locale, or you
+set `[stt] language` / `[tts] language` directly. There are two independent axes, so you can run a
+Spanish UI and speak English.
 
 English ships inline. Everything else is **opt-in**: Utter **never downloads a model by itself** —
 you pick a language during install or in the settings app, and it offers the matching multilingual

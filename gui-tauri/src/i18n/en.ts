@@ -830,20 +830,6 @@ export const en = {
       enabledToast: "{name} turned on",
       disabledToast: "{name} turned off",
     },
-    limits: {
-      title: "Limits",
-      description: "Fine-grained control over what's allowed.",
-      commands: "Allowed terminal commands",
-      commandsHint: "Leave empty to allow any command.",
-      blocked: "Never do this",
-      blockedHint: "Requests containing these phrases are refused.",
-    },
-    tuning: {
-      title: "Fine-tuning",
-      description: "Small adjustments for how actions are performed.",
-      click: "Click length",
-      clickHint: "How long each simulated click is held.",
-    },
     targeting: {
       title: "App targeting",
       description:

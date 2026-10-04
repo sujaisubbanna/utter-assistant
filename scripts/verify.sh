@@ -81,7 +81,10 @@ echo "== guardrails: runner stdlib, provenance, installer contract =="
 "$PY" tests/test_provenance_invariant.py || rc=1
 "$PY" tests/test_app_target_policy.py || rc=1
 "$PY" tests/test_gui_profile_contract.py || rc=1
+"$PY" tests/test_gui_unwired_config.py || rc=1
 "$PY" tests/test_installer_contract.py || rc=1
+"$PY" tests/test_models_store.py || rc=1
+"$PY" tests/test_uninstall_keeps_models.py || rc=1
 
 echo
 echo "== runner e2e (socket) =="

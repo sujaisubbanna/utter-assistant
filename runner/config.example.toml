@@ -23,8 +23,13 @@ allow_binaries = []
 # enforce = true spawns plugins under systemd-run --user --scope (preferred) or
 # bwrap, and makes runner.validate_plugin report `enforced: true` for
 # sandboxable permissions (filesystem.read/write, network, microphone, device).
-# When no wrapper is available the runner runs unhardened and reports every
-# permission as advisory. Set true in production.
+# Hardening applied: NoNewPrivileges, RestrictAddressFamilies=AF_UNIX, a private
+# /tmp, a default-deny device cgroup (DevicePolicy=closed + DeviceAllow for the
+# basic /dev nodes, plus /dev/snd for a plugin declaring `microphone`), and
+# read-only system/interpreter paths; per-plugin `read_paths`/`write_paths`
+# become ReadOnlyPaths/ReadWritePaths. When no wrapper is available the runner
+# runs unhardened and reports every permission as advisory. Set true in
+# production.
 enforce = false
 
 [policy]
@@ -33,6 +38,12 @@ enforce = false
 #   enabled_ops = ["action.terminal"]
 enabled_ops = []
 disabled_ops = []
+
+[plugins]
+# Settings-app opt-out: ids listed here are disabled even if their [[plugin]]
+# entry says enabled = true.
+#   disabled = ["fake-router"]
+disabled = []
 
 [[plugin]]
 id = "fake-router"
@@ -44,6 +55,8 @@ permissions = []
 # Optional spawn overrides (M3):
 #   cwd = "plugins/utter_py"          # working directory for the plugin
 #   env = { UTTER_DRY_RUN = "1" }     # extra environment (merged over the runner's)
+#   read_paths = ["/data/models"]     # extra read-only paths under [security] enforce
+#   write_paths = ["/data/cache"]     # writable paths under [security] enforce
 # The runner always prepends the repo root to PYTHONPATH so plugins can
 # `import utter`.
 

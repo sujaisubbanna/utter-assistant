@@ -2,9 +2,14 @@
 
 Layout (Ollama-style, XDG)::
 
-    $XDG_DATA_HOME/utter/models/          # override: UTTER_MODELS
+    $XDG_DATA_HOME/utter-models/          # override: UTTER_MODELS
       manifests/<host>/<ns>/<name>/<tag>.json
       blobs/sha256-<hex>
+
+The store deliberately lives beside the install tree, not inside it: the web
+installer removes ``$PREFIX/share/utter`` on uninstall and must never delete
+downloaded models. A legacy ``$XDG_DATA_HOME/utter/models`` store is moved here
+once on first use (see :func:`assistant.util.models_root`).
 
 Sources: ``hf:org/repo[:file]``, bare ``https://…``, ``file://`` (and a bare
 local path). Downloads are resumable (``curl -C -`` or urllib ``Range``), with

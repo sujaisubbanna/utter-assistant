@@ -11,7 +11,7 @@ contacts Crowdin.
 | Surface | Source (English) | Translations |
 |---|---|---|
 | Settings app UI | `gui-tauri/src/i18n/en.ts` | `gui-tauri/src/i18n/<lang>.ts` |
-| Installer | `install/install.sh` (English inline; no `en.sh`) | `install/i18n/<lang>.sh` |
+| Installer | root `install.sh` (English inline; no `en.sh`) | `install/i18n/<lang>.sh` |
 | Documentation website | `website/src/content/docs/*.md(x)` | `website/src/content/docs/<lang>/*.md(x)` |
 
 `en.ts` is the source of truth: every other locale is typed against it

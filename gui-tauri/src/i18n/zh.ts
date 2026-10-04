@@ -834,20 +834,6 @@ export const zh: Messages = {
       enabledToast: "{name}已开启",
       disabledToast: "{name}已关闭",
     },
-    limits: {
-      title: "限制",
-      description: "对允许的内容进行细粒度的控制。",
-      commands: "允许的终端命令",
-      commandsHint: "留空以允许任何命令。",
-      blocked: "永远不要这样做",
-      blockedHint: "包含这些短语的请求将被拒绝。",
-    },
-    tuning: {
-      title: "微调",
-      description: "对操作的执行方式进行小幅调整。",
-      click: "点击长度",
-      clickHint: "每次模拟点击持续的时间。",
-    },
     targeting: {
       title: "应用定位",
       description:

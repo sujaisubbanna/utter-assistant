@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "../components/icons";
 import { PageBody, PageHeader } from "../components/PageHeader";
@@ -15,7 +15,7 @@ import { Modal } from "../components/ui/Modal";
 import { Row, Tile } from "../components/ui/Row";
 import { useToast } from "../components/ui/Toast";
 import { useI18n } from "../i18n";
-import { useConfig } from "../lib/config";
+import { api } from "../lib/api";
 import { usePlatform } from "../lib/platform";
 import { DANGEROUS_OPS } from "../lib/services";
 
@@ -28,7 +28,6 @@ import { DANGEROUS_OPS } from "../lib/services";
 function AppTargetingSection() {
   const { t } = useI18n();
   const { isMac, isWayland } = usePlatform();
-  const { get } = useConfig();
 
   if (isMac) {
     return (
@@ -132,11 +131,19 @@ function AppTargetingSection() {
 
 export function SafetyPage() {
   const { t, tn } = useI18n();
-  const { get, set } = useConfig();
   const toast = useToast();
   const [pending, setPending] = useState<(typeof DANGEROUS_OPS)[number] | null>(null);
 
-  const enabledOps = get<string[]>("policy", "enabled_ops", []);
+  // The risky-op gate is enforced by the runner from its own config, so read
+  // and write it there — `~/.config/utter/config.toml` is never consulted.
+  const [enabledOps, setEnabledOps] = useState<string[]>([]);
+  useEffect(() => {
+    api
+      .getRunnerPolicy()
+      .then((policy) => setEnabledOps(policy.enabled_ops))
+      .catch(() => {});
+  }, []);
+
   const isEnabled = (op: string) => enabledOps.includes(op);
   const opName = (op: string) => {
     const def = DANGEROUS_OPS.find((item) => item.op === op);
@@ -147,8 +154,16 @@ export function SafetyPage() {
     const next = on
       ? Array.from(new Set([...enabledOps, op])).sort()
       : enabledOps.filter((value) => value !== op);
-    await set("policy", "enabled_ops", next);
-    toast(t(on ? "safety.risky.enabledToast" : "safety.risky.disabledToast", { name: opName(op) }), on ? "warn" : "ok");
+    try {
+      const policy = await api.setRunnerPolicy(next);
+      setEnabledOps(policy.enabled_ops);
+      toast(
+        t(on ? "safety.risky.enabledToast" : "safety.risky.disabledToast", { name: opName(op) }),
+        on ? "warn" : "ok",
+      );
+    } catch (error) {
+      toast(t("common.saveFailed", { what: "policy.enabled_ops", error: String(error) }), "error");
+    }
   };
 
   return (
@@ -214,37 +229,6 @@ export function SafetyPage() {
         </Section>
 
         <AppTargetingSection />
-
-        <Section title={t("safety.limits.title")} description={t("safety.limits.description")}>
-          <ConfigList
-            section="policy"
-            k="allow_commands"
-            title={t("safety.limits.commands")}
-            description={t("safety.limits.commandsHint")}
-            placeholder="ls, cat, git"
-          />
-          <ConfigList
-            section="policy"
-            k="blocked_phrases"
-            title={t("safety.limits.blocked")}
-            description={t("safety.limits.blockedHint")}
-            placeholder="rm -rf, shutdown"
-          />
-        </Section>
-
-        <Section title={t("safety.tuning.title")} description={t("safety.tuning.description")}>
-          <ConfigNumber
-            section="actions"
-            k="click_duration_ms"
-            title={t("safety.tuning.click")}
-            description={t("safety.tuning.clickHint")}
-            fallback={40}
-            min={0}
-            max={1000}
-            step={5}
-            suffix={t("common.ms")}
-          />
-        </Section>
       </PageBody>
 
       <Modal

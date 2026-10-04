@@ -38,13 +38,17 @@ function TtsLinuxPage() {
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
+    // Only concrete engines have a binary; `auto`/`none` resolve at runtime.
+    const binaries = TTS_ENGINES.map((engine) => ENGINE_BINARY[engine.value]).filter(
+      (name): name is string => Boolean(name),
+    );
     api
-      .whichMany(TTS_ENGINES.map((engine) => ENGINE_BINARY[engine.value]))
+      .whichMany(binaries)
       .then(setAvailable)
       .catch(() => setAvailable({}));
   }, []);
 
-  const engine = String(get("tts", "engine", "espeak-ng"));
+  const engine = String(get("tts", "engine", "auto"));
   const language = String(get("tts", "language", "auto"));
   const voice = String(get("tts", "voice", ""));
   const engineDef = TTS_ENGINES.find((item) => item.value === engine);

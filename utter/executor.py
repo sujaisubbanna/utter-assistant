@@ -765,6 +765,10 @@ class Executor:
         return self._vision_click(desc, ctx)
 
     def _try_a11y_click(self, desc: str) -> Optional[ActionResult]:
+        # `[perception] accessibility_enabled = false` skips the a11y tier and
+        # lets the caller fall through to vision.
+        if not getattr(getattr(self.cfg, "perception", None), "accessibility_enabled", True):
+            return None
         try:
             from .context import atspi
             from .actions import mouse
