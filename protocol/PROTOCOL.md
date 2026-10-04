@@ -106,8 +106,18 @@ reports drift against the install lockfile. Config schema changes ship a migrati
 - **`[socket]` default-deny:** require `allow_binaries` (verified via `SO_PEERCRED` exe
   path) **or** a token; dev override `allow_same_uid = true`.
 - **`[security] enforce = true`** spawns plugins under systemd-run/bubblewrap hardening
-  (`NoNewPrivileges`, `RestrictAddressFamilies`, `DeviceAllow`, `ReadOnlyPaths`, tmp
-  scoping). `runner.validate_plugin` reports each permission as `enforced` or `advisory`.
+  where the host supports it: `NoNewPrivileges`, `RestrictAddressFamilies=AF_UNIX`, a
+  private `/tmp`, a default-deny device cgroup (`DevicePolicy=closed` + `DeviceAllow` for
+  `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/tty`, plus `/dev/snd`
+  only when a plugin declares `microphone`), and read-only system/interpreter paths
+  (`ReadOnlyPaths`; declared `read_paths`/`write_paths` are applied as
+  `ReadOnlyPaths`/`ReadWritePaths`). `runner.validate_plugin` reports each permission as
+  `enforced` or `advisory`.
+- **Known gap (systemd, `--user --scope`):** on systemd releases that reject exec-context
+  properties on transient *scopes* (e.g. systemd 262), the runner falls back to `bwrap`,
+  which applies the equivalent isolation (`--unshare-all`, read-only root, `--tmpfs`
+  `/tmp`+`/var/tmp`, read-only re-binds, `--dev-bind` only for declared devices). If
+  neither wrapper runs, plugins spawn unhardened and every permission is **advisory**.
 - `action.terminal` / `action.input` remain **off by default**; enabling is explicit and
   confirmation-required.
 

@@ -119,10 +119,11 @@ config_schema="schema.json"
   LLM-derived shell strings by default); restrict `open_url` schemes and `launch_app` argv.
 - **Socket trust:** socket dir `0700`, socket `0600`, verify **`SO_PEERCRED`**, allow-list
   clients, rate-limit. Any same-uid process must not be able to drive actions.
-- **Permission enforcement:** subprocess plugins run under systemd-run hardening
-  (`NoNewPrivileges`, `RestrictAddressFamilies`, `DeviceAllow`, `ReadOnlyPaths`,
-  seccomp/landlock or bubblewrap). If a permission can't be enforced, it is documented as
-  **advisory** — never implied safe.
+- **Permission enforcement:** subprocess plugins run under systemd-run/bubblewrap hardening
+  (`NoNewPrivileges`, `RestrictAddressFamilies`, private `/tmp`, a default-deny device cgroup
+  `DevicePolicy=closed`+`DeviceAllow`, read-only system/interpreter paths and declared plugin
+  `read_paths`/`write_paths`). seccomp/landlock are **not** yet applied. If a permission can't
+  be enforced, it is documented as **advisory** — never implied safe.
 - **Secrets:** keyring/libsecret or 0600; redacted from logs/doctor; screen/clipboard never
   logged by default.
 - **Supply chain:** plugins are untrusted code at user privilege — sign + pin digests,

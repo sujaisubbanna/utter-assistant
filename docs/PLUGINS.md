@@ -442,10 +442,16 @@ Read [`docs/TRUST.md`](TRUST.md) before shipping side effects. The essentials:
   or a token via `runner.auth`; `allow_same_uid = true` is a dev escape hatch
   (`_authorize_creds`, `runner/socket.py`).
 - **Sandboxing**: with runner `[security] enforce = true`, plugins spawn under
-  `systemd-run --user --scope` (preferred) or `bwrap`, and
-  `runner.validate_plugin` reports each permission as `enforced` or `advisory`
-  (`runner/security.py`, `docs/TRUST.md` §6). If a permission can't be enforced it is
-  labeled **advisory** — never implied safe.
+  `systemd-run --user --scope` (preferred) or `bwrap`, hardening the process with
+  `NoNewPrivileges`, `RestrictAddressFamilies=AF_UNIX`, a private `/tmp`, a default-deny
+  device cgroup (`DevicePolicy=closed` + `DeviceAllow`), and read-only system/interpreter
+  paths. A plugin may declare `read_paths` / `write_paths` in its runner config, applied as
+  `ReadOnlyPaths` / `ReadWritePaths` (re-bind on the bwrap path); `microphone` adds
+  `/dev/snd` to the device allow-list. `runner.validate_plugin` reports each permission as
+  `enforced` or `advisory` (`runner/security.py`, `docs/TRUST.md` §6). If a permission can't
+  be enforced it is labeled **advisory** — never implied safe. Where `systemd-run --user
+  --scope` rejects these exec-context properties (some systemd releases), `bwrap` provides
+  equivalent isolation; if neither wrapper runs the plugin is unhardened and all advisory.
 
 ---
 

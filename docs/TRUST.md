@@ -34,9 +34,13 @@ default; privileged control requires an explicit token/allow-list entry.
 
 ## 6. Plugin sandboxing
 Subprocess plugins run under systemd-run/bubblewrap hardening where possible
-(`NoNewPrivileges`, `RestrictAddressFamilies`, `DeviceAllow`, `ReadOnlyPaths`, seccomp/landlock).
-**If a permission cannot be enforced on a platform, it is labelled advisory** — never
-implied safe. `doctor` prints the enforced-vs-advisory status per plugin.
+(`NoNewPrivileges`, `RestrictAddressFamilies=AF_UNIX`, private `/tmp`, default-deny device
+cgroup (`DevicePolicy=closed` + `DeviceAllow`), read-only system/interpreter paths and
+declared plugin paths). **If a permission cannot be enforced on a platform, it is labelled
+advisory** — never implied safe. `doctor` prints the enforced-vs-advisory status per plugin.
+On systemd hosts where `--user --scope` rejects exec-context properties, the runner uses
+`bwrap` instead, which applies equivalent isolation; if neither wrapper is usable the
+plugin spawns unhardened and everything is advisory.
 
 ## 7. Secrets & logging
 Remote API keys via keyring/libsecret or a 0600 file; redacted from logs and `doctor`.
