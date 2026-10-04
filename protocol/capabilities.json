@@ -24,6 +24,8 @@
     "host.audio.ringbuffer@1": {"owner": "utter-core", "desc": "runner provides a shared audio ring buffer"},
     "host.fd.pass@1": {"owner": "utter-core", "desc": "fd passing supported over socket transport"},
     "fs.tmp@1": {"owner": "utter-core", "desc": "access to the runner tmp/handle store"},
-    "experimental/UiCustom@1": {"owner": "utter-core", "desc": "example extension namespace"}
+    "action.quicknote@1": {"owner": "example_quicknote", "desc": "append a timestamped line to a local markdown inbox"},
+    "experimental/UiCustom@1": {"owner": "utter-core", "desc": "example extension namespace"},
+    "experimental/example_quicknote@1": {"owner": "example_quicknote", "desc": "example quicknote plugin namespace"}
   }
 }
