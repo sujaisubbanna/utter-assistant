@@ -8,8 +8,8 @@ This page assumes Utter is installed. If it is not, start with the [install over
 ## Requirements
 
 - **Linux on Wayland** and **macOS**. On Linux, **niri** and **KDE Plasma (KWin)** are first-class;
-  other compositors get partial support (typing, launching; no window actions). Dictation is macOS-only
-  for now and is being wired up on Linux.
+  other compositors get partial support (dictation, typing, launching; no window actions). Dictation
+  and the assistant key work on Linux and macOS.
 - **PipeWire** for audio (Linux).
 - **Python 3.12 or newer**.
 - An NVIDIA GPU is recommended for the larger models, but not required. Utter runs with no
@@ -53,7 +53,7 @@ assistant_key = "KEY_INSERT"
 | | Hold | What happens to your words | On screen |
 |---|---|---|---|
 | **Assistant** | the *assistant key* (Insert by default) | Turned into an action: open apps and sites, click things, press shortcuts | A yellow waveform |
-| **Dictation** | the *dictation key* (F13 by default) | Typed into whatever field has focus (macOS for now; being wired up on Linux) | A blue waveform with "Dictation · typing" |
+| **Dictation** | the *dictation key* (F13 by default) | Typed into the field you started in (works on Linux and macOS) | A blue waveform with "Dictation · typing" |
 
 Each mode has its own start sound, so you can tell them apart without looking.
 
@@ -95,8 +95,8 @@ tab is focused. Then try:
 - "new tab", "find" (the focused app's own shortcuts)
 - "click the search box" (accessibility first, then vision if you installed it)
 
-Hold the dictation key and talk to type into the focused field (macOS for now; on Linux this is
-being wired up). Dictation never runs commands.
+Hold the dictation key and talk to type into the field you started in (Linux and macOS). Dictation
+never runs commands.
 
 To see what Utter *would* do without doing it, use the dry run from a source checkout:
 

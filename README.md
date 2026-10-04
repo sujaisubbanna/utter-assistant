@@ -42,7 +42,7 @@ Utter is a context-aware desktop assistant, natively supported on **Linux (Wayla
 
 | Feature | What it does |
 |---|---|
-| Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into any field (the dictation key is live on macOS; on Linux it is being wired up). |
+| Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into the field you started in (both keys work on Linux and macOS). |
 | Desktop actions | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | Context aware | Knows which app is focused and what is on screen — accessibility info first, screenshots only as a last resort. |
 | Target any app | Name the app up front instead of relying on focus: `codex type ok`, `spotify pause`, `close steam`. |

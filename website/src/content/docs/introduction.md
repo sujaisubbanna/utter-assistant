@@ -14,7 +14,7 @@ Everything runs on your machine. Speech recognition, the small AI models and the
 
 | | |
 |---|---|
-| **Push-to-talk** | Hold the *assistant key* and speak, or hold the *dictation key* to type what you say into any field (macOS only for now; being wired up on Linux). |
+| **Push-to-talk** | Hold the *assistant key* and speak, or hold the *dictation key* to type what you say into the field you started in (works on Linux and macOS). |
 | **Desktop actions** | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | **Understands context** | Knows which app is focused and what is on screen, via accessibility information first and screenshots only as a last resort. |
 | **Per-app actions you can edit** | 100+ app profiles once your installed apps are catalogued, with their shortcuts. Change any key combination from the settings app. |

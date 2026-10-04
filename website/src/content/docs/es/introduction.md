@@ -17,7 +17,7 @@ Todo se ejecuta en tu máquina. El reconocimiento de voz, los pequeños modelos 
 
 | | |
 |---|---|
-| **Pulsar para hablar** | Mantén la *tecla del asistente* y habla, o la *tecla de dictado* para escribir lo que dices en cualquier campo (por ahora solo en macOS; en Linux se está conectando). |
+| **Pulsar para hablar** | Mantén la *tecla del asistente* y habla, o la *tecla de dictado* para escribir lo que dices en el campo en el que empezaste (funciona en Linux y macOS). |
 | **Acciones de escritorio** | Abre aplicaciones y sitios web, enfoca y cierra ventanas, cambia de espacio de trabajo, controla el reproductor y pulsa atajos de aplicaciones. |
 | **Entiende el contexto** | Sabe qué aplicación está enfocada y qué hay en pantalla, primero mediante la información de accesibilidad y solo como último recurso con capturas. |
 | **Acciones por aplicación que puedes editar** | 100+ perfiles de aplicaciones (una vez catalogadas tus aplicaciones instaladas) con sus atajos. Cambia cualquier combinación de teclas desde la aplicación de ajustes. |

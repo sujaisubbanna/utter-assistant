@@ -10,8 +10,8 @@ Diese Seite setzt voraus, dass Utter installiert ist. Falls nicht, beginne mit d
 ## Voraussetzungen
 
 - **Linux unter Wayland** und **macOS**. Unter Linux sind **niri** und **KDE Plasma (KWin)** erstklassig;
-  andere Compositor erhalten teilweise Unterstützung (Tippen, Starten; keine Fensteraktionen).
-  Diktat gibt es vorerst nur unter macOS und wird unter Linux gerade verdrahtet.
+  andere Compositor erhalten teilweise Unterstützung (Diktat, Tippen, Starten; keine Fensteraktionen).
+  Diktat und die Assistenten-Taste funktionieren unter Linux und macOS.
 - **PipeWire** für Audio (Linux).
 - **Python 3.12 oder neuer**.
 - Für die größeren Modelle wird eine NVIDIA-GPU empfohlen, ist aber nicht erforderlich. Utter läuft auch ohne
@@ -49,7 +49,7 @@ assistant_key = "KEY_INSERT"
 | | Halten | Was mit deinen Worten passiert | Auf dem Bildschirm |
 |---|---|---|---|
 | **Assistent** | die *Assistenten-Taste* (standardmäßig Insert) | Wird zu einer Aktion: Apps und Seiten öffnen, klicken, Kürzel drücken | Eine gelbe Wellenform |
-| **Diktat** | die *Diktat-Taste* (standardmäßig F13) | Wird in das fokussierte Feld getippt (vorerst nur macOS; unter Linux wird es gerade verdrahtet) | Eine blaue Wellenform mit „Dictation · typing“ |
+| **Diktat** | die *Diktat-Taste* (standardmäßig F13) | Wird in das Feld getippt, in dem du angefangen hast (funktioniert unter Linux und macOS) | Eine blaue Wellenform mit „Dictation · typing“ |
 
 Jeder Modus hat seinen eigenen Startklang, du kannst sie also unterscheiden, ohne hinzusehen.
 
@@ -91,8 +91,8 @@ Tab wird fokussiert. Probiere dann:
 - „new tab“, „find“ (die eigenen Kürzel der fokussierten App)
 - „click the search box“ (zuerst Barrierefreiheit, dann Vision, falls installiert)
 
-Halte die Diktat-Taste und sprich, um in das fokussierte Feld zu tippen (vorerst nur macOS; unter
-Linux wird das gerade verdrahtet). Diktat führt nie Befehle aus.
+Halte die Diktat-Taste und sprich, um in das Feld zu tippen, in dem du angefangen hast (Linux und
+macOS). Diktat führt nie Befehle aus.
 
 Um zu sehen, was Utter *tun würde*, ohne es zu tun, verwende den Testlauf aus einem Quellcode-Checkout:
 

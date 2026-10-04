@@ -16,7 +16,7 @@ Alles läuft auf deinem Rechner. Spracherkennung, die kleinen KI-Modelle und die
 
 | | |
 |---|---|
-| **Push-to-Talk** | Halte die *Assistenten-Taste* gedrückt und sprich, oder halte die *Diktat-Taste* gedrückt, um Gesagtes in ein beliebiges Feld zu tippen (vorerst nur macOS; unter Linux wird es gerade verdrahtet). |
+| **Push-to-Talk** | Halte die *Assistenten-Taste* gedrückt und sprich, oder halte die *Diktat-Taste* gedrückt, um Gesagtes in das Feld zu tippen, in dem du angefangen hast (funktioniert unter Linux und macOS). |
 | **Desktop-Aktionen** | Apps und Websites öffnen, Fenster fokussieren und schließen, Arbeitsbereiche wechseln, Medien steuern, App-Kürzel drücken. |
 | **Versteht Kontext** | Weiß, welche App fokussiert ist und was auf dem Bildschirm zu sehen ist, zuerst über Barrierefreiheitsinformationen und Screenshots nur als letzten Ausweg. |
 | **Pro-App-Aktionen, die du bearbeiten kannst** | 100+ App-Profile, sobald deine installierten Apps katalogisiert sind, mit ihren Kürzeln. Ändere jede Tastenkombination in der Einstellungs-App. |
