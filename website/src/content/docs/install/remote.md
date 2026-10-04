@@ -96,7 +96,8 @@ The ten steps, in order:
    ready).
 5. **Models.** Presents the `assistant recommend` tiers (speech recognition, decision head,
    vision) with the model and estimated footprint, and asks **per tier**. Declining any tier skips
-   it cleanly. Nothing is downloaded unless you opt in and provide a source (see the environment
+   it cleanly. An accepted tier pulls a **curated default source** (STT and vision) unless you
+   override it; the decision tier has no documented source and needs one (see the environment
    variables below).
 6. **GUI.** The Tauri settings app. AppImage (no sudo) to `$PREFIX/bin/utter-gui` plus an
    **Utter** `.desktop` entry (`Categories=Utility;Accessibility;`, `Terminal=false`) registered
@@ -141,9 +142,9 @@ summary with next steps.
 | `PREFIX` | `$HOME/.local` | install prefix |
 | `UTTER_UI` | `auto` | terminal UI style: `auto` (use `gum` when present), `gum`, or `plain` |
 | `UTTER_PYTHON` | auto-detected | interpreter baked into the `assistant` wrapper |
-| `UTTER_MODEL_STT` | unset | source to pull if the speech tier is accepted (`hf:org/repo[:file]`, `https://...`, `file://...`) |
-| `UTTER_MODEL_DECISION` | unset | source to pull if the decision-head tier is accepted |
-| `UTTER_MODEL_VISION` | unset | source to pull if the vision tier is accepted |
+| `UTTER_MODEL_STT` | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | overrides the default source pulled if the speech tier is accepted (`hf:org/repo[:file]`, `https://...`, `file://...`) |
+| `UTTER_MODEL_DECISION` | unset | source to pull if the decision-head tier is accepted (no documented default) |
+| `UTTER_MODEL_VISION` | `hf:ByteDance-Seed/UI-TARS-2B-SFT` | overrides the default source pulled if the vision tier is accepted |
 | `UTTER_MODEL_STT_<LANG>` | unset | per-language multilingual STT source offered by the language step (e.g. `UTTER_MODEL_STT_DE_DE`); falls back to `UTTER_MODEL_STT` |
 | `UTTER_MODEL_TTS`, `UTTER_MODEL_TTS_<LANG>` | unset | TTS voice model/path offered by the language step |
 | `UTTER_TTS_VOICE`, `UTTER_TTS_VOICE_<LANG>` | unset | voice written to `[tts] voice` for the chosen language (default: the language code) |

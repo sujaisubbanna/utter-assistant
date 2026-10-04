@@ -20,6 +20,7 @@ the first call and kept resident; ``transcribe()`` never reloads it.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -96,6 +97,75 @@ def _clean_text(text: str) -> str:
     return text
 
 
+def _store_root() -> Optional[Path]:
+    """Where the ``assistant`` model store lives (``manifests/`` + ``blobs/``).
+
+    Prefers ``assistant.util.models_root`` (which honours ``$UTTER_MODELS`` and
+    performs the one-time legacy migration); falls back to the same XDG path when
+    the ``assistant`` core is not importable (the legacy daemon ships ``utter``
+    alone).
+    """
+    try:
+        from assistant.util import models_root  # imported lazily: optional core
+        return Path(models_root())
+    except Exception:  # noqa: BLE001 - assistant core is optional for the daemon
+        override = os.environ.get("UTTER_MODELS")
+        if override:
+            return Path(override).expanduser()
+        xdg = os.environ.get("XDG_DATA_HOME")
+        base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "share"
+        return base / "utter-models"
+
+
+def _iter_store_manifests(root: Path):
+    """Yield ``(manifest_path, data)`` for every store manifest under ``root``."""
+    base = root / "manifests"
+    if not base.is_dir():
+        return
+    for path in sorted(base.glob("*/*/*/*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            yield path, data
+
+
+def _store_model_candidates(model: str) -> list:
+    """ggml paths for ``model`` inside the store, resolved through manifests.
+
+    A store pull keeps the bytes content-addressed as ``blobs/sha256-<hex>`` and
+    records the original filename in the manifest, so a blob is found by matching
+    the manifest rather than by scanning for ``*.bin``. Any ``*.bin`` a user
+    dropped into the store is offered too.
+    """
+    root = _store_root()
+    if root is None:
+        return []
+    name = Path(model).name if model else _DEFAULT_WHISPERCPP_NAME
+    wanted = {name, f"ggml-{name}.bin", Path(name).stem}
+    out: list = []
+
+    blobs = root / "blobs"
+    if blobs.is_dir():
+        out.extend(sorted(blobs.glob("*.bin")))
+
+    for _path, data in _iter_store_manifests(root):
+        mname = str(data.get("name") or "")
+        for entry in data.get("files", []) or []:
+            fname = Path(str(entry.get("name") or "")).name
+            matches = (
+                fname in wanted
+                or Path(fname).stem in wanted
+                or mname in wanted
+                or bool(model and model in fname)
+            )
+            blob = entry.get("path")
+            if matches and blob:
+                out.append(Path(blob))
+    return out
+
+
 def _candidate_model_paths(model: str) -> list:
     """Build the ordered list of ggml model paths to probe for ``model``."""
     candidates: list = []
@@ -104,7 +174,10 @@ def _candidate_model_paths(model: str) -> list:
     if model and Path(model).expanduser().is_file():
         candidates.append(Path(model).expanduser())
 
-    search_dirs = _DEFAULT_MODEL_DIRS
+    search_dirs = list(_DEFAULT_MODEL_DIRS)
+    store = _store_root()
+    if store is not None:
+        search_dirs.append(store)
     env_dir = os.environ.get("UTTER_MODELS_DIR")
     if env_dir:
         search_dirs = [Path(env_dir).expanduser()] + search_dirs
@@ -121,6 +194,9 @@ def _candidate_model_paths(model: str) -> list:
         direct = d / name
         if direct.is_file():
             candidates.append(direct)
+
+    # The store's blobs are named sha256-<hex>, so resolve them via manifests.
+    candidates.extend(_store_model_candidates(model))
 
     # De-dup, preserving order.
     seen = set()

@@ -58,9 +58,15 @@ name `qwen3-4b`.
 | Less than 6 GB | none; accessibility only | |
 
 On the Models page, **Get it** pre-fills a ready-to-pull source for a recommendation when one is
-known (for UI-TARS-7B that is `hf:ByteDance-Seed/UI-TARS-1.5-7B`). Applying a recommendation
-also updates the matching config keys; for the decision model, match the name to what your
-server actually serves.
+known (for UI-TARS-7B that is `hf:ByteDance-Seed/UI-TARS-1.5-7B`). `assistant recommend` prints
+the same `source` per tier, including in `--json`. Applying a recommendation also updates the
+matching config keys; for the decision model, match the name to what your server actually serves.
+
+The installer offers the same tiers and, for each one you accept, pulls a **curated default
+source** — STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin` and vision
+`hf:ByteDance-Seed/UI-TARS-2B-SFT` on the 24 GB reference machine. `UTTER_MODEL_STT`,
+`UTTER_MODEL_VISION` and `UTTER_MODEL_DECISION` override them; the decision tier has no documented
+source and must be set explicitly.
 
 :::note[Smaller GPUs]
 Running well on 8 GB cards and CPU-only machines (smaller defaults, quantised builds, one GPU
@@ -134,7 +140,12 @@ base_url = "http://127.0.0.1:8000/v1"
 model = "uitars"
 ```
 
-`scripts/serve_planner.sh` and `scripts/serve_vision.sh` start vLLM with sensible defaults; see
+`scripts/serve_planner.sh` and `scripts/serve_vision.sh` start vLLM with sensible defaults. Each
+resolves its model in order: `UTTER_PLANNER_MODEL_PATH` / `UTTER_VISION_MODEL_PATH`, then the
+store, then a `models/<name>` checkout, then — for vision — the Hugging Face repo id, which vLLM
+downloads itself. A store entry holds one content-addressed file, not the multi-file directory
+vLLM needs, so the scripts report that and fall through; keep a full checkout (for example via
+`scripts/install_inference.sh`) for the planner. See
 [Configuration](/guides/configuration/#the-decision-head-and-the-planner). If you point either
 endpoint at another machine, the settings app marks it in amber: that is the one case where
 your data leaves the computer.

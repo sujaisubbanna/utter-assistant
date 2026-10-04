@@ -60,6 +60,7 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/voice/test_idle_sleep.py || rc=1
 "$PY" tests/voice/test_locale.py || rc=1
 "$PY" tests/voice/test_stt_language.py || rc=1
+"$PY" tests/voice/test_stt_store.py || rc=1
 "$PY" tests/voice/test_tts_linux.py || rc=1
 "$PY" tests/actions/test_open_url_browser.py || rc=1
 "$PY" tests/actions/test_profile_layers.py || rc=1
@@ -88,6 +89,7 @@ echo "== guardrails: runner stdlib, provenance, installer contract =="
 "$PY" tests/test_gui_unwired_config.py || rc=1
 "$PY" tests/test_installer_contract.py || rc=1
 "$PY" tests/test_models_store.py || rc=1
+"$PY" tests/test_recommend_source.py || rc=1
 "$PY" tests/test_uninstall_keeps_models.py || rc=1
 
 echo
@@ -130,6 +132,12 @@ if [ -f tests/m5/test_installer_config.py ]; then
 fi
 if [ -f tests/m5/test_installer_launcher.py ]; then
     "$PY" tests/m5/test_installer_launcher.py || rc=1
+fi
+if [ -f tests/m5/test_installer_models.py ]; then
+    "$PY" tests/m5/test_installer_models.py || rc=1
+fi
+if [ -f tests/m5/test_serve_model_resolution.py ]; then
+    "$PY" tests/m5/test_serve_model_resolution.py || rc=1
 fi
 
 echo

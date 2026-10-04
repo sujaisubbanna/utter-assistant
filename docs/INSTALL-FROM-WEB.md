@@ -155,9 +155,9 @@ per-step progress and a final summary with next steps.
 | `UTTER_COLOR` | `auto` | color depth: `auto`, `truecolor`, `256`, `16`, or `plain` |
 | `UTTER_NO_ANIM` | — | set to disable the logo sweep and typewriter (e.g. over a slow link) |
 | `UTTER_PYTHON` | auto-detected | interpreter baked into the `assistant` wrapper |
-| `UTTER_MODEL_STT` | — | source to pull if the STT tier is accepted (`hf:org/repo[:file]`, `https://…`, `file://…`) |
-| `UTTER_MODEL_DECISION` | — | source to pull if the decision-head tier is accepted |
-| `UTTER_MODEL_VISION` | — | source to pull if the vision tier is accepted |
+| `UTTER_MODEL_STT` | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | overrides the default pulled if the STT tier is accepted (`hf:org/repo[:file]`, `https://…`, `file://…`) |
+| `UTTER_MODEL_DECISION` | — | source to pull if the decision-head tier is accepted (no documented default) |
+| `UTTER_MODEL_VISION` | `hf:ByteDance-Seed/UI-TARS-2B-SFT` | overrides the default pulled if the vision tier is accepted |
 | `UTTER_MODEL_STT_<LANG>` | — | per-language multilingual STT source offered by the language step (e.g. `UTTER_MODEL_STT_DE_DE`); falls back to `UTTER_MODEL_STT` |
 | `UTTER_MODEL_TTS` / `UTTER_MODEL_TTS_<LANG>` | — | TTS voice model/path offered by the language step |
 | `UTTER_TTS_VOICE` / `UTTER_TTS_VOICE_<LANG>` | — | voice written to `[tts] voice` for the chosen language (default: the language code) |
