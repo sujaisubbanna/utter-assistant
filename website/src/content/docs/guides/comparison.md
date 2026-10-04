@@ -1,6 +1,6 @@
 ---
 title: "How Utter compares"
-description: "How Utter compares with Talon, Wispr Flow, Aqua Voice, Handy, Vocalinux and Leon — a source-checked table, what makes Utter different, and where Utter is honestly behind."
+description: "How Utter compares with Talon, Wispr Flow, Aqua Voice, Handy, Vocalinux, Leon, Jarvis-style projects and OS-native assistants — a source-checked table, what makes Utter different, and where Utter is honestly behind."
 ---
 
 Utter is a **local, offline, context-aware voice → desktop-action assistant**. You hold a key,
@@ -43,6 +43,34 @@ proprietary, and they are best described as **local-capable** rather than fully 
 - **Honest local peers, not just competitors.** Handy, Vocalinux and YazSes are doing the same
   local-first work; see the note below.
 
+## Jarvis-style assistants
+
+Most projects named "Jarvis" are LLM/chat demos or single-purpose command scripts, not general
+local assistants that act on your computer. A few are real — and none combine Utter's pillars.
+
+| Project | What it is | Local | Voice | Desktop actions | Status |
+|---|---|---|---|---|---|
+| `isair/jarvis` | Local voice assistant, MCP tools, offline dictation | Yes (Ollama) | Yes | Partial — reads screen, controls Chrome; macOS-first, not OS-wide | Active |
+| `PersonalJarvis` (`PersonalJarvis/PersonalJarvis`) | Voice + computer-use (perceive-act-verify) | Per-layer, keyless local options | Yes | Yes — mouse/keyboard via vision loop | New / small |
+| `Open Interpreter 01` (`OpenInterpreter/01`) | OSS voice interface for devices | Self-hostable | Yes | Yes — experimental, no safeguards | **Dormant since 2024** |
+| `OpenJarvis` (`open-jarvis/OpenJarvis`) | Local-first agent framework (tools/memory) | Yes (Ollama) | TTS only | No — not app control | Active |
+
+Being named after a film assistant is not the same as being one. `microsoft/JARVIS` is the
+HuggingGPT **research** orchestrator — it chains models, it is not a desktop assistant. Several
+popular repositories called "Jarvis" are command scripts rather than AI assistants at all; one
+describes itself as "non-AI". That is a legitimate project, just a different category.
+
+The OS-native assistants are the obvious place to look for desktop control — Apple
+Intelligence/Siri, Microsoft Copilot (Actions / Click to Do), Google Gemini desktop and ChatGPT
+desktop Computer Use — but they are **cloud or hybrid** rather than local-first, and their desktop
+actions are LLM-driven.
+
+The honest point: even the "Jarvis" genre generally lets the **LLM author the action**, through
+vision and perceive-act loops. Utter's difference is narrower than "better": it uses a
+**constrained select-among-candidates** model, adds **compositor-aware context**, and keeps actions
+behind **per-app opt-in**. Those are specific design differences, not a claim that Utter wins
+everywhere.
+
 ## Other local-first options we respect
 
 These projects share Utter's preference for running on your own machine, and are worth a look:
@@ -80,3 +108,13 @@ Primary sources for the claims on this page:
   [arxiv.org/abs/2506.08837](https://arxiv.org/abs/2506.08837)
 - OWASP LLM01: Prompt Injection:
   [genai.owasp.org/llmrisk/llm01-prompt-injection](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)
+- `isair/jarvis`:
+  [github.com/isair/jarvis](https://github.com/isair/jarvis)
+- `PersonalJarvis/PersonalJarvis`:
+  [github.com/PersonalJarvis/PersonalJarvis](https://github.com/PersonalJarvis/PersonalJarvis)
+- `OpenInterpreter/01`:
+  [github.com/OpenInterpreter/01](https://github.com/OpenInterpreter/01)
+- `open-jarvis/OpenJarvis`:
+  [github.com/open-jarvis/OpenJarvis](https://github.com/open-jarvis/OpenJarvis)
+- `microsoft/JARVIS` (HuggingGPT research orchestrator):
+  [github.com/microsoft/JARVIS](https://github.com/microsoft/JARVIS)
