@@ -167,12 +167,28 @@ Where things end up:
 
 ### Homebrew (CLI + launchd or Cask)
 
-For terminal users and Homebrew taps, two formulas are provided in the repo:
-- `Formula/utter.rb`: builds and installs the Python assistant into Homebrew's
-  `libexec`, links `utter` and `utter-runner` into `$(brew --prefix)/bin`, and
-  provides launchd service management (`brew services start utter`).
-- `Casks/utter.rb`: downloads and installs `utter.app` from GitHub releases
+The recommended path is the official tap:
+
+```bash
+brew tap sujaisubbanna/utter
+brew install utter          # CLI + launchd service
+brew install --cask utter   # GUI app
+```
+
+- `utter` installs the Python assistant into Homebrew's `libexec`, links
+  `utter` and `utter-runner` into `$(brew --prefix)/bin`, and provides launchd
+  service management (`brew services start utter`).
+- `utter` cask downloads and installs `utter.app` from GitHub releases
   (`brew install --cask utter`).
+
+To track the latest `main` instead of the tagged release, build from a checkout:
+
+```bash
+git clone https://github.com/sujaisubbanna/utter-assistant.git
+cd utter-assistant
+brew install --build-from-source Formula/utter.rb
+brew install --cask Casks/utter.rb
+```
 
 ### From a source checkout (developers)
 
