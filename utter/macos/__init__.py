@@ -12,6 +12,7 @@ Modules:
     inject      key chords + typed text via Quartz ``CGEventPost`` / AppleScript
     pointer     mouse clicks and scrolling via Quartz events
     desktop     focused app/window, window list, monitors (NSWorkspace + AX)
+    axtree      bounded Accessibility tree walk for text-field detection
     screenshot  ``screencapture`` + ``NSScreen`` geometry
     clipboard   ``pbpaste`` / ``pbcopy``
     notify      ``osascript display notification`` / ``terminal-notifier``
@@ -27,6 +28,6 @@ event tap) and Screen Recording (``screencapture``).
 from __future__ import annotations
 
 __all__ = [
-    "speech", "tts", "hotkey", "inject", "pointer", "desktop",
+    "speech", "tts", "hotkey", "inject", "pointer", "desktop", "axtree",
     "screenshot", "clipboard", "notify",
 ]

@@ -9,4 +9,4 @@ from utter.context import clipboard, niri  # noqa: F401
 
 # `compositor` (backend detection/selection) is imported lazily by callers so
 # `python -m utter.context.compositor` runs without a double-import warning.
-__all__ = ["niri", "clipboard", "atspi", "compositor"]
+__all__ = ["niri", "clipboard", "atspi", "compositor", "textfields"]

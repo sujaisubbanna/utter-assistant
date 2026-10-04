@@ -46,7 +46,7 @@ What it does:
 4. Installs and, with `--yes`, enables the **user** service `utter-runner.service`, bound to the
    graphical session via the `scripts/utter-wayland-ready.sh` wrapper.
 5. Records what it did in `$XDG_STATE_HOME/utter/install.json` so it can be reversed.
-6. Runs `python -m assistant doctor --json` (or `recommend --json`) to verify.
+6. Runs `python3 -m assistant doctor --json` (or `recommend --json`) to verify.
 
 Uninstall:
 
@@ -89,7 +89,7 @@ Clients such as the settings app and the Noctalia widget connect to the runner a
 ## The `assistant` CLI
 
 ```bash
-python -m assistant doctor [--json]                    # deps + plugin negotiation + drift
+python3 -m assistant doctor [--json]                    # deps + plugin negotiation + drift
 python -m assistant recommend [--json]                 # hardware-aware profile suggestions
 python -m assistant models list|show <n>|pull <src>|rm <n>|prune [--json]
 python -m assistant status [--json]                    # runner.status passthrough

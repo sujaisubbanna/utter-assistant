@@ -462,12 +462,12 @@ distinct axes:
 
 | Axis | Where | Meaning |
 |---|---|---|
-| **protocol** | manifest `protocol` | wire/JSON-RPC framing (`major.minor`); runner supports **N-2** |
+| **protocol** | manifest `protocol` | wire/JSON-RPC framing (`major.minor`); reference runner accepts exactly `1.0` |
 | **abi** | manifest `abi` | runner↔plugin call semantics (integer) |
 | **capability** | `protocol/capabilities.json` | vocabulary entries `name@N` |
 
-- Major protocol/abi mismatch → refuse with `-32004`.
-- Minor drift → allow + warn.
+- Any protocol/abi mismatch (including minor drift) → refuse with `-32004`; the reference runner
+  accepts exactly protocol `1.0` / abi `1`.
 - Unknown capability → warning; missing `requires` → `-32005` (fail closed).
 - Adding a capability → minor protocol bump; renaming/removing → major bump with a
   `deprecated:{since,replacement}` entry kept for N-2.

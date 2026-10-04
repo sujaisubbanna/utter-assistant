@@ -63,6 +63,9 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/actions/test_open_url_browser.py || rc=1
 "$PY" tests/actions/test_profile_layers.py || rc=1
 
+echo "== context: platform-neutral text-field detection =="
+"$PY" tests/context/test_textfields.py || rc=1
+
 echo "== platform: macOS detection + backend selection (runs on Linux) =="
 "$PY" tests/platform/test_macos_detection.py || rc=1
 "$PY" tests/platform/test_macos_runtime.py || rc=1

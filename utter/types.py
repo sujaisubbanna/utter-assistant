@@ -96,6 +96,31 @@ class UIElement:
 
 
 @dataclass
+class TextFieldCandidate:
+    """A detected text input (platform-neutral).
+
+    Produced by :mod:`utter.context.textfields` from an AT-SPI or macOS AX
+    node. Identity is ``(app_id, pid, window_id, path)`` so a later phase can
+    re-find the exact node before typing into it; the rest is presentation/rank
+    metadata. ``path`` is the platform tree path (``<app>#<i>.<j>`` on Linux).
+    """
+    app_id: str = ""
+    pid: int = 0
+    window_id: int = 0
+    path: str = ""
+    role: str = ""
+    name: str = ""
+    label: str = ""
+    rect: Optional[Rect] = None
+    focused: bool = False
+    app_name: str = ""
+
+    @property
+    def identity(self) -> tuple[str, int, int, str]:
+        return (self.app_id, self.pid, self.window_id, self.path)
+
+
+@dataclass
 class Context:
     """Cheap, always-on snapshot of desktop state."""
     focused: Optional[FocusedWindow] = None

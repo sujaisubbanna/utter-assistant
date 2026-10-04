@@ -119,10 +119,11 @@ Full detail: [Trust and safety](/guides/trust-and-safety/).
 
 ## Compatibility
 
-The runner supports protocol N-2, the capability registry is governed with deprecation entries,
-config schemas are versioned and migrated, the installer records a lockfile that `doctor`
-compares against reality, and `doctor` output has stable fields. See the compatibility section
-of [Plugin protocol](/plugins/#compatibility).
+The reference runner accepts exactly protocol `1.0` / abi `1`; any mismatch is refused (there is
+no N-2 window yet). The capability registry is governed with deprecation entries, the installer
+records a lockfile that `doctor` compares against reality, and `doctor` output has stable fields.
+Versioned, migrated config schemas are **planned, not implemented**. See the compatibility
+section of [Plugin protocol](/plugins/#compatibility).
 
 ## Deployment
 
