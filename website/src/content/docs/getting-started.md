@@ -96,7 +96,9 @@ tab is focused. Then try:
 - "click the search box" (accessibility first, then vision if you installed it)
 
 Hold the dictation key and talk to type into the field you started in (Linux and macOS). Dictation
-never runs commands.
+never runs commands. Optionally, set `[dictation] format = "local"` to have the local LLM add
+punctuation and remove "um"/"uh" before typing — off by default, and the raw transcript is typed if
+formatting ever fails.
 
 To see what Utter *would* do without doing it, use the dry run from a source checkout:
 

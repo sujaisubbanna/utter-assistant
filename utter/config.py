@@ -64,6 +64,19 @@ class TTSConfig:
 
 
 @dataclass
+class DictationConfig:
+    """Dictation lane settings (``[dictation]``).
+
+    ``format`` is ``"off"`` (default, raw transcript typed verbatim) or
+    ``"local"`` (rewrite the transcript with the existing local LLM before
+    typing it; punctuation/filler cleanup only). Any other value is treated as
+    ``"off"``. Formatting never loses the user's words: on any failure the raw
+    transcript is typed instead (see :mod:`utter.voice.formatting`).
+    """
+    format: str = "off"
+
+
+@dataclass
 class RouterConfig:
     llm_fallback: bool = True
     llm_base_url: str = "http://127.0.0.1:8001/v1"
@@ -281,6 +294,7 @@ class Config:
     audio: AudioConfig = field(default_factory=AudioConfig)
     stt: STTConfig = field(default_factory=STTConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
+    dictation: DictationConfig = field(default_factory=DictationConfig)
     router: RouterConfig = field(default_factory=RouterConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     actions: ActionsConfig = field(default_factory=ActionsConfig)
@@ -320,6 +334,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.audio, raw.get("audio", {}))
         _merge(cfg.stt, raw.get("stt", {}))
         _merge(cfg.tts, raw.get("tts", {}))
+        _merge(cfg.dictation, raw.get("dictation", {}))
         _merge(cfg.router, raw.get("router", {}))
         _merge(cfg.vision, raw.get("vision", {}))
         _merge(cfg.actions, raw.get("actions", {}))

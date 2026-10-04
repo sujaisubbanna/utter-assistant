@@ -189,6 +189,18 @@ def _type_dictation(text: str, target) -> ActionResult:
                             f"type_text failed: {exc}")
 
 
+def _deliver_dictation(text: str, target, cfg) -> ActionResult:
+    """The one dictation seam both platforms call (Linux ``run_hotkey`` and
+    macOS ``run_macos``): optionally reformat the transcript, then type it.
+
+    Kept in a single place so the transform is never duplicated per platform,
+    and so the assistant lane (which never calls this) stays untouched.
+    ``format_transcript`` is offline-safe and returns the raw text on failure.
+    """
+    from .voice.formatting import format_transcript
+    return _type_dictation(format_transcript(text, cfg), target)
+
+
 def _copy_to_clipboard(text: str) -> bool:
     """Copy ``text`` for the fallback (macOS ``pbcopy`` / Linux ``wl-copy``)."""
     try:
@@ -646,7 +658,7 @@ class Utter:
                     osd.idle()
                     return
                 if mode == "dictation":
-                    res = _type_dictation(text, session.get("target"))
+                    res = _deliver_dictation(text, session.get("target"), self.cfg)
                     if res.ok:
                         _play("typed")
                         osd.final(text, True)
@@ -814,7 +826,7 @@ class Utter:
                     native.idle()
                     return
                 if mode == "dictation":
-                    res = _type_dictation(text, session.get("target"))
+                    res = _deliver_dictation(text, session.get("target"), self.cfg)
                     if res.ok:
                         _play("typed")
                         osd.final(text, True)
