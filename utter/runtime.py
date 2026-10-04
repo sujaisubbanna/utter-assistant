@@ -337,6 +337,7 @@ def resolve_router(cfg=None, platform_name: Optional[str] = None):
         llm_fallback=getattr(cfg.router, "llm_fallback", True),
         llm_base_url=base_url,
         llm_model=model,
+        decision_head_enabled=getattr(cfg.router, "decision_head_enabled", True),
         decide_threshold=getattr(cfg.router, "decide_threshold", 0.5),
     )
 

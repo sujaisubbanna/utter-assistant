@@ -25,6 +25,7 @@ class RunnerConfig:
     security_enforce: bool = False
     enabled_ops: list[str] = field(default_factory=list)
     disabled_ops: list[str] = field(default_factory=list)
+    disabled_plugins: list[str] = field(default_factory=list)
     handle_root: str = ""
     handle_ttl: float = 300.0
     rpc_timeout_ms: int = 10000
@@ -37,11 +38,17 @@ def load_config(path: str | Path) -> RunnerConfig:
     with open(path, "rb") as fh:
         data = tomllib.load(fh)
     cfg = RunnerConfig()
+    # `[plugins] disabled` is the settings-app opt-out; it overrides each
+    # `[[plugin]] enabled` so the GUI can gate plugins without rewriting the
+    # array-of-tables.
+    plugins_cfg = data.get("plugins", {}) or {}
+    cfg.disabled_plugins = [str(p) for p in plugins_cfg.get("disabled", []) or []]
     for raw in data.get("plugin", []):
         entry = raw.get("entrypoint", raw.get("argv")) or []
+        plugin_id = str(raw.get("id", ""))
         cfg.plugins.append(
             PluginConfig(
-                id=str(raw.get("id", "")),
+                id=plugin_id,
                 kind=str(raw.get("kind", "action")),
                 runtime=str(raw.get("runtime", "subprocess")),
                 transport=str(raw.get("transport", "stdio")),
@@ -49,7 +56,7 @@ def load_config(path: str | Path) -> RunnerConfig:
                 permissions=[str(p) for p in raw.get("permissions", []) or []],
                 provides=[str(p) for p in raw.get("provides", []) or []],
                 requires=[str(p) for p in raw.get("requires", []) or []],
-                enabled=bool(raw.get("enabled", True)),
+                enabled=bool(raw.get("enabled", True)) and plugin_id not in cfg.disabled_plugins,
                 cwd=str(raw.get("cwd", "") or ""),
                 env={str(k): str(v) for k, v in (raw.get("env", {}) or {}).items()},
                 read_paths=[str(p) for p in raw.get("read_paths", []) or []],

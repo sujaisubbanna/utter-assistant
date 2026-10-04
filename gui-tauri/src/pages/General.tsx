@@ -100,6 +100,15 @@ export function GeneralPage() {
   const [unitError, setUnitError] = useState<string | null>(null);
   const [enabled, setEnabled] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  // Real config location, honouring XDG_CONFIG_HOME — not a hardcoded path.
+  const [configPath, setConfigPath] = useState("~/.config/utter/config.toml");
+
+  useEffect(() => {
+    api
+      .appInfo()
+      .then((info) => setConfigPath(info.config_path))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -322,7 +331,7 @@ export function GeneralPage() {
         </Section>
 
         <PageNote>
-          {t("general.footer", { path: "~/.config/utter/config.toml" })}
+          {t("general.footer", { path: configPath })}
         </PageNote>
       </PageBody>
     </>

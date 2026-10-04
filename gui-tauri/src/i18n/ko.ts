@@ -834,20 +834,6 @@ export const ko: Messages = {
       enabledToast: "{name} 켜짐",
       disabledToast: "{name} 꺼짐",
     },
-    limits: {
-      title: "제한",
-      description: "허용되는 항목을 세밀하게 제어합니다.",
-      commands: "허용되는 터미널 명령",
-      commandsHint: "모든 명령을 허용하려면 비워 두세요.",
-      blocked: "절대 이렇게 하지 마세요",
-      blockedHint: "이러한 문구가 포함된 요청은 거부됩니다.",
-    },
-    tuning: {
-      title: "미세 조정",
-      description: "작업 수행 방법에 대한 작은 조정입니다.",
-      click: "클릭 길이",
-      clickHint: "각 시뮬레이션 클릭이 유지되는 시간입니다.",
-    },
     targeting: {
       title: "앱 타겟팅",
       description:

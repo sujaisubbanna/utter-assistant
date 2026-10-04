@@ -5,7 +5,7 @@
 //! output is forwarded to the frontend with `emit`.
 
 use std::io::{BufRead, BufReader, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -289,7 +289,29 @@ pub struct AppInfo {
     pub python: String,
     pub config_path: String,
     pub theme_path: String,
+    /// The real model store (`assistant.models` layout), not `<repo>/models`.
+    pub models_path: String,
     pub runner_sock: String,
+}
+
+/// `$UTTER_MODELS`, else `$XDG_DATA_HOME/utter/models` — mirrors
+/// `assistant/util.py::models_root`.
+fn models_path() -> PathBuf {
+    if let Ok(value) = std::env::var("UTTER_MODELS") {
+        if !value.is_empty() {
+            return PathBuf::from(value);
+        }
+    }
+    let data_home = std::env::var("XDG_DATA_HOME")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::var("HOME")
+                .map(|home| PathBuf::from(home).join(".local/share"))
+                .unwrap_or_else(|_| PathBuf::from(".local/share"))
+        });
+    data_home.join("utter/models")
 }
 
 #[tauri::command]
@@ -311,6 +333,7 @@ pub fn app_info(state: State<AppState>) -> AppInfo {
         python: state.python(),
         config_path: state.config_path.to_string_lossy().into_owned(),
         theme_path: state.theme_path.to_string_lossy().into_owned(),
+        models_path: models_path().to_string_lossy().into_owned(),
         runner_sock,
     }
 }
@@ -366,6 +389,160 @@ pub fn set_config(
 #[tauri::command]
 pub fn set_config_many(state: State<AppState>, section: String, values: Value) -> Result<(), String> {
     config::set_many(&state, &section, &values)
+}
+
+// --------------------------------------------------------------------------- //
+// runner policy (the risky-action gate lives in the runner's own config)
+// --------------------------------------------------------------------------- //
+
+/// Path of the config the **runner** loads, mirroring
+/// `scripts/utter-wayland-ready.sh`: `$UTTER_CONFIG`, else `<repo>/config.m3.toml`,
+/// else `<repo>/runner/config.example.toml`.
+fn runner_config_path(state: &AppState) -> PathBuf {
+    if let Ok(value) = std::env::var("UTTER_CONFIG") {
+        if !value.is_empty() {
+            return PathBuf::from(value);
+        }
+    }
+    let repo = state.repo();
+    let candidate = repo.join("config.m3.toml");
+    if candidate.is_file() {
+        return candidate;
+    }
+    repo.join("runner/config.example.toml")
+}
+
+fn read_runner_policy(path: &Path) -> Vec<String> {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    let value: toml::Value = match toml::from_str(&text) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+    value
+        .get("policy")
+        .and_then(|policy| policy.get("enabled_ops"))
+        .and_then(|ops| ops.as_array())
+        .map(|ops| {
+            ops.iter()
+                .filter_map(|op| op.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[derive(Serialize)]
+pub struct RunnerPolicy {
+    /// The runner config file the policy was read from / written to.
+    pub path: String,
+    pub enabled_ops: Vec<String>,
+    /// True when the runner unit was restarted so the change takes effect.
+    pub restarted: bool,
+}
+
+/// Read the risky-op allow-list from the file the runner actually loads — not
+/// from the GUI's `~/.config/utter/config.toml`, which the runner never reads.
+#[tauri::command]
+pub fn get_runner_policy(state: State<AppState>) -> Result<RunnerPolicy, String> {
+    let path = runner_config_path(&state);
+    Ok(RunnerPolicy {
+        path: path.display().to_string(),
+        enabled_ops: read_runner_policy(&path),
+        restarted: false,
+    })
+}
+
+/// Write `[policy] enabled_ops` where the runner reads it, then restart the unit
+/// so the toggle is effective. Only the two ops the Safety page exposes are
+/// accepted; the runner still demands confirmation when they are invoked.
+#[tauri::command(rename_all = "camelCase")]
+pub fn set_runner_policy(
+    state: State<AppState>,
+    enabled_ops: Vec<String>,
+) -> Result<RunnerPolicy, String> {
+    const ALLOWED: [&str; 4] = ["action.terminal", "action.input", "terminal", "input"];
+    for op in &enabled_ops {
+        if !ALLOWED.contains(&op.as_str()) {
+            return Err(format!("unsupported policy op: {op}"));
+        }
+    }
+    let path = runner_config_path(&state);
+    let default_config = state.repo().join("runner/config.example.toml");
+    let value = Value::Array(
+        enabled_ops
+            .iter()
+            .map(|op| Value::String(op.clone()))
+            .collect(),
+    );
+    config::set_key_at(&path, &default_config, "policy", "enabled_ops", &value)?;
+    // The runner reads policy once at startup: restart so the change applies.
+    let restarted = state
+        .systemctl(&["restart", "utter-runner"])
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false);
+    Ok(RunnerPolicy {
+        path: path.display().to_string(),
+        enabled_ops,
+        restarted,
+    })
+}
+
+fn read_runner_disabled_plugins(path: &Path) -> Vec<String> {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    let value: toml::Value = match toml::from_str(&text) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+    value
+        .get("plugins")
+        .and_then(|plugins| plugins.get("disabled"))
+        .and_then(|disabled| disabled.as_array())
+        .map(|ids| {
+            ids.iter()
+                .filter_map(|id| id.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn valid_plugin_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+}
+
+/// Plugin ids disabled via `[plugins] disabled` in the runner config.
+#[tauri::command]
+pub fn get_runner_plugins(state: State<AppState>) -> Result<Vec<String>, String> {
+    Ok(read_runner_disabled_plugins(&runner_config_path(&state)))
+}
+
+/// Enable/disable plugins where the runner reads it, then restart the unit.
+/// `disabled` is the full set of disabled ids (the inverse of the UI toggle).
+#[tauri::command(rename_all = "camelCase")]
+pub fn set_runner_plugins(
+    state: State<AppState>,
+    disabled: Vec<String>,
+) -> Result<Vec<String>, String> {
+    for id in &disabled {
+        if !valid_plugin_id(id) {
+            return Err(format!("invalid plugin id: {id}"));
+        }
+    }
+    let path = runner_config_path(&state);
+    let default_config = state.repo().join("runner/config.example.toml");
+    let value = Value::Array(
+        disabled
+            .iter()
+            .map(|id| Value::String(id.clone()))
+            .collect(),
+    );
+    config::set_key_at(&path, &default_config, "plugins", "disabled", &value)?;
+    // Plugin enablement is read once at startup.
+    let _ = state.systemctl(&["restart", "utter-runner"]).output();
+    Ok(disabled)
 }
 
 // --------------------------------------------------------------------------- //
@@ -687,6 +864,24 @@ pub async fn tts_test(
     // Empty voice = engine default, derived from [tts] language elsewhere.
     // Never hardcode a language here.
     let voice = voice.trim();
+    // `auto` (the config default) and `none` are not binaries. Resolve `auto`
+    // to the first engine actually installed, mirroring
+    // `utter.voice.tts.select_engine`.
+    let engine = if engine.trim().is_empty() || engine.trim() == "auto" {
+        ["espeak-ng", "espeak", "spd-say", "piper"]
+            .into_iter()
+            .find(|name| binary_exists(name))
+            .unwrap_or("")
+            .to_string()
+    } else {
+        engine.trim().to_string()
+    };
+    if engine == "none" {
+        return Err("speech output is turned off (engine = none)".to_string());
+    }
+    if engine.is_empty() {
+        return Err("no speech engine found (install espeak-ng, espeak, spd-say or piper)".to_string());
+    }
     let cmd = match engine.as_str() {
         "espeak-ng" | "espeak" | "spd-say" => {
             let mut cmd = Cmd::new(engine.as_str());
@@ -1159,4 +1354,50 @@ pub async fn export_bundle(
         })
     })
     .await
+}
+
+#[cfg(test)]
+mod runner_policy_tests {
+    use super::*;
+
+    fn temp_file(name: &str, body: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("utter-runner-policy-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, body).unwrap();
+        path
+    }
+
+    #[test]
+    fn reads_enabled_ops_from_runner_config() {
+        let path = temp_file(
+            "policy.toml",
+            "[policy]\nenabled_ops = [\"action.terminal\"]\ndisabled_ops = []\n",
+        );
+        assert_eq!(read_runner_policy(&path), vec!["action.terminal".to_string()]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn missing_or_unparseable_config_yields_no_ops() {
+        let missing = std::env::temp_dir().join("utter-runner-policy-absent.toml");
+        let _ = std::fs::remove_file(&missing);
+        assert!(read_runner_policy(&missing).is_empty());
+
+        let broken = temp_file("broken.toml", "[policy\nenabled_ops = [\n");
+        assert!(read_runner_policy(&broken).is_empty());
+        let _ = std::fs::remove_file(&broken);
+    }
+
+    #[test]
+    fn reads_disabled_plugins_and_validates_ids() {
+        let path = temp_file("plugins.toml", "[plugins]\ndisabled = [\"b\"]\n");
+        assert_eq!(read_runner_disabled_plugins(&path), vec!["b".to_string()]);
+        let _ = std::fs::remove_file(&path);
+
+        assert!(valid_plugin_id("utter"));
+        assert!(valid_plugin_id("example_quicknote"));
+        assert!(!valid_plugin_id(""));
+        assert!(!valid_plugin_id("bad id"));
+    }
 }

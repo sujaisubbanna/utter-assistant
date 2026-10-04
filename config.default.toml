@@ -60,8 +60,14 @@ voice = ""
 llm_fallback = true
 llm_base_url = "http://127.0.0.1:8001/v1"
 llm_model = "qwen3-4b"
-# Jev-style constrained decision head: minimum predicted probability to act.
+# Jev-style constrained decision head. Off = deterministic rules only.
+decision_head_enabled = true
+# Minimum predicted probability for the decision head to act.
 decide_threshold = 0.5
+
+[perception]
+# Read buttons/labels from the accessibility tree before taking a screenshot.
+accessibility_enabled = true
 
 [vision]
 enabled = true
@@ -71,6 +77,9 @@ target_width = 1344          # UI-TARS recommended; biggest latency lever
 cuda_visible_devices = ""    # optional GPU index for the vision model; empty = default (ignored on macOS)
 
 [actions]
+# Ask before discretionary actions whose text matches require_confirm. Turning
+# this off leaves the runner's always-on confirmations (terminal/input/close).
+confirm_enabled = true
 require_confirm = ["send", "submit", "delete", "purchase", "pay", "confirm order"]
 click_duration_ms = 40
 # Browser for web actions ("open youtube"): a profile or app id such as "firefox".

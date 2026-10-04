@@ -17,6 +17,7 @@ import { useConfig } from "../lib/config";
 import { useTauriEvent } from "../lib/events";
 import { humanBytes, parseJsonLine } from "../lib/format";
 import { HF_MODELS, LINKS, PULL_SOURCES } from "../lib/links";
+import { normalizeSttBackend } from "../lib/services";
 import type { AppInfo, ModelEntry, Recommendation } from "../lib/types";
 
 type PullPhase = "idle" | "starting" | "downloading" | "done" | "error";
@@ -205,15 +206,13 @@ export function ModelsPage() {
   const totalBytes = (models ?? []).reduce((sum, model) => sum + (model.bytes ?? 0), 0);
   const suggestions = recommendation?.suggestions;
   const hardware = recommendation?.hardware;
-  const storePath = storeRoot ?? (info ? `${info.repo}/models` : "~/.local/share/utter-models");
+  // Prefer the live store root reported by the CLI, then the backend's path,
+  // then the documented default location.
+  const storePath = storeRoot ?? info?.models_path ?? "~/.local/share/utter-models";
 
   const useStt = () => {
     const stt = (suggestions?.stt ?? {}) as Record<string, unknown>;
-    const backends: Record<string, string> = {
-      "faster-whisper": "faster_whisper",
-      "whisper.cpp": "whisper_cpp",
-    };
-    const backend = backends[String(stt.backend)] ?? String(stt.backend ?? "faster_whisper");
+    const backend = normalizeSttBackend(String(stt.backend ?? "faster_whisper"));
     void setMany("stt", {
       backend,
       model: stt.model ?? "",

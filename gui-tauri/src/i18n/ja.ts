@@ -535,7 +535,7 @@ export const ja: Messages = {
     actions: {
       grant: "アクセスを許可する",
       openSettings: "システム設定を開く",
-      requestFailed: "",
+      requestFailed: "権限を要求できませんでした: {error}",
     },
     agent: {
       title: "バックグラウンドエージェント",
@@ -566,9 +566,9 @@ export const ja: Messages = {
       files: { one: "{count} ファイル", other: "{count} ファイル" },
       remove: "取り除く",
       removeTitle: "このモデルを削除しますか?",
-      removeBody: "",
+      removeBody: "{name} をコンピューターから削除します。後で再ダウンロードできます。",
       removed: "{name} を削除しました",
-      removeFailed: "",
+      removeFailed: "削除できませんでした: {detail}",
       loadError: "モデルリストを読み取れませんでした",
     },
     recommended: {
@@ -833,20 +833,6 @@ export const ja: Messages = {
       confirm: "オンにする",
       enabledToast: "{name} がオンになりました",
       disabledToast: "{name} がオフになりました",
-    },
-    limits: {
-      title: "限界",
-      description: "何を許可するかをきめ細かく制御します。",
-      commands: "許可される端末コマンド",
-      commandsHint: "すべてのコマンドを許可するには、空のままにします。",
-      blocked: "決してこれをしないでください",
-      blockedHint: "これらのフレーズを含むリクエストは拒否されます。",
-    },
-    tuning: {
-      title: "微調整",
-      description: "アクションの実行方法を微調整します。",
-      click: "クリック長さ",
-      clickHint: "シミュレートされた各クリックが保持される時間。",
     },
     targeting: {
       title: "アプリのターゲティング",

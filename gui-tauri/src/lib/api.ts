@@ -18,6 +18,7 @@ import type {
   ProfileList,
   ProfileOverride,
   Recommendation,
+  RunnerPolicy,
   StatusReport,
   UnitStatus,
 } from "./types";
@@ -35,6 +36,17 @@ export const api = {
     invoke<void>("set_config", { section, key, value }),
   setConfigMany: (section: string, values: Record<string, unknown>) =>
     invoke<void>("set_config_many", { section, values }),
+
+  // Risky-op gate: read/write where the runner reads (`[policy] enabled_ops`),
+  // not the GUI config the runner ignores.
+  getRunnerPolicy: () => invoke<RunnerPolicy>("get_runner_policy"),
+  setRunnerPolicy: (enabledOps: string[]) =>
+    invoke<RunnerPolicy>("set_runner_policy", { enabledOps }),
+
+  // Plugin opt-out is read by the runner's own config, not the GUI config.
+  getRunnerPlugins: () => invoke<string[]>("get_runner_plugins"),
+  setRunnerPlugins: (disabled: string[]) =>
+    invoke<string[]>("set_runner_plugins", { disabled }),
 
   status: () => invoke<StatusReport>("status"),
   doctor: (timeout?: number) => invoke<DoctorReport>("doctor", { timeout }),
@@ -67,6 +79,9 @@ export const api = {
   appsList: () => invoke<AppCatalog | { ok?: boolean; error?: string }>("apps_list"),
   appProfileSave: (id: string, profile: ProfileOverride) =>
     invoke<CmdResult>("app_profile_save", { id, profile }),
+  /** Bulk opt-in gate: enable/disable the given app profiles in one call. */
+  appProfilesSetEnabled: (ids: string[], enabled: boolean) =>
+    invoke<CmdResult>("app_profiles_set_enabled", { ids, enabled }),
   appProfileReset: (id: string) => invoke<void>("app_profile_reset", { id }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   whichMany: (names: string[]) => invoke<Record<string, boolean>>("which_many", { names }),
