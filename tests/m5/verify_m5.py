@@ -23,9 +23,11 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(REPO / "tests"))
+sys.path.insert(0, str(REPO))
 
 from range_server import RangeServer  # noqa: E402
 from _harness.report import Report  # noqa: E402
+from assistant import __version__ as CURRENT_VERSION  # noqa: E402
 
 ASSISTANT = [sys.executable, "-m", "assistant"]
 CONFIG_M3 = REPO / "config.m3.toml"
@@ -162,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
                     "--files", "/usr/bin/wtype,/usr/bin/ydotool",
                     "--units", "utter-runner.service",
                     "--packages", "wtype,ydotool",
-                    "--version", "0.1.0", "--protocol", "1.0", "--json"], env)
+                    "--version", CURRENT_VERSION, "--protocol", "1.0", "--json"], env)
         idata = json.loads(rec2.stdout)
         rep.check("install-state record (CSV) returns data",
                   idata.get("files") == ["/usr/bin/wtype", "/usr/bin/ydotool"]
@@ -190,6 +192,8 @@ def main(argv: list[str] | None = None) -> int:
         rep.check("doctor reports unavailable runner",
                   odata.get("connected") is False and odata.get("ok") is False,
                   json.dumps(odata)[:200])
+        rep.check("doctor reports no version drift for a healthy install",
+                  odata.get("drift") == [], json.dumps(odata.get("drift")))
         rep.check("doctor includes deps", "wtype" in odata.get("deps", {}),
                   json.dumps(odata.get("deps")))
 
@@ -221,6 +225,9 @@ def main(argv: list[str] | None = None) -> int:
                 ldata = json.loads(live.stdout)
                 rep.check("doctor connects to the runner", ldata.get("connected") is True,
                           json.dumps(ldata)[:200])
+                rep.check("doctor reports no drift on a healthy install",
+                          ldata.get("drift") == [] and ldata.get("ok") is True,
+                          json.dumps(ldata.get("drift")))
                 rep.check("doctor lists the utter plugin",
                           any(p.get("id") == "utter" for p in ldata.get("plugins", [])),
                           json.dumps(ldata.get("plugins"))[:200])

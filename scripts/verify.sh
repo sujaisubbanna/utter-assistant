@@ -122,6 +122,9 @@ fi
 if [ -f tests/m5/test_install_state.py ]; then
     "$PY" tests/m5/test_install_state.py || rc=1
 fi
+if [ -f tests/m5/test_doctor_drift.py ]; then
+    "$PY" tests/m5/test_doctor_drift.py || rc=1
+fi
 if [ -f tests/m5/test_installer_config.py ]; then
     "$PY" tests/m5/test_installer_config.py || rc=1
 fi
