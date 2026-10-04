@@ -72,9 +72,17 @@ Updates work the same way: drop in the new app and Settings offers **Update**.
 
 ### Homebrew
 
-- Install CLI + launchd service: `brew install --build-from-source Formula/utter.rb`
-- Start background daemon: `brew services start utter`
-- Install GUI app: `brew install --cask Casks/utter.rb`
+The recommended path is the official tap:
+
+```bash
+brew tap sujaisubbanna/utter
+brew install utter          # CLI + launchd service
+brew services start utter   # start the background daemon
+brew install --cask utter   # GUI app
+```
+
+To track the latest `main` instead of the tagged release, build from a checkout:
+`brew install --build-from-source Formula/utter.rb` and `brew install --cask Casks/utter.rb`.
 
 Developers can run from a checkout instead: `macos/setup.sh` creates `.venv-macos`,
 installs the `[macos]` extras and the launchd agents.
@@ -141,7 +149,7 @@ Linux ignores this section entirely. On macOS, `[router]` and `[vision]` automat
   dictation typing, app and URL launching, window focus with AX window raising (`kAXRaiseAction`),
   clipboard, spoken replies, notifications, screenshots for the vision tier with Retina geometry handling,
   the plugin runner socket with peer credentials (`LOCAL_PEERCRED` / `LOCAL_PEERPID` and `proc_pidpath`),
-  Homebrew formulas (`Formula/utter.rb` and `Casks/utter.rb`).
+  the Homebrew tap (`sujaisubbanna/utter`): `Formula/utter.rb` for the CLI/launchd service and `Casks/utter.rb` for the .app.
 - **Linux-only:** niri compositor actions and workspace-aware
   focusing, AT-SPI accessibility clicks (macOS goes straight to vision), MPRIS media keys,
   the Noctalia widget and OSD, the sandbox wrapper, the Linux installer wizard, and the settings
