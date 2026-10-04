@@ -184,6 +184,35 @@ export const fr: Messages = {
     px: "px",
   },
 
+  modelRequired: {
+    title: "Il vous faut d'abord un modèle",
+    sttBody:
+      "La reconnaissance vocale a besoin d'un modèle. Prenez celui recommandé, ou laissez votre moteur le télécharger à la première dictée.",
+    visionBody:
+      "La vision d'écran a besoin d'un modèle sur cet ordinateur. Prenez celui recommandé, puis activez-la.",
+    action: "Obtenir un modèle",
+    recommended: "Recommandé",
+    size: "Environ {size}",
+    storeLabel: "Enregistré dans",
+    estimatedNote: "Nous n'avons pas pu vérifier votre matériel ; voici un choix sûr.",
+    sttNote: "Votre moteur vocal peut aussi le télécharger à la première dictée.",
+    noSourceNote: "Configurez ce modèle depuis la page Modèles.",
+    notNow: "Plus tard",
+    openModels: "Ouvrir Modèles",
+    download: "Télécharger",
+    downloading: "Téléchargement…",
+    progress: "{done} sur {total}",
+    starting: "Démarrage du téléchargement…",
+    stop: "Arrêter",
+    failedTitle: "Échec du téléchargement",
+    failedBody:
+      "Le téléchargement ne s'est pas terminé. Vérifiez votre connexion et réessayez.",
+    retry: "Réessayer",
+    doneTitle: "Modèle prêt",
+    doneBody: "{name} est prêt à l'emploi.",
+    done: "Terminé",
+  },
+
   nav: {
     sections: "Sections",
     groups: {

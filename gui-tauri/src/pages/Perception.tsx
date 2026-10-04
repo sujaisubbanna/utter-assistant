@@ -1,12 +1,17 @@
+import { useCallback, useState } from "react";
+
 import { Icon, type IconName } from "../components/icons";
+import { ModelRequiredDialog } from "../components/ModelRequired";
 import { PageBody, PageHeader } from "../components/PageHeader";
-import { ConfigNumber, ConfigSwitch, ConfigText } from "../components/Setting";
+import { ConfigNumber, ConfigSwitch, ConfigText, SwitchSetting } from "../components/Setting";
 import { Badge } from "../components/ui/Badge";
 import { LinkButton } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
 import { Row } from "../components/ui/Row";
 import { useT, type MessageKey } from "../i18n";
+import { useConfig } from "../lib/config";
 import { LINKS } from "../lib/links";
+import { useModelStatus } from "../lib/models";
 import { usePlatform } from "../lib/platform";
 
 const TIERS: { id: string; icon: IconName }[] = [
@@ -29,6 +34,23 @@ export function PerceptionPage() {
   // from [vision], and CUDA is never used.
   const { isMac } = usePlatform();
   const visionSection = isMac ? "macos.runtime" : "vision";
+  const { get, setMany } = useConfig();
+  const { need, storePath, refresh } = useModelStatus();
+  const [askingModel, setAskingModel] = useState(false);
+  const closeModel = useCallback(() => setAskingModel(false), []);
+  const visionEnabled = Boolean(get("vision", "enabled", false));
+
+  // Turning vision on needs its model. When it is missing and the store can
+  // fetch it, ask first instead of enabling something that can't run.
+  const setVision = (next: boolean) => {
+    const target = need("vision");
+    if (!next || !target || target.installed) {
+      void setMany("vision", { enabled: next, ...(next && target ? { model: target.model } : {}) });
+      return;
+    }
+    setAskingModel(true);
+  };
+
   return (
     <>
       <PageHeader title={t("perception.title")} description={t("perception.description")} />
@@ -75,13 +97,22 @@ export function PerceptionPage() {
           description={t("perception.vision.description")}
           actions={<Badge tone="muted">{t("perception.vision.badge")}</Badge>}
         >
-          <ConfigSwitch
-            section="vision"
-            k="enabled"
-            title={t("perception.vision.enable")}
-            description={t("perception.vision.enableHint")}
-            fallback
-          />
+          {isMac ? (
+            <ConfigSwitch
+              section="vision"
+              k="enabled"
+              title={t("perception.vision.enable")}
+              description={t("perception.vision.enableHint")}
+              fallback
+            />
+          ) : (
+            <SwitchSetting
+              title={t("perception.vision.enable")}
+              description={t("perception.vision.enableHint")}
+              checked={visionEnabled}
+              onChange={setVision}
+            />
+          )}
           <ConfigText
             section={visionSection}
             k={isMac ? "vision_model" : "model"}
@@ -141,6 +172,21 @@ export function PerceptionPage() {
           ))}
         </Section>
       </PageBody>
+
+      <ModelRequiredDialog
+        open={askingModel}
+        onClose={closeModel}
+        need={need("vision")}
+        modelsPath={storePath}
+        onInstalled={() => {
+          const target = need("vision");
+          void setMany("vision", {
+            enabled: true,
+            ...(target ? { model: target.model } : {}),
+          });
+          void refresh();
+        }}
+      />
     </>
   );
 }
