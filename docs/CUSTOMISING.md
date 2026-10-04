@@ -225,7 +225,9 @@ Model lookup for whisper.cpp (`_candidate_model_paths`, `stt.py`) checks, in ord
 1. an explicit path / `$UTTER_WHISPER_MODEL`;
 2. `$UTTER_MODELS_DIR` (prepended);
 3. `<repo>/models/whisper`;
-4. `~/.cache/whisper`.
+4. `~/.cache/whisper`;
+5. the model store (`$XDG_DATA_HOME/utter-models`, override `UTTER_MODELS`), resolving a pulled
+   file through its manifest because blobs are content-addressed.
 
 The default whisper.cpp filename is `ggml-small.en.bin`
 (`_DEFAULT_WHISPERCPP_NAME`, `stt.py`). If no local file exists and the configured name is a valid whisper.cpp

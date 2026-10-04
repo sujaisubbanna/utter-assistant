@@ -28,7 +28,10 @@
 #   UTTER_PYTHON    python interpreter baked into the assistant wrapper
 #   UTTER_MODEL_STT / _DECISION / _VISION / _TTS
 #                       optional model source for a tier (hf:org/repo[:file],
-#                       https://… or file://…); pulled only if that tier is chosen
+#                       https://… or file://…); pulled only if that tier is chosen.
+#                       STT and vision default to a curated source (see
+#                       DEFAULT_MODEL_STT / DEFAULT_MODEL_VISION); decision has
+#                       no documented source and must be set explicitly.
 #   UTTER_MODEL_STT_<LANG> / UTTER_MODEL_TTS_<LANG>
 #                       per-language overrides (e.g. UTTER_MODEL_STT_DE_DE or
 #                       UTTER_MODEL_STT_DE) that fall back to the generic tier var
@@ -2510,6 +2513,16 @@ MODEL_TIER_KEYS=()
 MODEL_TIER_TITLES=()
 MODEL_TIER_SIZES=()
 
+# Curated default model sources, sized for the 24 GB reference machine (RTX
+# 3090 Ti; the shipped pair was measured on a 24 GB card):
+#   stt      ggml-small.en.bin (~466 MB) — English, runs on CPU or GPU
+#   vision   UI-TARS-2B-SFT (~4.5 GB bf16) — leaves room for the 4B AWQ planner
+# The 4-bit AWQ planner has no documented single Hugging Face source, so the
+# `decision` tier still needs UTTER_MODEL_DECISION (see docs/guides/models.md).
+# Installs without a 24 GB NVIDIA GPU keep zero-model mode and pull nothing.
+DEFAULT_MODEL_STT="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
+DEFAULT_MODEL_VISION="hf:ByteDance-Seed/UI-TARS-2B-SFT"
+
 # --------------------------------------------------------------------------- #
 # section: language (spoken STT/TTS; English ships inline)
 # --------------------------------------------------------------------------- #
@@ -3160,9 +3173,9 @@ exec_models() {
     for key in "${keys[@]}"; do
         [[ -n "$key" ]] || continue
         case "$key" in
-            stt)      src="${UTTER_MODEL_STT:-}" ;;
+            stt)      src="${UTTER_MODEL_STT:-$DEFAULT_MODEL_STT}" ;;
             decision) src="${UTTER_MODEL_DECISION:-}" ;;
-            vision)   src="${UTTER_MODEL_VISION:-}" ;;
+            vision)   src="${UTTER_MODEL_VISION:-$DEFAULT_MODEL_VISION}" ;;
             *)        src="" ;;
         esac
         if [[ -n "$src" ]]; then

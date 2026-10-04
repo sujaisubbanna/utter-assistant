@@ -143,7 +143,10 @@ Latency was measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **
   (about 9 ms warm).
 - The vision numbers include a synthetic 1344×756 image.
 
-See [Models](/guides/models/) for the recommendation rules and the model store.
+The installer offers the model tiers and pulls a **curated default source** for each tier you
+accept (STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`, vision
+`hf:ByteDance-Seed/UI-TARS-2B-SFT`; the decision tier has no documented source). See
+[Models](/guides/models/) for the recommendation rules and the model store.
 
 ## After installing
 

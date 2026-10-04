@@ -36,6 +36,18 @@ INSTALL = REPO / "install.sh"
 DEFAULT_TOML = REPO / "config.default.toml"
 
 
+def _pinned_version() -> str:
+    """A concrete tag from pyproject.toml.
+
+    ``install.sh`` otherwise calls the GitHub releases API to resolve ``latest``;
+    pinning keeps these tests hermetic (no network, no rate-limit flakes).
+    """
+    import re
+    text = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    return "v" + (match.group(1) if match else "0.0.0")
+
+
 def _sandbox_env(tmp: Path) -> dict:
     """A minimal hermetic environment rooted entirely inside ``tmp``."""
     env = dict(os.environ)
@@ -46,6 +58,7 @@ def _sandbox_env(tmp: Path) -> dict:
         "XDG_STATE_HOME": str(tmp / "state"),
         "XDG_CACHE_HOME": str(tmp / "cache"),
         "UTTER_UI": "plain",
+        "UTTER_VERSION": _pinned_version(),
         "NO_COLOR": "1",
         "COLUMNS": "100",
     })

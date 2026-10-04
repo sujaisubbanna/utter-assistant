@@ -12,24 +12,30 @@
 #   UTTER_CUDA_VISIBLE_DEVICES (default 1; the outer shell may have
 #                                   CUDA_VISIBLE_DEVICES=0,1 exported, so we
 #                                   deliberately do NOT inherit it)
-#   UTTER_VISION_MODEL_PATH    (default models/UI-TARS-2B-SFT)
+#   UTTER_VISION_MODEL_PATH    (a local path or Hugging Face repo id; default:
+#                                   the model store, else a models/… checkout,
+#                                   else ByteDance-Seed/UI-TARS-2B-SFT)
 #   UTTER_VISION_PORT          (default 8000)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Resolve the model from the store / checkout / Hugging Face (see the helper).
+source "$REPO_ROOT/scripts/resolve_model.sh"
+
 # Pin to GPU 1. Override the outer CUDA_VISIBLE_DEVICES entirely so a
 # globally-exported `0,1` cannot leak GPU 0 (5090) into this process.
 export CUDA_VISIBLE_DEVICES="${UTTER_CUDA_VISIBLE_DEVICES:-1}"
 export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 
-MODEL="${UTTER_VISION_MODEL_PATH:-models/UI-TARS-2B-SFT}"
+MODEL="$(resolve_model "${UTTER_VISION_MODEL_PATH:-}" UTTER_VISION_MODEL_PATH \
+    UI-TARS-2B-SFT ByteDance-Seed/UI-TARS-2B-SFT)"
 PORT="${UTTER_VISION_PORT:-8000}"
 
-# models/UI-TARS-2B-SFT is Qwen2VLForConditionalGeneration (qwen2_vl), which
-# vLLM supports natively, so --trust-remote-code is NOT required for this
-# checkpoint. If a future UI-TARS build ships custom modeling code, add
+# UI-TARS-2B-SFT is Qwen2VLForConditionalGeneration (qwen2_vl), which vLLM
+# supports natively, so --trust-remote-code is NOT required for this checkpoint.
+# If a future UI-TARS build ships custom modeling code, add
 #   --trust-remote-code
 # to the exec line below (and to scripts/serve_vision_transformers.py).
 
