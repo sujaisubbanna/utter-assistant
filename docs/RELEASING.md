@@ -17,7 +17,7 @@ git push origin v0.1.1
 
 Pushing a `v*` tag triggers the `release` workflow, which:
 
-1. resolves the version from the tag (`v0.1.1` → `0.1.0`);
+1. resolves the version from the tag (`v0.1.1` → `0.1.1`);
 2. installs the Tauri v2 build deps on **`ubuntu-24.04`** (it has
    `webkit2gtk-4.1`; 22.04 does **not** and Tauri v2 requires 4.1);
 3. builds the Python core tarball first (`scripts/build-core-tarball.sh`);
@@ -40,13 +40,15 @@ pipeline without tagging).
 | RPM | `utter-gui-<ver>-1.x86_64.rpm` |
 | Core tarball | `utter-core-<ver>.tar.gz` |
 | Checksums | `sha256sums.txt` |
-| macOS disk image (arm64, unsigned) | `utter-gui_<ver>_aarch64.dmg` |
-| macOS app bundle (arm64, unsigned) | `utter-gui_<ver>_aarch64.app.tar.gz` |
-| macOS core tarball | `utter-core-<ver>-macos.tar.gz` |
-| macOS checksums | `sha256sums-macos.txt` |
+| macOS disk image (`<arch>` = `aarch64` or `x86_64`) | `utter-gui_<ver>_<arch>.dmg` |
+| macOS app bundle (`<arch>`) | `utter-gui_<ver>_<arch>.app.tar.gz` |
+| macOS core tarball (`<arch>`) | `utter-core-<ver>-macos-<arch>.tar.gz` |
+| macOS checksums (`<arch>`) | `sha256sums-macos-<arch>.txt` |
 
-The macOS assets come from the separate `build-macos` job (`macos-14`, Apple
-Silicon). They are **not code-signed or notarised**; see `docs/MACOS.md`.
+The macOS assets come from the separate `build-macos` job (`macos-14`), which
+builds **both** `aarch64-apple-darwin` and `x86_64-apple-darwin` targets. They
+are **code-signed and notarized when complete, valid Apple secrets exist**;
+otherwise the build is fail-safe and ships unsigned (see `docs/MACOS.md`).
 
 `<ver>` is the tag without the leading `v` (e.g. `0.1.0`). The bootstrap
 installer (`install.sh`) resolves these names from the release tag.
@@ -64,9 +66,10 @@ installer (`install.sh`) resolves these names from the release tag.
 
 The documentation site is a static Astro build deployed to **Vercel** at
 `https://utter.sujaisubbanna.com/`, together with the bootstrap installer. The
-root `vercel.json` runs `cd website && corepack pnpm@10.0.0 build` and serves
-`website/dist`; a build step copies `install.sh` into that output so it is
-served from the site root. GitHub Pages is retired. After deploying:
+`website/vercel.json` runs `pnpm install --frozen-lockfile` / `pnpm build` with
+output directory `dist`; a build step copies `install.sh` into that output so it
+is served from the site root. The Vercel project's Root Directory is `website`.
+GitHub Pages is retired. After deploying:
 
 ```bash
 # interactive wizard in a terminal

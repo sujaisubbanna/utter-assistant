@@ -17,10 +17,10 @@ Todo se ejecuta en tu máquina. El reconocimiento de voz, los pequeños modelos 
 
 | | |
 |---|---|
-| **Pulsar para hablar** | Mantén la *tecla del asistente* y habla, o la *tecla de dictado* para escribir lo que dices en cualquier campo. |
+| **Pulsar para hablar** | Mantén la *tecla del asistente* y habla, o la *tecla de dictado* para escribir lo que dices en cualquier campo (por ahora solo en macOS; en Linux se está conectando). |
 | **Acciones de escritorio** | Abre aplicaciones y sitios web, enfoca y cierra ventanas, cambia de espacio de trabajo, controla el reproductor y pulsa atajos de aplicaciones. |
 | **Entiende el contexto** | Sabe qué aplicación está enfocada y qué hay en pantalla, primero mediante la información de accesibilidad y solo como último recurso con capturas. |
-| **Acciones por aplicación que puedes editar** | Más de 100 perfiles de aplicaciones con sus atajos. Cambia cualquier combinación de teclas desde la aplicación de ajustes. |
+| **Acciones por aplicación que puedes editar** | 100+ perfiles de aplicaciones (una vez catalogadas tus aplicaciones instaladas) con sus atajos. Cambia cualquier combinación de teclas desde la aplicación de ajustes. |
 | **Seguro por defecto** | Las capacidades de riesgo (comandos de terminal, entrada sin procesar) permanecen desactivadas hasta que las actives, y las acciones importantes preguntan primero. |
 | **Localizado** | Incluye 10 idiomas de interfaz (en, es, de, fr, it, pt, zh, ja, ko, ru). El idioma hablado es un ajuste aparte, así que puedes usar la interfaz en español y hablar en inglés. |
 

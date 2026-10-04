@@ -10,7 +10,8 @@ Esta página da por hecho que Utter está instalado. Si no lo está, empieza por
 ## Requisitos
 
 - **Linux en Wayland** y **macOS**. En Linux, **niri** y **KDE Plasma (KWin)** son compatibles de primera
-  clase; otros compositores tienen soporte parcial (dictado, escritura, inicio; sin acciones de ventana).
+  clase; otros compositores tienen soporte parcial (escritura, inicio; sin acciones de ventana).
+  El dictado es solo para macOS por ahora y se está conectando en Linux.
 - **PipeWire** para el audio (Linux).
 - **Python 3.12 o posterior**.
 - Se recomienda una GPU NVIDIA para los modelos más grandes, pero no es obligatoria. Utter funciona sin
@@ -48,7 +49,7 @@ assistant_key = "KEY_INSERT"
 | | Mantén | Qué ocurre con tus palabras | En pantalla |
 |---|---|---|---|
 | **Asistente** | la *tecla del asistente* (Insert por defecto) | Se convierte en una acción: abrir aplicaciones y sitios, hacer clic, pulsar atajos | Una onda amarilla |
-| **Dictado** | la *tecla de dictado* (F13 por defecto) | Se escribe en el campo que tenga el foco | Una onda azul con «Dictation · typing» |
+| **Dictado** | la *tecla de dictado* (F13 por defecto) | Se escribe en el campo que tenga el foco (por ahora solo en macOS; en Linux se está conectando) | Una onda azul con «Dictation · typing» |
 
 Cada modo tiene su propio sonido de inicio, así que puedes distinguirlos sin mirar.
 
@@ -90,7 +91,8 @@ de YouTube existente. Luego prueba:
 - «new tab», «find» (los atajos de la propia aplicación enfocada)
 - «click the search box» (primero accesibilidad y luego visión, si la instalaste)
 
-Mantén la tecla de dictado y habla para escribir en el campo enfocado. El dictado nunca ejecuta comandos.
+Mantén la tecla de dictado y habla para escribir en el campo enfocado (por ahora solo en macOS; en
+Linux se está conectando). El dictado nunca ejecuta comandos.
 
 Para ver qué *haría* Utter sin hacerlo, usa el modo de prueba desde un checkout del código:
 
@@ -121,9 +123,9 @@ on_idle = true                                 # sleep by itself when unused…
 idle_minutes = 15                              # …after this long
 ```
 
-:::note[Próximamente: un estado de carga]
-Se está añadiendo un estado `loading` a la visualización en pantalla para que la onda pueda mostrar cómo
-vuelven los modelos tras despertarse o un arranque en frío. **Aún no se ha publicado.**
+:::note[Un estado de carga]
+La visualización en pantalla tiene un estado `loading`, que se muestra mientras los modelos
+vuelven tras despertarse o un arranque en frío.
 :::
 
 ## Siguientes pasos

@@ -33,7 +33,7 @@ Utter targets **Wayland**. **niri** and **KDE Plasma (KWin)** are first-class: a
 layer detects which one is running and uses its native interface for window and workspace actions
 (`niri msg` on niri, KWin's D-Bus interfaces on Plasma). Other Wayland compositors get partial
 support — the generic tools it uses (`wtype`, `ydotool`, `grim`, `wl-clipboard`, PipeWire, MPRIS,
-AT-SPI) work across compositors, so dictation, typing and launching work, but compositor-specific
+AT-SPI) work across compositors, so typing and launching work, but compositor-specific
 actions (focus, move, workspaces) are not implemented for them. X11 is not supported.
 
 ### Windows or macOS?
@@ -46,7 +46,8 @@ credentials are configured; on first launch, right-click → *Open* or run
 ### What is the difference between the assistant key and the dictation key?
 
 Hold the **assistant key** and your words become an action. Hold the **dictation key** and your
-words are typed into the focused field, nothing more. Each has its own sound and waveform colour.
+words are typed into the focused field, nothing more (macOS only for now; being wired up on Linux).
+Each has its own sound and waveform colour.
 See [Getting started](/getting-started/#2-set-your-push-to-talk-keys).
 
 ### Why Insert and F13 as defaults?

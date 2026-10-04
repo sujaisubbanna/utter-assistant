@@ -32,16 +32,18 @@
 3. Removal is only allowed after **two** protocol minors past `since`.
 4. `doctor` reports drift between a plugin's declared axes and the lockfile.
 
-## 5. Config schema migration
-- Each plugin declares `config_schema` (JSON Schema, versioned).
-- The runner validates strictly (unknown/mistyped keys → warn, and are surfaced in the GUI),
-  and runs any declared migration for older config before use.
-- Config migrations are recorded so downgrades are at least detectable.
+## 5. Config schema migration — planned, not implemented
+- Plugins may declare `config_schema` in their manifest (`protocol/plugin.schema.json`), but the
+  reference runner **does not validate it or run migrations today**.
+- Planned: strict validation (unknown/mistyped keys → warn, surfaced in the GUI) and recorded
+  migrations so downgrades are at least detectable.
 
 ## 6. Install lockfile
-- The installer records `name → {version, protocol, abi, digest}` in
-  `$XDG_STATE_HOME/utter/install.json`.
-- `doctor` compares **recorded vs actual** and reports drift; upgrades are explicit.
+- The installer records `{files, units, packages, version, protocol}` in
+  `$XDG_STATE_HOME/utter/install.json` (`assistant/install_state.py`). It does not record a
+  per-plugin `name → {version, protocol, abi, digest}` map or digests.
+- `doctor` compares the recorded **protocol** and **version** against the running runner and
+  reports drift (`assistant/doctor.py`); upgrades are explicit.
 
 ## 7. SDK versioning
 - The protocol, manifest schema and capability registry are the compatibility contract for

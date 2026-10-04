@@ -19,7 +19,7 @@ All compositor-specific behaviour sits behind one module,
 | `compositor.py` | detection rules, backend selection (`auto` / `niri` / `kwin`), capability names, the structured `Outcome` result, the `--print-plan` probe |
 | `backends/niri.py` | thin wrapper over the unchanged `utter/context/niri.py` (grim screenshots, `niri msg action`) |
 | `backends/kwin.py` | the Plasma backend: D-Bus calls, the niri → KWin action table, kdotool / KWin-script window access, Spectacle / portal screenshots |
-| `backends/dbus.py` | argv builders and reply parsers for `gdbus`, `qdbus6`/`qdbus`, `dbus-send`; a tiny stdlib D-Bus receiver (`LiteBus`) for KWin script results |
+| `backends/dbus.py` | argv builders and reply parsers for `gdbus`, `qdbus6`/`qdbus`, `dbus-send`; re-exports the tiny stdlib D-Bus receiver (`LiteBus`, defined in `backends/dbus_wire.py`) for KWin script results |
 | `backends/fallback.py` | unknown compositors: everything returns "unsupported", `grim` is still tried for screenshots |
 
 Every backend exposes the same module-level functions (see
@@ -111,7 +111,8 @@ KWin on Wayland has no public "list windows" D-Bus API, so two sources exist:
    runs it and unloads it. The query script walks `workspace.windowList()`
    (Plasma 6) or `workspace.clientList()` (Plasma 5) and reports JSON back with
    `callDBus("org.utter.kwin.p<pid>", "/", "org.utter.kwin", "result", json)`.
-   That bus name is owned by `dbus.LiteBus`, a ~250-line stdlib D-Bus client that
+   That bus name is owned by `dbus.LiteBus` (defined in `backends/dbus_wire.py:313` and
+   re-exported by `backends/dbus.py`), a ~250-line stdlib D-Bus client that
    does `Hello` + `RequestName` and waits for the one method call. Action scripts
    (`workspace.activeWindow = w`, `w.closeWindow()`, `w.minimized = true`,
    `w.desktops = [desktop]`) are fire-and-forget and need no receiver.

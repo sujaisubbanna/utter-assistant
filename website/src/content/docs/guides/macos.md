@@ -130,10 +130,10 @@ injection = "quartz"             # quartz | applescript
 notifications = true
 
 [macos.runtime]
-provider = "ollama"              # ollama | lm_studio | llama_cpp | custom
-base_url = "http://127.0.0.1:11434/v1"
-model = "qwen2.5:3b"
-vision_provider = "ollama"       # ollama | lm_studio | llama_cpp | custom
+llm_provider = "ollama"          # ollama | lm_studio | llamacpp | mlx
+llm_base_url = "http://127.0.0.1:11434/v1"
+llm_model = "qwen2.5:3b"
+vision_provider = "ollama"       # ollama | lm_studio | llamacpp
 vision_base_url = "http://127.0.0.1:11434/v1"
 vision_model = "llama3.2-vision:11b"
 ```

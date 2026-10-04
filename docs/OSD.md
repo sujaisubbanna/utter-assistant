@@ -21,8 +21,8 @@ The emitter writes `$XDG_RUNTIME_DIR/utter/osd.json` atomically:
 ```
 | field | values |
 |---|---|
-| `state` | `idle` \| `listening` \| `final` |
-| `mode` | `assistant` (dictation does not raise the OSD) |
+| `state` | `idle` \| `listening` \| `loading` \| `final` |
+| `mode` | `assistant` \| `dictation` (dictation does not raise the Linux OSD) |
 | `level` | `0.0`–`1.0` (raw `0`–`100` input is normalised) |
 | `text` | live/partial or final transcript |
 | `activated` | `true` (command detected) \| `false` (not) \| `null` while listening |
@@ -49,11 +49,12 @@ window_s = 6
   callback -> `level`, a transcript -> `final` (and the emitter's own dismiss -> `idle`),
   and cold start / wake -> `loading` until ready via `utter/voice/model_loading.py`. It is a
   strict no-op when disabled and never blocks the recognition thread.
-- **Panel** — the Noctalia plugin (`plugins/ui/noctalia/`), a persistent overlay panel plus a
-  fast poller.
+- **Panel** — the Noctalia widget (`widgets/noctalia/`, files `osd.luau` and `osd_poller.luau`),
+  a persistent overlay panel plus a fast poller.
 
 ## Notes
 - The Noctalia plugin must be installed/enabled.
 - If a whisper model is available on the host, windowed decoding uses a second resident
   model; set `stream = false` to avoid that cost.
-- Privacy: OSD text is screen-visible; the state file is 0700 under `$XDG_RUNTIME_DIR`.
+- Privacy: OSD text is screen-visible; the state file is written with the default mode under
+  `$XDG_RUNTIME_DIR/utter/` (only the runner socket is `0700`/`0600`).

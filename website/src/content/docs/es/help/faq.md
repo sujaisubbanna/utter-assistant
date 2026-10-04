@@ -35,7 +35,7 @@ Utter apunta a **Wayland**. **niri** y **KDE Plasma (KWin)** son de primera clas
 detecta cuál se está ejecutando y usa su interfaz nativa para las acciones de ventana y espacio de trabajo
 (`niri msg` en niri, las interfaces D-Bus de KWin en Plasma). Otros compositores de Wayland tienen soporte
 parcial: las herramientas genéricas que usa (`wtype`, `ydotool`, `grim`, `wl-clipboard`, PipeWire, MPRIS,
-AT-SPI) funcionan en varios compositores, así que el dictado, la escritura y el inicio funcionan, pero las acciones
+AT-SPI) funcionan en varios compositores, así que la escritura y el inicio funcionan, pero las acciones
 específicas del compositor (enfocar, mover, espacios de trabajo) no están implementadas para ellos. X11 no es compatible.
 
 ### ¿Windows o macOS?
@@ -49,7 +49,8 @@ se configuren credenciales de Apple Developer; en el primer inicio, haz clic der
 ### ¿Cuál es la diferencia entre la tecla del asistente y la tecla de dictado?
 
 Mantén la **tecla del asistente** y tus palabras se convierten en una acción. Mantén la **tecla de dictado** y tus
-palabras se escriben en el campo enfocado, nada más. Cada una tiene su propio sonido y color de onda.
+palabras se escriben en el campo enfocado, nada más (por ahora solo en macOS; en Linux se está conectando). Cada
+una tiene su propio sonido y color de onda.
 Consulta [Primeros pasos](/getting-started/#2-set-your-push-to-talk-keys).
 
 ### ¿Por qué Insert y F13 como valores por defecto?

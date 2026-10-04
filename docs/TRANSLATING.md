@@ -11,7 +11,7 @@ contacts Crowdin.
 | Surface | Source (English) | Translations |
 |---|---|---|
 | Settings app UI | `gui-tauri/src/i18n/en.ts` | `gui-tauri/src/i18n/<lang>.ts` |
-| Installer | `install/i18n/en.sh` | `install/i18n/<lang>.sh` |
+| Installer | `install/install.sh` (English inline; no `en.sh`) | `install/i18n/<lang>.sh` |
 | Documentation website | `website/src/content/docs/*.md(x)` | `website/src/content/docs/<lang>/*.md(x)` |
 
 `en.ts` is the source of truth: every other locale is typed against it
@@ -88,5 +88,6 @@ reviews them.
 
 The sync (`.github/workflows/crowdin.yml`) is a **no-op without credentials**.
 To enable it, set repository secrets `CROWDIN_PROJECT_ID` and
-`CROWDIN_PERSONAL_TOKEN`; the workflow then uploads `en.ts` / `en.sh` and opens
-a PR with new translations.
+`CROWDIN_PERSONAL_TOKEN`; the workflow then uploads the English sources
+(`gui-tauri/src/i18n/en.ts` and the inline English in `install/install.sh`) and
+opens a PR with new translations.

@@ -98,8 +98,9 @@ Required fields (`plugin.schema.json` `required`): `name`, `version`, `kind`,
 - `transport` — `stdio | connect | listen` (all three implemented).
 - `entrypoint` — argv (array) for a subprocess, or a `.wasm` path.
 - `permissions` — see [§10](#10-permissions--trust).
-- `config_schema` / `settings` / `models` — declared in the schema; installing
-  models and the model store are **not implemented yet**.
+- `config_schema` / `settings` / `models` — declared in the schema. The model store itself is
+  implemented (`assistant/models.py`, `assistant models pull`); what is **not implemented yet**
+  is provisioning models *from a plugin manifest*.
 
 > Note: `utter-plugin.toml` is the documented canonical form, but the runner
 > itself is configured from a *runner* TOML (`[[plugin]]` entries) — see

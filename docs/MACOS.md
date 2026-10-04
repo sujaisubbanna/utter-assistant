@@ -17,7 +17,7 @@ in `utter/macos/` is imported and every existing code path is unchanged.
 | Concern | Linux (unchanged) | macOS backend |
 |---|---|---|
 | Push-to-talk | evdev / keyd | Quartz `CGEventTap` via PyObjC (`utter/macos/hotkey.py`), `pynput` fallback |
-| Speech-to-text | faster-whisper / whisper.cpp | Apple `Speech.framework` (`SFSpeechRecognizer`, on-device) → local **whisper.cpp** fallback; optional **VocaMac** CLI backend |
+| Speech-to-text | faster-whisper / whisper.cpp | local **whisper.cpp** (default, on-device) → Apple `Speech.framework` (`SFSpeechRecognizer`, on-device) fallback; optional **VocaMac** CLI backend |
 | Spoken replies | plugin lane | `say` (default) or `AVSpeechSynthesizer` |
 | Decision router / LLM | vLLM (`http://127.0.0.1:8001/v1`) | **Ollama** (`http://127.0.0.1:11434/v1`, Metal) default; LM Studio / llama.cpp |
 | Vision / Grounding | UI-TARS (`http://127.0.0.1:8000/v1`) | **Ollama** VLM (`llama3.2-vision:11b`, Metal) default; LM Studio |
@@ -55,16 +55,18 @@ It is a fine dictation app, but it is **not usable as Utter's voice engine**:
   compiled Swift, so it cannot be driven from Python;
 - it is Apple Silicon only.
 
-So the macOS support uses **macOS-native voice**: `Speech.framework` as the primary
-STT (zero extra models, on-device, fast) with **whisper.cpp** as the offline
-fallback and quality option, and `say` for TTS. VocaMac can still coexist as a
+So the macOS support uses **macOS-native voice**: local **whisper.cpp** as the
+primary STT (reliable and fully offline) with `Speech.framework` as the fallback
+(it is fast when it works but can stall for 30s+ with no callback on some
+Macs/locales), and `say` for TTS. VocaMac can still coexist as a
 plain dictation app, and `[macos] stt_backend = "vocamac"` lets Utter use its
 file-transcription CLI as a batch STT engine if you prefer its models.
 
 ## Requirements
 
-- macOS 12+ (Speech on-device recognition and `screencapture` are older than
-  that, but PyObjC 10 wheels target 12+). Both Apple Silicon (`aarch64`) and
+- macOS 12+ — the practical floor (PyObjC 10 wheels target 12+; Speech on-device
+  recognition and `screencapture` are older than that). The code does not pin a
+  minimum version. Both Apple Silicon (`aarch64`) and
   Intel (`x86_64`) Macs are supported; CI produces `.dmg` packages for both architectures.
 - Python 3.12+ (`brew install python@3.12`).
 - Python packages: `pip install -e '.[macos]'` installs `pyobjc-framework-Cocoa`,
@@ -80,14 +82,14 @@ Rather than bundling or shipping an ad-hoc inference server, Utter integrates wi
 |---|---|---|---|
 | **LLM / Decision Router** | **Ollama** ([ollama.com](https://ollama.com)) | First-class Metal acceleration, zero-config on Apple Silicon, standard Homebrew daemon (`brew services start ollama`), OpenAI-compatible `/v1` API | `http://127.0.0.1:11434/v1`<br>`qwen2.5:3b` |
 | **Vision / Screen Grounding** | **Ollama** | Single daemon hosts both text and multimodal vision models, unified memory management | `http://127.0.0.1:11434/v1`<br>`llama3.2-vision:11b` |
-| **STT (Voice Input)** | **Apple Speech** / **whisper.cpp** | Built-in zero-model STT via `SFSpeechRecognizer` (on-device); offline high-accuracy fallback via `whisper.cpp` with Metal acceleration | Built-in / `models/whisper/` |
+| **STT (Voice Input)** | **whisper.cpp** / **Apple Speech** | Offline high-accuracy primary via `whisper.cpp` with Metal acceleration; built-in zero-model fallback via `SFSpeechRecognizer` (on-device) | `models/whisper/` / Built-in |
 | **TTS (Spoken Replies)** | System **`say`** | Built-in macOS speech synthesizer, native voices, zero setup | Built-in |
 
 ### Alternative Local Servers
 
 Utter's macOS runtime resolver (`utter/runtime.py`) speaks standard OpenAI `/v1` HTTP endpoints:
-- **LM Studio** ([lmstudio.ai](https://lmstudio.ai)): Start the local server (`lms server start` or via the GUI) on `http://127.0.0.1:1234/v1`. Configure `[macos.runtime] provider = "lm_studio"`.
-- **llama.cpp** ([github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)): Start `llama-server` with `-ngl 99` (offload all layers to Metal) on `http://127.0.0.1:8080/v1`. Configure `[macos.runtime] provider = "llama_cpp"`.
+- **LM Studio** ([lmstudio.ai](https://lmstudio.ai)): Start the local server (`lms server start` or via the GUI) on `http://127.0.0.1:1234/v1`. Configure `[macos.runtime] llm_provider = "lm_studio"`.
+- **llama.cpp** ([github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)): Start `llama-server` with `-ngl 99` (offload all layers to Metal) on `http://127.0.0.1:8080/v1`. Configure `[macos.runtime] llm_provider = "llamacpp"`.
 
 ### Setup & Recommended Models
 
@@ -109,7 +111,7 @@ Utter's macOS runtime resolver (`utter/runtime.py`) speaks standard OpenAI `/v1`
 ### Detection & Graceful Degradation
 
 Utter probes the local runtime before every request and during diagnostic checks (`utter doctor`, `utter capabilities`):
-- **Metal GPU detection:** Probes system memory and Metal accelerator status via `system_profiler SPDisplaysDataType` and `sysctl hw.memsize`.
+- **Metal GPU / memory detection:** Probes system memory and CPU brand via `sysctl` (`hw.memsize`, `machdep.cpu.brand_string`; `utter/hardware.py`).
 - **HTTP endpoint liveness:** Fast stdlib HTTP probe (`0.5s` timeout) against `/v1/models`.
 - **Model availability check:** Verifies whether the configured model (`qwen2.5:3b`, `llama3.2-vision:11b`) is actually loaded/pulled.
 - **Graceful degradation:** If Ollama is not installed or stopped, Utter reports structured status (`"stopped"` or `"not_installed"`) with actionable instructions (e.g. `brew services start ollama` or `ollama pull <model>`) rather than crashing or hanging.
@@ -338,10 +340,10 @@ injection = "quartz"             # quartz | applescript
 notifications = true
 
 [macos.runtime]
-provider = "ollama"              # ollama | lm_studio | llama_cpp | custom
-base_url = "http://127.0.0.1:11434/v1"
-model = "qwen2.5:3b"
-vision_provider = "ollama"       # ollama | lm_studio | llama_cpp | custom
+llm_provider = "ollama"          # ollama | lm_studio | llamacpp | mlx
+llm_base_url = "http://127.0.0.1:11434/v1"
+llm_model = "qwen2.5:3b"
+vision_provider = "ollama"       # ollama | lm_studio | llamacpp
 vision_base_url = "http://127.0.0.1:11434/v1"
 vision_model = "llama3.2-vision:11b"
 ```
@@ -386,7 +388,7 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 - `open <url>`, `open -a <App>` / `open -b <bundle.id>` launching
 - `pbpaste` clipboard, `afplay` sounds, `say` replies, notification banners
 - speech pause-aware audio chunking (`split_audio_chunks`) for long audio (> 50s)
-- runtime fallback from `apple_speech` to `whisper_cpp` when speech recognition fails
+- runtime fallback from `whisper_cpp` to `apple_speech` when the primary backend fails to load
 
 **Native macOS backends (verified on macOS)**
 

@@ -14,10 +14,10 @@ Everything runs on your machine. Speech recognition, the small AI models and the
 
 | | |
 |---|---|
-| **Push-to-talk** | Hold the *assistant key* and speak, or hold the *dictation key* to type what you say into any field. |
+| **Push-to-talk** | Hold the *assistant key* and speak, or hold the *dictation key* to type what you say into any field (macOS only for now; being wired up on Linux). |
 | **Desktop actions** | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | **Understands context** | Knows which app is focused and what is on screen, via accessibility information first and screenshots only as a last resort. |
-| **Per-app actions you can edit** | More than 100 app profiles with their shortcuts. Change any key combination from the settings app. |
+| **Per-app actions you can edit** | 100+ app profiles once your installed apps are catalogued, with their shortcuts. Change any key combination from the settings app. |
 | **Safe by default** | Risky abilities (terminal commands, raw input) stay off until you turn them on, and important actions ask first. |
 | **Localised** | Ships 10 UI locales (en, es, de, fr, it, pt, zh, ja, ko, ru). The spoken language is a separate setting, so you can use a Spanish UI and speak English. |
 

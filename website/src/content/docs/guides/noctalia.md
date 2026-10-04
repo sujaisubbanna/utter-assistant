@@ -35,11 +35,8 @@ Noctalia exposes no partial transcripts of its own, so the live transcript uses 
 decoding and is best-effort. When it is not available, the level meter still works and the final
 text appears on release.
 
-:::note[Forthcoming: a loading state]
-A `loading` state is being added to the OSD so the waveform can show models coming back after a
-wake or cold start. It is **not shipped yet** — today the state is `idle`, `listening` or
-`final`.
-:::
+A `loading` state is shown while models come back after a wake or cold start; the panel uses it
+for a calm indeterminate pulse until the model servers report ready.
 
 ### Configuration
 
@@ -66,8 +63,8 @@ The emitter writes `$XDG_RUNTIME_DIR/utter/osd.json` atomically:
 
 | Field | Values |
 |---|---|
-| `state` | `idle`, `listening` or `final` |
-| `mode` | `assistant` (dictation does not raise the OSD) |
+| `state` | `idle`, `listening`, `loading` or `final` |
+| `mode` | `assistant` or `dictation` (dictation does not raise the Linux OSD) |
 | `level` | `0.0` to `1.0` |
 | `text` | live, partial or final transcript |
 | `activated` | `true` (command detected), `false` (not), or `null` while listening |
@@ -80,13 +77,13 @@ recognition thread.
 
 ### Privacy
 
-The OSD text is, by design, visible on your screen. The state file lives `0700` under
-`$XDG_RUNTIME_DIR` and is not logged.
+The OSD text is, by design, visible on your screen. The state file lives under
+`$XDG_RUNTIME_DIR` (written with the default mode) and is not logged.
 
 ## Components in the repository
 
 - **Emitter**: `utter/voice/osd.py`, driven by the native voice loops (`run_hotkey`/
   `run_macos`): listening/level/final, plus the `loading` state on cold start and wake. It is
   a strict no-op when disabled.
-- **Panel**: the Noctalia plugin under `plugins/ui/noctalia/` and the widget package under
-  `widgets/noctalia/` (bar widget, attention panel, OSD and their pollers).
+- **Panel**: the widget package under `widgets/noctalia/` (bar widget, attention panel, OSD files
+  `osd.luau` / `osd_poller.luau`, and their pollers).

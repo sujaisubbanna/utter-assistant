@@ -1,6 +1,6 @@
 ---
 title: "Utter"
-description: "Utter は Linux と macOS(ベータ)で音声をアクションに変えます。キーを押しながら話すだけで実行されます。ローカル、オフライン、プライベート。"
+description: "Utter は Linux と macOS で音声をアクションに変えます。キーを押しながら話すだけで実行されます。ローカル、オフライン、プライベート。"
 template: splash
 banner:
   content: '未レビューの機械翻訳です。<a href="https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRANSLATING.md">翻訳への協力方法</a>。'
@@ -53,7 +53,7 @@ curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
 <div class="utter-strip">
   <div>
     <strong>プッシュトゥトーク</strong>
-    <p>アシスタントキーを押しながら話すか、ディクテーションキーを押しながら話せば、任意のフィールドに入力できます。</p>
+    <p>アシスタントキーを押しながら話すか、ディクテーションキーを押しながら話せば、任意のフィールドに入力できます(今は macOS のみ。Linux では対応作業中)。</p>
   </div>
   <div>
     <strong>デスクトップアクション</strong>
@@ -75,13 +75,13 @@ curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
 
 <CardGrid>
   <Card title="2 つのモード、2 つのキー" icon="seti:audio">
-    **アシスタントキー**(既定は Insert)を押しながら話すとコマンドを実行します。**ディクテーションキー**(既定は F13)を押しながら話すと入力します。各モードには独自のサウンドと波形の色があります。
+    **アシスタントキー**(既定は Insert)を押しながら話すとコマンドを実行します。**ディクテーションキー**(既定は F13)を押しながら話すと入力します(今は macOS のみ。Linux では対応作業中)。各モードには独自のサウンドと波形の色があります。
   </Card>
   <Card title="コンテキストを理解" icon="laptop">
     Utter はどのアプリがフォーカスされ、画面に何があるかを把握します。まずアクセシビリティ情報を使い、最後の手段としてのみスクリーンショットを撮ります。
   </Card>
   <Card title="編集できるアプリ別アクション" icon="pen">
-    ショートカット付きの 100 以上のアプリプロファイル。設定アプリまたは YAML ファイルから任意のキーの組み合わせを変更できます。
+    インストール済みアプリがカタログ化されると 100 以上のアプリプロファイル。ショートカット付きで、設定アプリまたは YAML ファイルから任意のキーの組み合わせを変更できます。
   </Card>
   <Card title="既定で安全" icon="approve-check">
     ターミナルコマンドと生の入力は、有効にするまでオフのままです。重要なアクションは先に確認します。画面のテキストはアクションを選択できますが、作成はできません。

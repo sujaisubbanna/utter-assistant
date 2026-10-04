@@ -103,8 +103,9 @@ plugin, so you can see exactly what is actually contained.
   redacted from logs and from `doctor` output.
 - Screen, clipboard and audio content is **not** logged by default. Debug logging is opt-in and
   warned about.
-- The optional on-screen display writes its state file `0700` under `$XDG_RUNTIME_DIR`. Its
-  text is, by design, visible on your screen.
+- The optional on-screen display writes its state file under `$XDG_RUNTIME_DIR` (written with the
+  default mode; only the runner socket is `0700`/`0600`). Its text is, by design, visible on your
+  screen.
 - The transcript **text** is the one exception: the daemon logs it at `INFO` level, so it can
   appear in the systemd journal (`journalctl --user`). Lower `[daemon] log_level` to `WARNING`
   to stop it. This is the text, not the audio.
