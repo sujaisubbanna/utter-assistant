@@ -207,12 +207,13 @@ Read [Trust and safety](/guides/trust-and-safety/) before shipping side effects.
 
 | Axis | Where | Meaning |
 |---|---|---|
-| **protocol** | manifest `protocol` | wire framing and envelope (`major.minor`); the runner supports **N-2** |
+| **protocol** | manifest `protocol` | wire framing and envelope (`major.minor`); the reference runner accepts exactly `1.0` |
 | **abi** | manifest `abi` | runner-to-plugin call semantics (integer) |
 | **capability** | `protocol/capabilities.json` | vocabulary entries `name@N` |
 | **plugin** | manifest `version` | the plugin's own semver, independent of the rest |
 
-- Major protocol or abi mismatch: refused with `-32004`. Minor drift: allowed with a warning.
+- Any protocol or abi mismatch, including minor drift, is refused with `-32004`; the reference
+  runner accepts exactly protocol `1.0` / abi `1`.
 - Unknown capability: warning. Missing `requires`: `-32005`, fail closed.
 - Adding a capability is a minor protocol bump. Renaming or removing one is a major bump with a
   `deprecated: {since, replacement}` entry kept for N-2. Removal is only allowed two protocol

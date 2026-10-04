@@ -90,7 +90,14 @@ Linux spoken replies (macOS uses `[macos] tts_backend` / `tts_voice` / `tts_rate
 | `llm_fallback` | `true` | allow the free-form fallback planner |
 | `llm_base_url` | `http://127.0.0.1:8001/v1` | OpenAI-compatible endpoint for the decision head and planner |
 | `llm_model` | `qwen3-4b` | served model name |
+| `decision_head_enabled` | `true` | Jev-style constrained decision head; off = deterministic rules only |
 | `decide_threshold` | `0.5` | minimum probability for the decision head to act |
+
+### `[perception]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `accessibility_enabled` | `true` | read buttons/labels from the accessibility tree before taking a screenshot |
 
 ### `[vision]`
 
@@ -100,14 +107,15 @@ Linux spoken replies (macOS uses `[macos] tts_backend` / `tts_voice` / `tts_rate
 | `base_url` | `http://127.0.0.1:8000/v1` | UI-TARS vLLM endpoint |
 | `model` | `uitars` | served model name |
 | `target_width` | `1344` | screenshot resize width; the biggest latency lever |
-| `cuda_visible_devices` | `"1"` | GPU pin for the vision server |
+| `cuda_visible_devices` | `""` | optional GPU index for the vision model; empty = default |
 
 ### `[actions]`
 
 | Key | Default | Meaning |
 |---|---|---|
+| `confirm_enabled` | `true` | ask before discretionary actions matching `require_confirm`; off leaves the runner's always-on confirmations |
 | `require_confirm` | `["send","submit","delete","purchase","pay","confirm order"]` | substrings in a step's args that force confirmation |
-| `click_duration_ms` | `40` | how long a simulated click is held |
+| `click_duration_ms` | `40` | parsed but **unused** (legacy; the GUI control was removed and no code reads it) |
 | `preferred_browser` | `""` | profile or app id for web actions; empty = the browser you are looking at, else any open one, else the desktop default |
 
 ### `[sleep]`

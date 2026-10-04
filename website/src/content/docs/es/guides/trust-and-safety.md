@@ -72,8 +72,7 @@ enabled_ops = ["action.terminal"]   # or "action.input"
 ```
 
 La página Safety muestra los mismos interruptores en **Risky abilities**, detrás de un aviso, y mantiene
-visible un cartel mientras cualquiera de ellos está activado. En **Limits** puedes restringir qué comandos de terminal
-se permiten y enumerar frases que siempre se rechazan.
+visible un cartel mientras cualquiera de ellos está activado.
 
 ## Confianza en el socket y la IPC
 
@@ -91,9 +90,13 @@ controlar tu escritorio por defecto:
 
 Los complementos declaran permisos en su manifiesto (por ejemplo `network`, `microphone`). Con
 `[security] enforce = true` en la configuración del runner, los complementos de subproceso se inician bajo
-`systemd-run --user --scope` (preferido) o `bwrap` con endurecimiento como `NoNewPrivileges`,
-familias de direcciones restringidas, listas de dispositivos permitidos, rutas de solo lectura y seccomp o landlock cuando
-están disponibles.
+`systemd-run --user --scope` (preferido) o `bwrap`, con: `NoNewPrivileges`, familias de direcciones
+restringidas a `AF_UNIX`, un `/tmp` privado, un cgroup de dispositivos con denegación por defecto
+(`DevicePolicy=closed` más `DeviceAllow` para los pocos nodos que un proceso necesita — audio solo si el
+complemento declara `microphone`), y rutas de sistema/intérprete de solo lectura más las
+`read_paths`/`write_paths` declaradas. En versiones de systemd que rechazan estos ajustes en scopes
+transitorios, el runner recurre a `bwrap`, que aplica un aislamiento equivalente; si ninguno de los dos
+wrappers funciona, los complementos se inician sin endurecimiento y cada permiso queda como **orientativo**.
 
 **Si un permiso no puede aplicarse en una plataforma, se etiqueta como orientativo**, nunca se da por
 seguro implícitamente. `assistant doctor` y la página **Plugins** imprimen el estado aplicado-o-orientativo por

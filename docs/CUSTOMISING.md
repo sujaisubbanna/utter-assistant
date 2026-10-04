@@ -111,7 +111,14 @@ the Linux path (see [§4](#4-stt-backends)).
 | `llm_fallback` | `true` | allow the fallback planner |
 | `llm_base_url` | `http://127.0.0.1:8001/v1` | OpenAI-compatible endpoint |
 | `llm_model` | `qwen3-4b` | served model name |
+| `decision_head_enabled` | `true` | Jev-style constrained decision head; off = deterministic rules only |
 | `decide_threshold` | `0.5` | min probability for the decision head to act |
+
+### `[perception]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `accessibility_enabled` | `true` | read buttons/labels from the accessibility tree before taking a screenshot |
 
 ### `[vision]`
 
@@ -127,8 +134,9 @@ the Linux path (see [§4](#4-stt-backends)).
 
 | Key | Default | Meaning |
 |---|---|---|
+| `confirm_enabled` | `true` | ask before discretionary actions matching `require_confirm`; off leaves the runner's always-on confirmations |
 | `require_confirm` | `["send","submit","delete","purchase","pay","confirm order"]` | substrings in args that force confirmation |
-| `click_duration_ms` | `40` | click press duration |
+| `click_duration_ms` | `40` | parsed but **unused** (legacy; the GUI control was removed and no code reads it) |
 
 ### `[daemon]`
 

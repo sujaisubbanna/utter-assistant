@@ -72,8 +72,9 @@ Manifest: `utter-plugin.toml` validated by `protocol/plugin.schema.json`.
 - Crash of a plugin → supervisor respawns with a new epoch; in-flight requests error cleanly.
 
 ## 8. Compatibility
-See `docs/COMPATIBILITY.md`: N-2 protocol support, capability registry governance, deprecation,
-config-schema migration, install lockfile, stable `doctor` output.
+See `docs/COMPATIBILITY.md`: the reference runner accepts exactly protocol `1.0` / abi `1` (no
+N-2 window yet), capability registry governance, deprecation, install lockfile, and stable
+`doctor` output. Config-schema validation and migration is planned, not implemented.
 
 ## 9. Deployment
 - The legacy assistant runs via **systemd user units** (bridge/vision/planner/audio-defaults),

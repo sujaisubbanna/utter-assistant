@@ -92,8 +92,10 @@ page, then regenerate the catalog. See [Apps and actions](/guides/apps-and-actio
 
 ### Which languages does it speak?
 
-The settings app and the installer ship 10 UI locales: English, Spanish, German, French,
-Italian, Portuguese, Chinese, Japanese, Korean and Russian. The spoken language is a separate
+The settings app ships 10 UI locales: English, Spanish, German, French, Italian, Portuguese,
+Chinese, Japanese, Korean and Russian. The **published web installer (`curl … | bash`) is
+English-only** — the one-line path ships just `install.sh`, without the translation files — while a
+source checkout or the full installer tree speaks the same 10 locales. The spoken language is a separate
 setting (it defaults to your system locale), so you can use a Spanish UI and speak English.
 Speech recognition depends on the model: the default is an English-only (`.en`) whisper model,
 and you opt into a multilingual model (`small`, `large-v3-turbo`, …) from the settings app or the
