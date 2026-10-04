@@ -162,6 +162,7 @@ Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and macOS support. R
 **Platforms and performance**
 - [ ] **Windows version.**
 - [ ] **Run well on less memory** — smaller default models, quantised builds and one shared GPU, so 8 GB cards and CPU-only machines work.
+- [ ] **End-to-end task benchmark** — run a small set of real spoken scenarios in a throwaway compositor and score whether the task actually completed (closer to what other assistants publish than the internal plan-accuracy harness, which only checks routing).
 
 **Memory and personalisation**
 - [ ] **Personal memory with [mem0](https://github.com/mem0ai/mem0)** — remember standing preferences instead of asking every time. **Not implemented yet.**
@@ -172,6 +173,10 @@ Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and macOS support. R
 - [ ] **More apps** — more hand-tuned profiles and actions.
 - [ ] **Key sequences** — let one action press several keys in order (for example `/`, type, Enter) so common steps need no vision.
 - [ ] **More TTS voices** — beyond eSpeak, Speech Dispatcher and Piper.
+
+**Dictation**
+- [ ] **Pick the input field** — choose where dictated text goes instead of relying on what is focused, with an accessibility-tree picker and a screen-grid fallback for apps that expose no fields (Electron, web). macOS first; Linux best-effort via AT-SPI.
+- [ ] **Local dictation formatting** — clean up transcripts locally: punctuation, filler removal and a per-app tone. Today's tools do this in the cloud; it can run as a small local post-processing pass.
 
 ## Documentation
 
