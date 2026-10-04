@@ -407,7 +407,7 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
   `IOHIDCheckAccess`, `AXIsProcessTrustedWithOptions`,
   `CGPreflightScreenCaptureAccess`), System Settings deep links, `launchctl`
   status/start/stop mapping in the settings app, with one permission identity (`utter.app`)
-- Homebrew formulas (`Formula/utter.rb` for CLI/launchd service, `Casks/utter.rb` for .app)
+- Homebrew tap (`sujaisubbanna/utter`): `Formula/utter.rb` for the CLI/launchd service and `Casks/utter.rb` for the .app (`brew tap sujaisubbanna/utter && brew install utter`)
 
 **Linux-only (no macOS equivalent yet)**
 

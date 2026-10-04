@@ -149,7 +149,7 @@ Linux ignores this section entirely. On macOS, `[router]` and `[vision]` automat
   dictation typing, app and URL launching, window focus with AX window raising (`kAXRaiseAction`),
   clipboard, spoken replies, notifications, screenshots for the vision tier with Retina geometry handling,
   the plugin runner socket with peer credentials (`LOCAL_PEERCRED` / `LOCAL_PEERPID` and `proc_pidpath`),
-  Homebrew formulas (`Formula/utter.rb` and `Casks/utter.rb`).
+  the Homebrew tap (`sujaisubbanna/utter`): `Formula/utter.rb` for the CLI/launchd service and `Casks/utter.rb` for the .app.
 - **Linux-only:** niri compositor actions and workspace-aware
   focusing, AT-SPI accessibility clicks (macOS goes straight to vision), MPRIS media keys,
   the Noctalia widget and OSD, the sandbox wrapper, the Linux installer wizard, and the settings
