@@ -203,6 +203,28 @@ def _copy_to_clipboard(text: str) -> bool:
         return False
 
 
+def _linux_ptt_keys(cfg, start, stop) -> dict:
+    """Map configured evdev key names to ``(on_press, on_release)`` lane handlers.
+
+    The dedicated ``[ptt]`` keys drive dictation and assistant; the legacy
+    ``[hotkey] key`` still drives the assistant lane (see CUSTOMISING.md §3).
+    Empty names are dropped; a repeated key collapses onto one lane, with the
+    assistant lane winning a collision (mirrors the macOS two-key map).
+    """
+    keys: dict = {}
+    dict_key = (getattr(cfg.ptt, "dictation_key", "") or "").strip()
+    asst_key = (getattr(cfg.ptt, "assistant_key", "") or "").strip()
+    legacy_key = (getattr(cfg.hotkey, "key", "") or "").strip()
+
+    if dict_key:
+        keys[dict_key] = (lambda: start("dictation"), lambda: stop("dictation"))
+    # Assistant sources are assigned last so an equal key resolves to assistant.
+    for name in (asst_key, legacy_key):
+        if name:
+            keys[name] = (lambda: start("assistant"), lambda: stop("assistant"))
+    return keys
+
+
 class _NativeOverlay:
     """System-wide overlay facade (macOS native panel; no-op elsewhere).
 
@@ -537,6 +559,14 @@ class Utter:
 
     # -- voice -------------------------------------------------------------
     def run_hotkey(self) -> None:
+        """Linux voice loop: the ``[ptt]`` dictation/assistant keys plus the
+        legacy ``[hotkey]`` key.
+
+        * ``[ptt] dictation_key`` -> the transcript is typed into the pinned
+          target (``_type_dictation``), with the clipboard fallback.
+        * ``[ptt] assistant_key`` / ``[hotkey] key`` -> the transcript is routed
+          like any other utterance (rules -> decision head -> actions).
+        """
         from .voice import hotkey
         from .voice.stt import Transcriber
         import numpy as np
@@ -546,44 +576,61 @@ class Utter:
 
         stt = Transcriber.for_platform(self.cfg)
         rec_lock = threading.Lock()
-        chunks: list = []
+        session: dict = {"stream": None, "chunks": [], "mode": None, "target": None}
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
         # Additive OSD: waveform + listening/final, plus the loading state on
         # cold start and after wake. A disabled emitter writes nothing.
-        osd = _Osd(self.cfg, audio_source=_pcm16_source(chunks, rec_lock))
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock))
         osd.begin_loading()
         osd.watch_sleep(sleeper)
 
-        def record_start():
+        def start(mode: str) -> None:
+            with rec_lock:
+                if session["stream"] is not None:
+                    return
+                # Pin the dictation target at key-down: focus may move mid-speech.
+                session["chunks"].clear()
+                session["mode"] = mode
+                session["target"] = (_capture_dictation_target()
+                                     if mode == "dictation" else None)
+
+                def cb(indata, frames, t, status):
+                    with rec_lock:
+                        session["chunks"].append(indata.copy())
+                    osd.level(_rms(indata))
+                stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
+                                        channels=self.cfg.audio.channels, dtype="float32",
+                                        device=(self.cfg.audio.device or None), callback=cb)
+                session["stream"] = stream
             idle.begin("listen")
             if sleeper.asleep:
                 sleeper.wake()
                 _play("wake")
-            with rec_lock:
-                chunks.clear()
-            log.info("PTT down - listening")
-            osd.listening("assistant")
-
-            def cb(indata, frames, t, status):
-                with rec_lock:
-                    chunks.append(indata.copy())
-                osd.level(_rms(indata))
-            stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
-                                    channels=self.cfg.audio.channels, dtype="float32",
-                                    device=(self.cfg.audio.device or None), callback=cb)
+            # Same key-down cue on both platforms: the dictation lane gets
+            # "dictate", the assistant lane "start" (both after "wake" when the
+            # press woke the daemon).
+            _play("dictate" if mode == "dictation" else "start")
+            # Emit ``listening`` before capture starts so the first audio level
+            # lands on a listening panel (the pre-refactor order).
+            osd.listening("dictation" if mode == "dictation" else "assistant")
+            log.info("PTT down (%s) - listening", mode)
+            # Start outside the lock: the first callback may fire synchronously
+            # (and the pre-refactor loop never held rec_lock across start()), so
+            # holding it here could deadlock capture.
             stream.start()
-            record_start.stream = stream  # type: ignore[attr-defined]
 
-        def record_stop():
-            try:
-                stream = getattr(record_start, "stream", None)
-                if stream is None:
+        def stop(mode: str) -> None:
+            with rec_lock:
+                stream = session["stream"]
+                if stream is None or session["mode"] != mode:
                     return
+                session["stream"] = None
                 stream.stop(); stream.close()
-                with rec_lock:
-                    data = np.concatenate(chunks) if chunks else np.zeros((0, 1), dtype="float32")
+                data = (np.concatenate(session["chunks"]) if session["chunks"]
+                        else np.zeros((0, 1), dtype="float32"))
+            try:
                 audio = data.reshape(-1).astype("float32")
                 if audio.size < self.cfg.audio.sample_rate * 0.2:
                     log.info("too short, ignoring")
@@ -594,23 +641,46 @@ class Utter:
                 except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
                     osd.idle()
                     raise
-                log.info("transcript: %r", text)
-                if text:
-                    try:
-                        ok = self.handle_utterance(text)
-                    except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
-                        osd.idle()
-                        raise
-                    _play("detected" if ok else "not_detected")
-                    # ``final`` schedules its own dismiss after [osd] dismiss_ms.
-                    osd.final(text, bool(ok))
-                else:
+                log.info("transcript (%s): %r", mode, text)
+                if not text:
                     osd.idle()
+                    return
+                if mode == "dictation":
+                    res = _type_dictation(text, session.get("target"))
+                    if res.ok:
+                        _play("typed")
+                        osd.final(text, True)
+                    else:
+                        # Never fail silently: park the transcript on the
+                        # clipboard and say so (OSD + notification).
+                        copied = _copy_to_clipboard(text)
+                        _play("not_detected")
+                        message = _DICTATION_FALLBACK if copied else _DICTATION_FALLBACK_NOCLIP
+                        log.warning("dictation not delivered (%s); clipboard=%s",
+                                    res.detail, copied)
+                        osd.final(message, False)
+                        _notify(message, self.cfg.macos)
+                    return
+                try:
+                    ok = self.handle_utterance(text)
+                except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                    osd.idle()
+                    raise
+                _play("detected" if ok else "not_detected")
+                # ``final`` schedules its own dismiss after [osd] dismiss_ms.
+                osd.final(text, bool(ok))
             finally:
                 idle.end("listen")
 
+        keys = _linux_ptt_keys(self.cfg, start, stop)
+        if not keys:
+            log.warning("no PTT keys configured ([ptt]/[hotkey]); voice lane idle")
+            return
         idle.start()
-        hotkey.listen(record_start, record_stop, key_name=self.cfg.hotkey.key)
+        try:
+            hotkey.listen_many(keys)
+        except ValueError as exc:  # bad key name: log, do not kill the daemon
+            log.error("invalid PTT key configuration: %s", exc)
 
     def run_macos(self) -> None:
         """macOS voice loop: two push-to-talk keys and native STT.

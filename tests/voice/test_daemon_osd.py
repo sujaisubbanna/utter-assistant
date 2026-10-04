@@ -104,7 +104,7 @@ def install_stubs():
     saved = {
         "sd": sys.modules.get("sounddevice"),
         "for_platform": stt.Transcriber.for_platform,
-        "listen": hotkey.listen,
+        "listen_many": hotkey.listen_many,
         "sleep_get": sleep_mod.get,
         "sleep_idle": sleep_mod.idle,
     }
@@ -122,7 +122,7 @@ def install_stubs():
         else:
             sys.modules["sounddevice"] = saved["sd"]
         stt.Transcriber.for_platform = saved["for_platform"]
-        hotkey.listen = saved["listen"]
+        hotkey.listen_many = saved["listen_many"]
         sleep_mod.get = saved["sleep_get"]
         sleep_mod.idle = saved["sleep_idle"]
 
@@ -152,7 +152,9 @@ def test_native_sequence() -> None:
         restore, _ = install_stubs()
         seen: dict = {}
 
-        def fake_listen(on_press, on_release, key_name=None):
+        def fake_listen_many(keys, **_kw):
+            # The legacy [hotkey] key still drives the assistant lane.
+            on_press, on_release = keys[cfg.hotkey.key]
             on_press()
             doc = read(path)
             seen["press_state"] = doc["state"]
@@ -163,7 +165,7 @@ def test_native_sequence() -> None:
             seen["final_text"] = doc["text"]
             seen["activated"] = doc["activated"]
 
-        hotkey.listen = fake_listen
+        hotkey.listen_many = fake_listen_many
         try:
             app = make_app(cfg)
             app.run_hotkey()
@@ -196,8 +198,8 @@ def test_disabled_writes_nothing() -> None:
         path = Path(tmp) / "utter" / "osd.json"
 
         restore, _ = install_stubs()
-        hotkey.listen = lambda on_press, on_release, key_name=None: (
-            on_press(), on_release()
+        hotkey.listen_many = lambda keys, **_kw: (
+            keys[cfg.hotkey.key][0](), keys[cfg.hotkey.key][1]()
         )
         try:
             app = make_app(cfg)
