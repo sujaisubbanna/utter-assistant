@@ -49,7 +49,8 @@ se configuren credenciales de Apple Developer; en el primer inicio, haz clic der
 ### ¿Cuál es la diferencia entre la tecla del asistente y la tecla de dictado?
 
 Mantén la **tecla del asistente** y tus palabras se convierten en una acción. Mantén la **tecla de dictado** y tus
-palabras se escriben en el campo enfocado, nada más. Cada una tiene su propio sonido y color de onda.
+palabras se escriben en el campo en el que empezaste, nada más (funciona en Linux y macOS). Cada
+una tiene su propio sonido y color de onda.
 Consulta [Primeros pasos](/getting-started/#2-set-your-push-to-talk-keys).
 
 ### ¿Por qué Insert y F13 como valores por defecto?

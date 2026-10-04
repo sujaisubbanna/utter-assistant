@@ -1,8 +1,9 @@
-# Assistant-mode OSD (on-screen display)
+# On-screen display (OSD)
 
-An **optional** overlay that appears while the **assistant** push-to-talk key is held, shows
-what Whisper is hearing, then flashes **green** (a command was detected) or **red** (not), and
-dismisses. Built on the same Noctalia overlay-panel mechanism as the fleet attention badge.
+An **optional** overlay that appears while a push-to-talk key is held — the **assistant** key
+or the **dictation** key — shows what Whisper is hearing, then flashes **green** (the command
+was detected / the text was typed) or **red** (it was not), and dismisses. Built on the same
+Noctalia overlay-panel mechanism as the fleet attention badge.
 
 ## Behaviour
 1. Hold the assistant key → a small panel appears (default bottom-centre) with a live **level
@@ -10,6 +11,9 @@ dismisses. Built on the same Noctalia overlay-panel mechanism as the fleet atten
 2. Release → the final transcript is shown and the panel turns **green** if the router produced
    a command (activated) or **red** if not.
 3. After `dismiss_ms` it fades out.
+
+Holding the dictation key raises the same panel with `mode = "dictation"`; it turns green when
+the text was typed and red if typing failed (the transcript is then copied to the clipboard).
 
 Noctalia exposes no partial/interim transcripts, so windowed decoding is best-effort; if it
 isn't available the level meter still works and the final text appears on release.
@@ -21,8 +25,8 @@ The emitter writes `$XDG_RUNTIME_DIR/utter/osd.json` atomically:
 ```
 | field | values |
 |---|---|
-| `state` | `idle` \| `listening` \| `final` |
-| `mode` | `assistant` (dictation does not raise the OSD) |
+| `state` | `idle` \| `listening` \| `loading` \| `final` |
+| `mode` | `assistant` \| `dictation` |
 | `level` | `0.0`–`1.0` (raw `0`–`100` input is normalised) |
 | `text` | live/partial or final transcript |
 | `activated` | `true` (command detected) \| `false` (not) \| `null` while listening |
@@ -49,11 +53,12 @@ window_s = 6
   callback -> `level`, a transcript -> `final` (and the emitter's own dismiss -> `idle`),
   and cold start / wake -> `loading` until ready via `utter/voice/model_loading.py`. It is a
   strict no-op when disabled and never blocks the recognition thread.
-- **Panel** — the Noctalia plugin (`plugins/ui/noctalia/`), a persistent overlay panel plus a
-  fast poller.
+- **Panel** — the Noctalia widget (`widgets/noctalia/`, files `osd.luau` and `osd_poller.luau`),
+  a persistent overlay panel plus a fast poller.
 
 ## Notes
 - The Noctalia plugin must be installed/enabled.
 - If a whisper model is available on the host, windowed decoding uses a second resident
   model; set `stream = false` to avoid that cost.
-- Privacy: OSD text is screen-visible; the state file is 0700 under `$XDG_RUNTIME_DIR`.
+- Privacy: OSD text is screen-visible; the state file is written with the default mode under
+  `$XDG_RUNTIME_DIR/utter/` (only the runner socket is `0700`/`0600`).

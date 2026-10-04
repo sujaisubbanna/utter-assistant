@@ -105,8 +105,8 @@ complemento, para que veas exactamente qué está realmente contenido.
   ocultan de los registros y de la salida de `doctor`.
 - El contenido de pantalla, portapapeles y audio **no** se registra por defecto. El registro de depuración es opcional y
   se avisa de él.
-- La visualización en pantalla opcional escribe su archivo de estado con permisos `0700` en `$XDG_RUNTIME_DIR`. Su
-  texto es, por diseño, visible en tu pantalla.
+- La visualización en pantalla opcional escribe su archivo de estado en `$XDG_RUNTIME_DIR` (con el modo
+  predeterminado; solo el socket del runner es `0700`/`0600`). Su texto es, por diseño, visible en tu pantalla.
 - El **texto** de la transcripción es la única excepción: el demonio lo registra en nivel `INFO`, así que puede
   aparecer en el journal de systemd (`journalctl --user`). Baja `[daemon] log_level` a `WARNING`
   para detenerlo. Esto es el texto, no el audio.

@@ -120,7 +120,8 @@ disruptive case is gated and confirmed; cross-workspace fallback/override keys l
 | macOS | `CGEventPostToPid` | Native key event posted directly to a target process with **no focus change** (keyboard only; the mouse cannot target a background window). Natively supported. |
 | Windows | Not supported | — |
 
-## 10. Supply chain
-Installing a plugin = running untrusted code at user privilege: require a signature
-(minisign over the package + signed index) and pinned digests; model downloads pinned by
-sha256 over https; explicit consent and a scoped sandbox on install.
+## 10. Supply chain — planned, not implemented
+Installing a plugin = running untrusted code at user privilege, so the plan is to require a
+signature (minisign over the package + signed index) and pinned digests. **There is no
+plugin-install or signature-verification code in the runner today** — this is a forward-looking
+policy, not an enforced one. Model downloads, when used, are pinned by sha256 over https.

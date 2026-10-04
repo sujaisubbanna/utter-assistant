@@ -13,19 +13,18 @@ Vercel (`216.198.79.65`).
 
 ## How it builds
 
-Vercel is configured by the **root `vercel.json`**:
+Vercel is configured by the committed **`website/vercel.json`**:
 
 | Setting | Value |
 |---|---|
-| `framework` | `null` (explicit static build; not Vercel's Astro auto-detect) |
-| `installCommand` | `cd website && corepack pnpm@10.0.0 install --frozen-lockfile` |
-| `buildCommand` | `cd website && corepack pnpm@10.0.0 build` |
-| `outputDirectory` | `website/dist` |
+| `framework` | `astro` |
+| `installCommand` | `pnpm install --frozen-lockfile` |
+| `buildCommand` | `pnpm build` |
+| `outputDirectory` | `dist` |
 | `trailingSlash` | `true` |
 
-The Vercel project's **Root Directory** must be the repository root, so the
-root `vercel.json` applies. Equivalently, a project rooted at `website/` could
-use `pnpm build` / `dist`; the root file is what is committed today.
+The Vercel project's **Root Directory** must be `website`, so this file applies
+(and its commands run there).
 
 ## Origin and base path
 
@@ -52,7 +51,7 @@ curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash
 
 ## Old links
 
-`vercel.json` redirects the old GitHub Pages subpath to the new root:
+`website/vercel.json` redirects the old GitHub Pages subpath to the new root:
 
 | From | To | Status |
 |---|---|---|

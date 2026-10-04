@@ -1,11 +1,11 @@
 ---
 title: "Noctalia widget and OSD"
-description: "The optional bar widget, attention panel and assistant-mode on-screen display for the Noctalia shell."
+description: "The optional bar widget, attention panel and push-to-talk on-screen display for the Noctalia shell."
 ---
 
 If you run the [Noctalia](https://github.com/noctalia-dev/noctalia-shell) shell, Utter ships an
 optional widget package with three parts: a **bar widget**, a persistent **attention panel**, and
-an **assistant-mode on-screen display (OSD)**. None of it is installed by default, and the core
+a push-to-talk **on-screen display (OSD)**. None of it is installed by default, and the core
 assistant does not depend on it.
 
 ## Install
@@ -23,7 +23,7 @@ create a `~/.local/bin/utter-gui` symlink so the widget can find it.
 
 ## The on-screen display
 
-The OSD appears while the **assistant** push-to-talk key is held. Dictation does not raise it.
+The OSD appears while a push-to-talk key is held — the **assistant** key or the **dictation** key.
 
 1. Hold the assistant key: a small panel appears (bottom centre by default) with a live
    **level meter** and, best-effort, the **in-progress transcript**.
@@ -31,15 +31,15 @@ The OSD appears while the **assistant** push-to-talk key is held. Dictation does
    a command, or **red** if nothing matched.
 3. After `dismiss_ms` it fades out.
 
+Holding the dictation key raises the same panel with `mode = "dictation"`; it turns green when the
+text was typed and red if typing failed (the transcript is then copied to the clipboard).
+
 Noctalia exposes no partial transcripts of its own, so the live transcript uses windowed
 decoding and is best-effort. When it is not available, the level meter still works and the final
 text appears on release.
 
-:::note[Forthcoming: a loading state]
-A `loading` state is being added to the OSD so the waveform can show models coming back after a
-wake or cold start. It is **not shipped yet** — today the state is `idle`, `listening` or
-`final`.
-:::
+A `loading` state is shown while models come back after a wake or cold start; the panel uses it
+for a calm indeterminate pulse until the model servers report ready.
 
 ### Configuration
 
@@ -66,8 +66,8 @@ The emitter writes `$XDG_RUNTIME_DIR/utter/osd.json` atomically:
 
 | Field | Values |
 |---|---|
-| `state` | `idle`, `listening` or `final` |
-| `mode` | `assistant` (dictation does not raise the OSD) |
+| `state` | `idle`, `listening`, `loading` or `final` |
+| `mode` | `assistant` or `dictation` |
 | `level` | `0.0` to `1.0` |
 | `text` | live, partial or final transcript |
 | `activated` | `true` (command detected), `false` (not), or `null` while listening |
@@ -80,13 +80,13 @@ recognition thread.
 
 ### Privacy
 
-The OSD text is, by design, visible on your screen. The state file lives `0700` under
-`$XDG_RUNTIME_DIR` and is not logged.
+The OSD text is, by design, visible on your screen. The state file lives under
+`$XDG_RUNTIME_DIR` (written with the default mode) and is not logged.
 
 ## Components in the repository
 
 - **Emitter**: `utter/voice/osd.py`, driven by the native voice loops (`run_hotkey`/
   `run_macos`): listening/level/final, plus the `loading` state on cold start and wake. It is
   a strict no-op when disabled.
-- **Panel**: the Noctalia plugin under `plugins/ui/noctalia/` and the widget package under
-  `widgets/noctalia/` (bar widget, attention panel, OSD and their pollers).
+- **Panel**: the widget package under `widgets/noctalia/` (bar widget, attention panel, OSD files
+  `osd.luau` / `osd_poller.luau`, and their pollers).

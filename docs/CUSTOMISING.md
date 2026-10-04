@@ -57,7 +57,7 @@ Defaults below are from `config.default.toml` (shipped) and the dataclasses in
 |---|---|---|
 | `trigger` | `hotkey` | `hotkey` = Utter's own evdev push-to-talk |
 
-`trigger` is retained for config compatibility; `hotkey` is the only supported value.
+`trigger` is retained for config compatibility but is currently **ignored** by the code.
 
 ### `[hotkey]`
 
@@ -250,7 +250,7 @@ installed.
 |---|---|---|
 | Speech recognition | a multilingual Whisper model | set `[stt] model = "small"` / `"large-v3-turbo"` (the engine fetches it on first use) or point at a whisper.cpp `.bin` |
 | Speech output (Linux) | an engine voice | espeak-ng/espeak voices ship with the distro package (`espeak-ng --voices`); Piper needs the `piper` binary plus a `.onnx` voice in `[tts] voice` (real-Piper playback is implemented but not yet verified on hardware) |
-| Settings UI | translated strings | only **English and Español** ship inline; downloadable UI language packs are **not implemented yet** |
+| Settings UI | translated strings | **10 locales ship inline** (en, es, de, fr, it, pt, zh, ja, ko, ru); downloadable UI language packs are **not implemented yet** |
 
 On macOS, a resolved `[stt] language` becomes the `SFSpeechRecognizer` locale (for example
 `de-DE`); `[macos] speech_locale` is the fallback when no language resolves (`en-US` by
@@ -515,9 +515,8 @@ services listed in `[sleep] services` and unloads the speech model, and idle sle
 after `[sleep] idle_minutes` (15 by default). Holding a push-to-talk key wakes everything; speech
 comes back first and the larger models reload in the background.
 
-> **Forthcoming:** a `loading` state is being added to the OSD state contract so the waveform can
-> show models coming back after wake or a cold start. This is **not shipped yet** — do not rely on
-> it until it appears in the OSD state values.
+The OSD state contract includes a `loading` state, shown while models come back after wake or a
+cold start; a model-readiness watcher clears it once the servers are ready.
 
 ---
 

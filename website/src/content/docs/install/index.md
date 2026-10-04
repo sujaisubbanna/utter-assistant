@@ -5,7 +5,8 @@ description: "The ways to install Utter on Linux and macOS: clone and install, t
 
 Utter runs on **Linux on Wayland** and **macOS**. On Linux, **niri** and **KDE Plasma (KWin)** are
 first-class and other compositors get partial support (dictation, typing, launching; no window
-actions); Linux needs **PipeWire**. Both platforms need **Python 3.12+**.
+actions). Both platforms need **Python 3.12+**; Linux needs **PipeWire**. Dictation and the
+assistant key both work on Linux and macOS.
 See [macOS](/guides/macos/) for the macOS-specific setup.
 An NVIDIA GPU is recommended for the larger models but not required.
 Building the settings app needs Node + pnpm and a Rust toolchain. Linux release assets are

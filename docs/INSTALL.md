@@ -1,8 +1,9 @@
 # Install & model store
 
-Target: Linux on Wayland — **niri** and **KDE Plasma (KWin)** are first-class, other compositors
-get partial support (dictation, typing, launching; no window actions). **macOS is natively
-supported** (see [`MACOS.md`](MACOS.md)); Windows is not supported.
+Target: Linux on Wayland — **niri** first, plus **KDE Plasma (KWin)** implemented and unit-tested
+(not yet exercised on a live Plasma session), other compositors get partial support (dictation,
+typing, launching; no window actions). Dictation and the assistant key work on Linux and macOS.
+**macOS is natively supported** (see [`MACOS.md`](MACOS.md)); Windows is not supported.
 
 ## 1. Installer
 

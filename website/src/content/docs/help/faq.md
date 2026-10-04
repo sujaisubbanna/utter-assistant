@@ -46,7 +46,8 @@ credentials are configured; on first launch, right-click → *Open* or run
 ### What is the difference between the assistant key and the dictation key?
 
 Hold the **assistant key** and your words become an action. Hold the **dictation key** and your
-words are typed into the focused field, nothing more. Each has its own sound and waveform colour.
+words are typed into the field you started in, nothing more (works on Linux and macOS).
+Each has its own sound and waveform colour.
 See [Getting started](/getting-started/#2-set-your-push-to-talk-keys).
 
 ### Why Insert and F13 as defaults?

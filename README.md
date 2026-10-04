@@ -38,15 +38,15 @@
 
 ## Features
 
-Utter is a context-aware desktop assistant, natively supported on **Linux (Wayland)** — niri and KDE Plasma first-class ([docs/PLASMA.md](docs/PLASMA.md)) — and on **macOS** ([docs/MACOS.md](docs/MACOS.md)).
+Utter is a context-aware desktop assistant, natively supported on **Linux (Wayland)** — niri first, plus KDE Plasma (KWin) implemented and unit-tested but not yet exercised on a live Plasma session ([docs/PLASMA.md](docs/PLASMA.md)) — and on **macOS** ([docs/MACOS.md](docs/MACOS.md)).
 
 | Feature | What it does |
 |---|---|
-| Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into any field. |
+| Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into the field you started in (both keys work on Linux and macOS). |
 | Desktop actions | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | Context aware | Knows which app is focused and what is on screen — accessibility info first, screenshots only as a last resort. |
 | Target any app | Name the app up front instead of relying on focus: `codex type ok`, `spotify pause`, `close steam`. |
-| Editable per-app actions | More than 100 app profiles with their shortcuts. Change any key combination in the settings app. |
+| Editable per-app actions | 100+ app profiles once your installed apps are catalogued, with their shortcuts. Change any key combination in the settings app. |
 | Safe by default | Terminal commands and raw input stay off until you enable them, and important actions ask first. |
 | Completely offline | Speech, AI models and screenshots never leave your machine. No account, no telemetry. |
 | Multilingual | Use it in your own language. 10 UI locales (en, es, de, fr, it, pt, zh, ja, ko, ru); the spoken language is a separate setting, and extra speech models are opt-in. |
@@ -137,7 +137,7 @@ Source-checked detail, including where Utter is behind: **[How Utter compares](h
 
 ## Install
 
-Natively supported on Linux on Wayland — niri and KDE Plasma first-class, plus PipeWire — and on macOS, both with Python 3.12+. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
+Natively supported on Linux on Wayland — niri first, KDE Plasma (KWin) implemented but not yet exercised on a live Plasma session, plus PipeWire — and on macOS, both with Python 3.12+. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
 
 - **Clone:** `git clone https://github.com/sujaisubbanna/utter-assistant.git && cd utter-assistant && ./install.sh` (`--dry-run` previews). Minimal package install: `install/install.sh --yes`; undo with `install/uninstall.sh --yes`.
 - **Remote:** `curl -fsSL https://utter.sujaisubbanna.com/install.sh -o install.sh && ./install.sh`. For defaults without prompts, pipe to `bash -s -- --yes`.
@@ -154,7 +154,7 @@ Utter is a small runner supervising swappable plugins (STT, decision, LLM, perce
 
 ## Roadmap
 
-Shipped: KDE Plasma (KWin), sleep when idle, the agent CLI, and macOS support. Recent changes: [CHANGELOG.md](CHANGELOG.md). Everything below is still open.
+Shipped: KDE Plasma (KWin) backend (implemented and unit-tested, not yet exercised on a live Plasma session), sleep when idle, the agent CLI, and macOS support. Recent changes: [CHANGELOG.md](CHANGELOG.md). Everything below is still open.
 
 **Command understanding**
 - [ ] **Actions, not just commands** *(most important)* — handle whole requests rather than single commands: ask for an outcome and Utter works out the steps (for example, *"Play some jazz"* opens Spotify and starts jazz).

@@ -24,15 +24,15 @@ what you can.
 A daemon watches two push-to-talk keys. Hold one, speak, release → it transcribes **on-device**
 and either **types the text** (dictation) or **runs a desktop action** (assistant mode: open
 apps/URLs, focus/close windows, press shortcuts). Everything is local: no account, no cloud.
-On macOS it uses Apple's `Speech.framework` for recognition and `say`/`AVSpeechSynthesizer`
-for replies, plus Quartz for hotkeys and key/text injection.
+On macOS it uses local **whisper.cpp** for recognition (with Apple's `Speech.framework` as the
+fallback) and `say`/`AVSpeechSynthesizer` for replies, plus Quartz for hotkeys and key/text injection.
 
 Repo: `https://github.com/sujaisubbanna/utter-assistant`
 Docs: `https://utter.sujaisubbanna.com`
 
 ## Machine requirements
 
-- macOS **13 (Ventura) or newer** (some APIs need 14+; note your version).
+- macOS **12 (Monterey) or newer** — the practical floor; the code does not pin a minimum (some APIs need 14+; note your version).
 - Python **3.12+** (`python3 --version`). Xcode Command Line Tools (`xcode-select -p`).
 - An Apple Silicon Mac is expected (Intel may behave differently — note which you have).
 - A working microphone.
@@ -302,8 +302,8 @@ macos/setup.sh --uninstall
 
 - **macOS is supported on real hardware.** These checks cover the platform-specific paths; treat
   any failure as a bug to report.
-- **On-device speech needs a downloaded language model.** If `Speech.framework` fails for a
-  locale, the code should fall back to a bundled whisper.cpp model.
+- **The default STT is local whisper.cpp**, which needs a downloaded language model. If it cannot
+  load, the code falls back to Apple's `Speech.framework` (which needs an on-device language model).
 - **Background keyboard input on macOS** uses `CGEventPostToPid` (a key event posted straight to
   a process, no focus change). It is **keyboard-only** — mouse cannot target a background window.
   Scrutinise it.

@@ -8,6 +8,7 @@ banner:
 Utter funciona en **Linux en Wayland** y **macOS**. En Linux, **niri** y **KDE Plasma (KWin)** son
 compatibles de primera clase y otros compositores tienen soporte parcial (dictado, escritura, inicio;
 sin acciones de ventana); Linux necesita **PipeWire**. Ambas plataformas necesitan **Python 3.12+**.
+El dictado y la tecla del asistente funcionan en Linux y macOS.
 Consulta [macOS](/guides/macos/) para la configuración específica de macOS.
 Se recomienda una GPU NVIDIA para los modelos más grandes, pero no es obligatoria.
 Compilar la aplicación de ajustes requiere Node + pnpm y una cadena de herramientas de Rust. Hoy solo se
