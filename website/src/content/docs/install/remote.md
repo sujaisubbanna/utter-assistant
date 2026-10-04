@@ -98,9 +98,10 @@ The ten steps, in order:
    vision) with the model and estimated footprint, and asks **per tier**. Declining any tier skips
    it cleanly. Nothing is downloaded unless you opt in and provide a source (see the environment
    variables below).
-6. **GUI.** The Tauri settings app. AppImage (no sudo) to `$PREFIX/bin/utter-gui` plus a
-   `.desktop` entry. If `$PREFIX/bin` is not on `PATH` and Noctalia is present, an optional
-   `~/.local/bin/utter-gui` symlink is created so the widget's left-click finds it.
+6. **GUI.** The Tauri settings app. AppImage (no sudo) to `$PREFIX/bin/utter-gui` plus an
+   **Utter** `.desktop` entry (`Categories=Utility;Accessibility;`, `Terminal=false`) registered
+   with the desktop database. If `$PREFIX/bin` is not on `PATH` and Noctalia is present, an
+   optional `~/.local/bin/utter-gui` symlink is created so the widget's left-click finds it.
 7. **STT backend.** Detects a whisper backend; if none, advises how to add one.
    Advisory only.
 8. **Perception.** Detects a UI-TARS / vLLM / transformers stack; advises how to serve it.
@@ -204,6 +205,13 @@ unit, the extracted core tree and the optional Noctalia widget. Your config
 models.
 
 ## After installing
+
+**Open Utter from your application menu.** The installer registers an **Utter** entry
+(`~/.local/share/applications/utter-gui.desktop`, `Categories=Utility;Accessibility;`) and
+refreshes the desktop database, so it shows up in KDE and other desktops. Opening it runs the
+first-run wizard, which starts the runner service.
+
+CLI fallback:
 
 ```bash
 systemctl --user enable --now utter-runner.service   # start the runner

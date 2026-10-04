@@ -62,6 +62,12 @@ On first launch the settings app opens the **first-run setup wizard** — langua
 push-to-talk keys, which apps Utter may control, and a model to run. It is documented in
 [`ONBOARDING.md`](ONBOARDING.md).
 
+The GUI step also installs a desktop entry (`~/.local/share/applications/utter-gui.desktop`,
+`Name=Utter`, `Categories=Utility;Accessibility;`) and refreshes the desktop database, so
+**Utter appears in the application menu** of KDE and other desktops. Opening it starts the
+setup wizard, which starts the runner service. CLI fallback:
+`systemctl --user enable --now utter-runner.service` then `utter-gui`.
+
 Uninstall:
 ```bash
 install/uninstall.sh --dry-run

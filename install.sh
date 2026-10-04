@@ -991,16 +991,18 @@ run() {
 # --------------------------------------------------------------------------- #
 # section: logo + banner
 # --------------------------------------------------------------------------- #
-# Solid lowercase "utter", 6 rows. x-height letters (u/e/r) leave row 0 blank
-# for the ascender line; the two t's carry the crossbar on row 2. Rendered with
-# a per-column amber ramp (no rainbow) and an optional moving highlight, or an
-# ASCII fallback when the locale/terminal cannot show blocks.
+# Solid "utter", 6 rows, U T T E R. x-height letters (U/E/R) leave row 0 blank
+# for the ascender line; the two T's put their crossbar on row 0 with a centred
+# stem below (a crossbar in the middle reads like an H). Every glyph is exactly
+# 5 columns wide so `ui_logo` can index LOGO_COLS across the concatenated line.
+# Rendered with a per-column amber ramp (no rainbow) and an optional moving
+# highlight, or an ASCII fallback when the locale/terminal cannot show blocks.
 LOGO_ROWS=6
 LOGO_SEQ=(U T T E R)
 LOGO_U=('     ' '█   █' '█   █' '█   █' '█   █' ' ███ ')
-LOGO_T=(' ██  ' ' ██  ' '█████' ' ██  ' ' ██  ' ' ██  ')
-LOGO_E=('     ' '████ ' '█   █' '█████' '█    ' ' ███ ')
-LOGO_R=('     ' '████ ' '█   █' '█    ' '█    ' '█    ')
+LOGO_T=('█████' '  █  ' '  █  ' '  █  ' '  █  ' '  █  ')
+LOGO_E=('     ' '█████' '█    ' '████ ' '█    ' '█████')
+LOGO_R=('     ' '████ ' '█   █' '████ ' '█  █ ' '█   █')
 LOGO_LINES=()
 LOGO_COLS=29
 LOGO_BASE=()
@@ -1075,11 +1077,11 @@ ui_logo() {
 
 ui_ascii_logo() {
     cat <<'ASCII'
- _   _ _   _ _   _ _____ ____
-| | | | |_| | | | |_   _|  _ \
-| |_| |  _  | |_| | | | | |_) |
- \__,_|_| |_|\__,_| |_| |  _ <
-                        |_| \_\
+ _   _ _____ _____ _____ ____
+| | | |_   _|_   _| ____|  _ \
+| | | | | |   | | |  _| | |_) |
+| |_| | | |   | | | |___|  _ <
+ \___/  |_|   |_| |_____|_| \_\
 ASCII
 }
 
@@ -3215,15 +3217,15 @@ exec_gui() {
             cat > "$DESKTOP_FILE" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=utter Settings
-GenericName=Voice Assistant Settings
-Comment=Configure the utter voice → desktop-action assistant
+Name=Utter
+GenericName=Voice Assistant
+Comment=Start or configure the Utter voice assistant
 Exec=$GUI_BIN
 TryExec=$GUI_BIN
 Icon=$ICON_NAME
 Terminal=false
-Categories=Settings;
-Keywords=utter;voice;assistant;settings;stt;llm;
+Categories=Utility;Accessibility;
+Keywords=utter;voice;assistant;dictation;speech;
 StartupNotify=true
 StartupWMClass=utter
 DESKTOP
@@ -3476,12 +3478,16 @@ else
     fi
     say ""
     say "Next steps:"
-    say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
-    say_f "  2. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
     if (( GUI_AVAILABLE )); then
-        say "  3. Launch the GUI:     ${GUI_BIN}"
+        say "  1. Open Utter from your application menu"
+        say "     (the first-run wizard starts the assistant service)"
+        say_f "     or from a terminal: {1}" "$GUI_BIN"
+        say "  2. If the service is not running: systemctl --user enable --now utter-runner.service"
+        say_f "  3. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
         say "  4. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
     else
+        say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
+        say_f "  2. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
         say "  3. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
     fi
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then

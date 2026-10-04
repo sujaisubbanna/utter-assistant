@@ -125,6 +125,9 @@ fi
 if [ -f tests/m5/test_installer_config.py ]; then
     "$PY" tests/m5/test_installer_config.py || rc=1
 fi
+if [ -f tests/m5/test_installer_launcher.py ]; then
+    "$PY" tests/m5/test_installer_launcher.py || rc=1
+fi
 
 echo
 echo "== measurement spike =="

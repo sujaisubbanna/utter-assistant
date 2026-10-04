@@ -147,8 +147,12 @@ See [Models](/guides/models/) for the recommendation rules and the model store.
 
 ## After installing
 
-Open the **Utter settings app**, set your push-to-talk keys on the **Voice** page, and pick a
-recommended model on the **Models** page. Then follow [Getting started](/getting-started/).
+**Open Utter from your application menu** (Utilities/Accessibility) — the first-run wizard starts
+the runner and walks you through language, permissions, keys and a model. Then set your
+push-to-talk keys on the **Voice** page and pick a recommended model on the **Models** page, and
+follow [Getting started](/getting-started/).
+
+Prefer the terminal? The installer's CLI fallback:
 
 ```bash
 systemctl --user enable --now utter-runner.service   # start the runner
