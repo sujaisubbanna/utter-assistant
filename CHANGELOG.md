@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-10-05
+
+### Added
+- **"You need a model" dialog.** If you try to use speech or screen vision with no
+  model installed, the settings app now explains what's needed, recommends one for
+  your hardware, and offers to download it — instead of silently doing nothing.
+
+### Fixed
+- **A fresh install now works out of the box.** The model store was not connected
+  to anything: `assistant models pull` downloaded to a store nothing read, so an
+  installed Utter did nothing. Speech recognition now loads from the store, the
+  inference serve scripts resolve models from it, `assistant recommend` prints the
+  exact pullable source, and the installer pulls curated defaults (English speech
+  ~466 MB; vision ~4.5 GB, sized for a 24 GB card).
+- **`assistant doctor` no longer reports a false version drift** on a fresh install
+  (the runner version is now single-sourced rather than hardcoded).
+- **Installer polish:** the banner now reads **UTTER** (the wordmark glyphs were
+  malformed), and a proper **Utter** entry is added to your application menu, so it
+  can be launched without the command line.
+
 ## [0.4.1] - 2026-10-05
 
 ### Fixed
