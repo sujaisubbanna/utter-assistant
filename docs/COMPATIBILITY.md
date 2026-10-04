@@ -11,9 +11,9 @@
 `protocol.hello` returns the **negotiated** protocol/abi; it is not merely checked.
 
 ## 2. Support policy
-- Runner supports protocol **N-2** (current N = 1.0, abi 1).
-- **Major mismatch** → refuse with `-32004 incompatible version`.
-- **Minor drift** → allow + warn.
+- The **reference runner accepts exactly protocol `1.0` and abi `1`** today; anything else is
+  refused (`runner/plugin.py`). There is **no N-2 window implemented** yet.
+- **Mismatch** → refuse with `-32004 incompatible version`.
 - Capability checks: **unknown capability = warning** (LSP rule — ignore what you don't
   understand); **missing `requires` = error** (fail closed, `-32005`).
 - Platform/arch mismatch → refuse at load.

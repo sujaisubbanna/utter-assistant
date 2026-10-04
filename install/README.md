@@ -22,7 +22,8 @@ failing. It never silently changes groups and never removes packages.
 1. **Distro detection** — `/etc/os-release` (`ID`/`ID_LIKE`) → `pacman` / `apt` /
    `dnf` / `zypper`, falling back to `command -v`.
 2. **Dependencies** — name-mapped per distro: `wtype`, `ydotool` (+`ydotoold`),
-   `grim`, `wl-clipboard`, `pipewire`, `gtk4`, `libadwaita`, optional `keyd`
+   `grim`, `wl-clipboard`, `pipewire`, `webkit2gtk`, `libsoup` (the Tauri v2 WebKit
+   runtime — the old GTK4/libadwaita window is gone), optional `keyd`
    (availability varies; unmapped packages are noted, not fatal).
 3. **Input injection** — checks the `input` group and `/dev/uinput`; prints the
    `usermod -aG input` + udev rule + re-login steps. It does **not** change
@@ -31,10 +32,10 @@ failing. It never silently changes groups and never removes packages.
    `~/.config/systemd/user/`, `daemon-reload`, and (with `--yes`)
    `enable --now`. Existing legacy units (`utter-bridge/vision/planner/
    audio-defaults`) are detected and left untouched.
-5. **Install state** — records via `python -m assistant install-state record`
+5. **Install state** — records via `python3 -m assistant install-state record`
    (falls back to a minimal `$XDG_STATE_HOME/utter/install.json`).
-6. **Verify** — runs `python -m assistant doctor --json` if the runner socket is
-   up, else `python -m assistant recommend --json`.
+6. **Verify** — runs `python3 -m assistant doctor --json` if the runner socket is
+   up, else `python3 -m assistant recommend --json`.
 
 ## Uninstall
 
@@ -82,7 +83,7 @@ Environment overrides: `UTTER_REPO`, `UTTER_PYTHON`,
 
 ## Requirements
 
-- `python -m assistant` (doctor / recommend / install-state) — optional; the
+- `python3 -m assistant` (doctor / recommend / install-state) — optional; the
   installer falls back gracefully when it is absent.
 - `systemctl --user` for the service steps.
 - `UTTER_RUNNER_SOCK` / `UTTER_MODELS` are honoured if set.

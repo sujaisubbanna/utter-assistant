@@ -31,7 +31,7 @@
     "abi": { "type": "integer", "minimum": 1, "description": "Runner<->plugin call semantics version." },
     "min_runner": { "type": "string", "description": "Minimum runner version (semver range)." },
     "max_protocol": { "type": "string", "description": "Optional upper bound on protocol major.minor." },
-    "runtime": { "enum": ["subprocess", "wasm", "native"] },
+    "runtime": { "enum": ["subprocess", "wasm", "native"], "description": "Execution runtime. The reference runner supports only 'subprocess'; 'wasm'/'native' are reserved and rejected today (runner/plugin.py)." },
     "transport": {
       "enum": ["stdio", "connect", "listen"],
       "description": "stdio = runner spawns it. connect/listen = persistent unix-socket plugin."
@@ -87,7 +87,7 @@
     },
     "settings": {
       "type": "object",
-      "description": "Inline defaults for settings; validated by config_schema when present."
+      "description": "Inline defaults for settings. Declaration-only today: the reference runner does not validate these against config_schema (validation is planned; see docs/COMPATIBILITY.md §5)."
     }
   }
 }
