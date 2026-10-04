@@ -58,9 +58,12 @@ curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --skip models
 # native package (deb/rpm) via the system package manager (needs sudo)
 curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --package --yes
 
-# include the optional Noctalia widget
-curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --with-noctalia
+# include the optional Noctalia widget (needs --yes when piped; a pipe is not a tty)
+curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash -s -- --with-noctalia --yes
 ```
+
+> When piping into `bash` without `--yes`, the installer only prints the plan and exits —
+> flags alone do not start the wizard. Add `--yes`, or run the script in a real terminal.
 
 ## The wizard
 
@@ -159,6 +162,8 @@ per-step progress and a final summary with next steps.
 | `UTTER_MODEL_TTS` / `UTTER_MODEL_TTS_<LANG>` | — | TTS voice model/path offered by the language step |
 | `UTTER_TTS_VOICE` / `UTTER_TTS_VOICE_<LANG>` | — | voice written to `[tts] voice` for the chosen language (default: the language code) |
 | `UTTER_LOCALE_PACK` / `UTTER_LOCALE_PACK_<LANG>` | — | UI localization pack source; only offered when configured |
+| `UTTER_INSTALL_LANG` | system locale | force the installer's own **UI** language (`de`, `de-DE`, `zh`, …); independent of the spoken-language step |
+| `UTTER_I18N_DIR` | — | directory to look in for installer locale files (`<lang>.sh`) when the script's own tree has none |
 
 Example — install a specific version into a custom prefix, non-interactively:
 
