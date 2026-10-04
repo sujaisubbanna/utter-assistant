@@ -40,6 +40,9 @@ echo "== router: rules golden order =="
 "$PY" tests/router/test_app_target_rules.py || rc=1
 "$PY" tests/router/test_app_enabled.py || rc=1
 
+echo "== router: eval corpus =="
+"$PY" tests/eval/run_eval.py || rc=1
+
 echo "== executor: app-targeted focus round-trip =="
 "$PY" tests/executor/test_app_target.py || rc=1
 
