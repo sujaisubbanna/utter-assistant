@@ -104,6 +104,7 @@ export default defineConfig({
           items: [
             { ...label('Configuration', 'Configuración', 'Konfiguration', '設定'), slug: 'guides/configuration' },
             { ...label('Apps and actions', 'Aplicaciones y acciones', 'Apps und Aktionen', 'アプリとアクション'), slug: 'guides/apps-and-actions' },
+            { ...label('How Utter compares', 'Cómo se compara Utter', 'Utter im Vergleich', 'Utter の比較'), slug: 'guides/comparison' },
             { ...label('Models', 'Modelos', 'Modelle', 'モデル'), slug: 'guides/models' },
             { ...label('Trust and safety', 'Confianza y seguridad', 'Vertrauen und Sicherheit', '信頼と安全性'), slug: 'guides/trust-and-safety' },
             { ...label('Theming', 'Temas', 'Theming', 'テーマ'), slug: 'guides/theming' },
