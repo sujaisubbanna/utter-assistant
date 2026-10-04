@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-05
+
+### Added
+- **Optional local dictation formatting.** Clean up dictated text (punctuation,
+  capitalisation, filler removal) with the local model before it is typed. Off by
+  default (`[dictation] format = "local"` to enable); reuses the existing local
+  LLM; never loses your words — the raw transcript is typed if formatting fails.
+- **Push-to-talk dictation now works on Linux.** The `[ptt]` dictation and
+  assistant keys are bound on Linux (previously macOS only), with the same
+  key-down cue as macOS and the clipboard fallback when the input can't be found.
+- **Text-field detection (foundation).** A platform-neutral probe that finds the
+  focused text field and enumerates candidates, with an explicit status for why
+  nothing was found. Groundwork for choosing where dictation goes.
+
+### Changed
+- **Model store moved** to `$XDG_DATA_HOME/utter-models`, outside the install tree,
+  with a one-time migration. Fixes an uninstall that could delete downloaded models;
+  uninstall now keeps models unless `--purge`.
+
+### Fixed
+- **Plugin sandbox hardening is now actually applied** (`[security] enforce`):
+  a private `/tmp`, a default-deny device cgroup, read-only system paths, and
+  declared read/write paths. `seccomp`/`landlock` are not applied and are no
+  longer claimed.
+- **Settings-app controls now do what they say** — safety toggles, confirmation,
+  accessibility, decision-head and plugin enablement were writing config keys
+  nothing read; they are wired (or removed where they had no effect). TTS "Play",
+  the speech-backend list and the onboarding app step work on a fresh install.
+- **Documentation corrected against the code** across the repo and the docs site
+  (compatibility, installer, security, model paths, and more).
+
 ## [0.3.0] - 2026-10-03
 
 ### Added
