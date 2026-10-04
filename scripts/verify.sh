@@ -96,6 +96,10 @@ echo "== conformance suite =="
 
 echo
 echo "== M3 (real assistant as a plugin; dry-run only) =="
+if [ -f tests/m3/test_decision_head_probe.py ]; then
+    # Hermetic probe classification: foreign/offline head skips, ready asserts.
+    "$PY" tests/m3/test_decision_head_probe.py || rc=1
+fi
 if [ -f tests/m3/verify_m3.py ]; then
     # The optional real desktop action is opt-in: pass --real-action or set
     # UTTER_M3_REAL_ACTION=1. By default this never touches the desktop.

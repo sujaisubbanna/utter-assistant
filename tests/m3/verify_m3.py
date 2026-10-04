@@ -108,22 +108,38 @@ def _decision_head_url() -> str:
         return "http://127.0.0.1:8001/v1"
 
 
-def _decision_head_offline(url: str, timeout: float = 1.5) -> bool:
-    """True only when the head is *explicitly* unreachable.
+def _decision_head_state(url: str, timeout: float = 1.5) -> str:
+    """Classify the configured decision head for a *hermetic* skip decision.
 
-    A reachable head that answers with any HTTP status (even 4xx/5xx) is online,
-    so an empty plan cannot be blamed on it.
+    A bare reachability probe is not enough: an unrelated process can own the
+    port (the installed ``utter-runner.service`` answers 404 on :8001), so we
+    must tell a usable head from a foreign/misconfigured one. Returns:
+
+      "ready"   - HTTP 200 with a non-empty OpenAI-style ``models`` list: a head
+                  this test can genuinely exercise, so an empty plan is a real
+                  routing failure.
+      "foreign" - something answers but is not a usable models endpoint
+                  (4xx/5xx, non-JSON, or an empty list): the head cannot be
+                  exercised, so the plan check is skipped.
+      "offline" - connection refused/timeout: no head at all.
     """
     probe = url.rstrip("/") + "/models"
     try:
-        with urllib.request.urlopen(probe, timeout=timeout):
-            return False
+        with urllib.request.urlopen(probe, timeout=timeout) as resp:
+            status = getattr(resp, "status", 200)
+            body = resp.read()
     except urllib.error.HTTPError:
-        return False  # answered with an HTTP status -> reachable
-    except (urllib.error.URLError, OSError):
-        return True
-    except ValueError:
-        return False  # unparseable URL: do not silently skip
+        return "foreign"  # answered, but not a models endpoint (e.g. 404)
+    except (urllib.error.URLError, OSError, ValueError):
+        return "offline"
+    if status != 200:
+        return "foreign"
+    try:
+        data = json.loads(body.decode("utf-8", "replace"))
+    except (ValueError, AttributeError):
+        return "foreign"
+    models = data.get("data") if isinstance(data, dict) else None
+    return "ready" if isinstance(models, list) and models else "foreign"
 
 
 def _first_result(res: dict) -> dict:
@@ -154,9 +170,13 @@ def check_decision_head(client: FramingClient, rep: Report, *, plugin_healthy: b
                       "utter plugin is unhealthy; empty plan can not be attributed "
                       "to an offline head")
             return
-        if _decision_head_offline(_decision_head_url()):
+        state = _decision_head_state(_decision_head_url())
+        if state != "ready":
+            # Only a usable head ("ready") makes an empty plan attributable to
+            # routing. A foreign service on the port or a missing head means we
+            # cannot verify a plan here: skip rather than fail (or blanket-pass).
             rep.skip("pull up youtube -> ensure_url|open_url",
-                     "decision head explicitly offline (vLLM :8001 down)")
+                     f"decision head not available ({state}); cannot verify a plan")
             return
         rep.check("decision head resolved a plan", False,
                   "plugin healthy and decision head reachable, but no plan was produced")

@@ -12,6 +12,7 @@ Runs hermetically on Linux by faking the hotkey/STT/audio stack.
 from __future__ import annotations
 
 import sys
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -31,6 +32,9 @@ class TestRunnerPlistConfig(unittest.TestCase):
 
 
 class _FakeStream:
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
     def start(self) -> None:
         pass
 
@@ -39,6 +43,14 @@ class _FakeStream:
 
     def close(self) -> None:
         pass
+
+
+def _fake_sounddevice() -> types.ModuleType:
+    """A stand-in module so the real PortAudio library is never imported
+    (importing it can block on a live audio server)."""
+    module = types.ModuleType("sounddevice")
+    module.InputStream = _FakeStream  # type: ignore[attr-defined]
+    return module
 
 
 class _FakeStt:
@@ -75,7 +87,7 @@ class TestMacosSleepWiring(unittest.TestCase):
 
         with patch("utter.macos.permissions.status_all", return_value={"permissions": []}), \
              patch("utter.voice.stt.Transcriber.for_platform", return_value=_FakeStt()), \
-             patch("sounddevice.InputStream", return_value=_FakeStream()), \
+             patch.dict(sys.modules, {"sounddevice": _fake_sounddevice()}), \
              patch("utter.macos.hotkey.listen_many", side_effect=fake_listen_many), \
              patch("utter.daemon._play"), patch("utter.daemon._notify"), \
              patch("utter.sleep.get", return_value=sleeper), \

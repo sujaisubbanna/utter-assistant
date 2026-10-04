@@ -9,6 +9,10 @@ push-to-talk dictation press can be simulated end to end:
 * a failed/absent target copies the transcript to the clipboard and shows the
   fallback message on the OSD + native notification.
 
+A fake ``sounddevice`` module is installed in ``sys.modules`` (as
+``tests/voice/test_daemon_osd.py`` does) so the real PortAudio library is never
+imported — importing it can block on a live audio server.
+
 Usage::
 
     .venv-agent/bin/python tests/voice/test_dictation_target.py
@@ -16,6 +20,7 @@ Usage::
 from __future__ import annotations
 
 import sys
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -73,6 +78,12 @@ def _fail() -> ActionResult:
     return ActionResult(False, Action.TYPE_TEXT, Tier.KEYBOARD, "injection failed")
 
 
+def _fake_sounddevice() -> types.ModuleType:
+    module = types.ModuleType("sounddevice")
+    module.InputStream = _FakeStream  # type: ignore[attr-defined]
+    return module
+
+
 def _run_dictation(*, target, type_result, clipboard_ok=True, text="hello world",
                    macos=True, still_focused=True):
     """Press the dictation key down/up and return what the seams observed."""
@@ -109,9 +120,9 @@ def _run_dictation(*, target, type_result, clipboard_ok=True, text="hello world"
 
     osd = MagicMock()
     native = MagicMock()
-    with patch("utter.macos.permissions.status_all", return_value={"permissions": []}), \
+    with patch.dict(sys.modules, {"sounddevice": _fake_sounddevice()}), \
+         patch("utter.macos.permissions.status_all", return_value={"permissions": []}), \
          patch("utter.voice.stt.Transcriber.for_platform", return_value=_FakeStt(text)), \
-         patch("sounddevice.InputStream", _FakeStream), \
          patch("utter.macos.hotkey.listen_many", side_effect=fake_listen_many), \
          patch("utter.daemon._play"), \
          patch("utter.daemon._notify", side_effect=fake_notify), \
