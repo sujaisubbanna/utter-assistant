@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-05
+
+### Fixed
+- **The installer now works against a published release.** Two bugs blocked a
+  fresh install and are fixed: checksum verification rejected every asset because
+  the release checksums carry a `./` prefix, and the config step never wrote
+  `~/.config/utter/config.toml` (an argument-shift bug in the installer's command
+  runner, which affected 21 call sites) while still reporting success. A failed
+  step now reports failure instead of `ok`, and a regression test covers both.
+
 ## [0.4.0] - 2026-10-05
 
 ### Added
