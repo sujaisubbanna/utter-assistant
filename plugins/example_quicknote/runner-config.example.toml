@@ -1,0 +1,28 @@
+# Minimal runner config that loads only the example_quicknote plugin.
+#
+#   .venv-agent/bin/python -m runner --config plugins/example_quicknote/runner-config.example.toml
+#
+# Then drive it with any runner client, or invoke the op directly:
+#   .venv-agent/bin/python tests/conformance/framing_client.py \
+#       .venv-agent/bin/python plugins/example_quicknote/plugin.py
+#
+# Check it without starting the runner:
+#   .venv-agent/bin/python -m runner --check-config \
+#       plugins/example_quicknote/runner-config.example.toml
+
+[runner]
+rpc_timeout_ms = 10000
+
+# Dev convenience only; production sockets are default-deny (docs/TRUST.md §5).
+[socket]
+allow_same_uid = true
+
+[[plugin]]
+id = "example_quicknote"
+kind = "action"
+runtime = "subprocess"
+transport = "stdio"
+entrypoint = ["python", "plugins/example_quicknote/plugin.py"]
+provides = ["action.quicknote@1", "experimental/example_quicknote@1"]
+requires = []
+permissions = ["filesystem.write"]

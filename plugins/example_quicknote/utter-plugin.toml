@@ -1,0 +1,27 @@
+# example_quicknote — local voice-inbox action plugin (demonstration).
+#
+# Manifest validated against protocol/plugin.schema.json. The three version
+# axes: protocol (wire), abi (runner<->plugin), capability (name@N).
+name = "example_quicknote"
+version = "0.1.0"
+kind = "action"
+protocol = "1.0"
+min_runner = "0.1.0"
+abi = 1
+
+description = "Append a timestamped line to a local markdown inbox file."
+license = "Apache-2.0"
+
+runtime = "subprocess"
+transport = "stdio"
+entrypoint = ["python", "plugins/example_quicknote/plugin.py"]
+
+# action.quicknote@1 is registered in protocol/capabilities.json;
+# experimental/ needs no registry entry. This plugin requires nothing.
+provides = ["action.quicknote@1", "experimental/example_quicknote@1"]
+requires = []
+
+# The only privilege it needs: write its own inbox file.
+permissions = ["filesystem.write"]
+
+platforms = ["linux-x86_64"]

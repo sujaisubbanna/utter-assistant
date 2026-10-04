@@ -83,6 +83,10 @@ echo "== runner e2e (socket) =="
 "$PY" -m runner._selftest --e2e || rc=1
 
 echo
+echo "== plugin: example_quicknote (demo action plugin) =="
+"$PY" tests/plugins/test_quicknote.py || rc=1
+
+echo
 echo "== conformance suite =="
 "$PY" tests/conformance/run.py || rc=1
 
