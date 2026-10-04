@@ -52,6 +52,8 @@ def load_config(path: str | Path) -> RunnerConfig:
                 enabled=bool(raw.get("enabled", True)),
                 cwd=str(raw.get("cwd", "") or ""),
                 env={str(k): str(v) for k, v in (raw.get("env", {}) or {}).items()},
+                read_paths=[str(p) for p in raw.get("read_paths", []) or []],
+                write_paths=[str(p) for p in raw.get("write_paths", []) or []],
             )
         )
     runner = data.get("runner", {})

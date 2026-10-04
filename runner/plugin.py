@@ -65,6 +65,9 @@ class PluginConfig:
     # optional spawn overrides (M3): working directory + extra environment
     cwd: str = ""
     env: dict[str, str] = field(default_factory=dict)
+    # declared sandbox filesystem needs (applied by runner.security.plugin_argv)
+    read_paths: list[str] = field(default_factory=list)
+    write_paths: list[str] = field(default_factory=list)
 
 
 def load_capabilities(path: str | os.PathLike | None = None) -> dict[str, dict]:
@@ -224,7 +227,14 @@ class PluginInstance:
         return peer
 
     async def _open_stdio(self, timeout_ms: int) -> None:
-        argv = security.plugin_argv(self.spec.entrypoint, self._wrapper, plugin_id=self.id)
+        argv = security.plugin_argv(
+            self.spec.entrypoint,
+            self._wrapper,
+            plugin_id=self.id,
+            permissions=self.permissions,
+            read_paths=self.spec.read_paths,
+            write_paths=self.spec.write_paths,
+        )
         self._proc = await self._spawn(argv, self._base_env(), pipes=True)
         self._stderr_task = asyncio.create_task(self._pump_stderr(), name=f"stderr-{self.id}")
         assert self._proc.stdout is not None and self._proc.stdin is not None
@@ -238,7 +248,14 @@ class PluginInstance:
         env["UTTER_PLUGIN_ID"] = self.id
         env["UTTER_PLUGIN_SOCKET"] = path
         env["UTTER_PLUGIN_TRANSPORT"] = transport
-        argv = security.plugin_argv(self.spec.entrypoint, self._wrapper, plugin_id=self.id)
+        argv = security.plugin_argv(
+            self.spec.entrypoint,
+            self._wrapper,
+            plugin_id=self.id,
+            permissions=self.permissions,
+            read_paths=self.spec.read_paths,
+            write_paths=self.spec.write_paths,
+        )
         if transport == "listen":
             self._proc = await self._spawn(argv, env, pipes=False)
             self._stderr_task = asyncio.create_task(self._pump_stderr(), name=f"stderr-{self.id}")
