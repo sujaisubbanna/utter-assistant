@@ -643,10 +643,22 @@ ask_yn_f() {
     [[ "$prompt" == "  "* ]] || prompt="  $prompt"
     ask_yn "$def" "$prompt"
 }
-# run_f <key> <cmd…> — run where the description takes {1} = first cmd argument.
+# run_f <key> <subst…> <cmd…> — run where the description's {1}…{N}
+# placeholders are filled from the N substitution arguments that precede the
+# command. The placeholder count comes from the key (the English source), so
+# the command always starts after the substitutions and is never consumed as
+# description data: `run_f "create {1}" "$dir" mkdir -p "$dir"`.
 run_f() {
     local key="$1"; shift
-    run "$(t "$key" "${1:-}")" "$@"
+    local n=0
+    while [[ "$key" == *"{$(( n + 1 ))}"* ]]; do n=$(( n + 1 )); done
+    local -a subst=()
+    local i
+    for (( i = 0; i < n; i++ )); do
+        [[ $# -gt 0 ]] || break
+        subst+=("$1"); shift
+    done
+    run "$(t "$key" "${subst[@]}")" "$@"
 }
 
 # --------------------------------------------------------------------------- #
@@ -957,16 +969,23 @@ ui_key_legend() {
     printf '    %sy yes · n no · a all remaining · s skip remaining · q quit%s\n' "$C_MUTED" "$C_RESET"
 }
 
-# run <description> <command...> — execute, or print it under --dry-run
+# run <description> <command...> — execute, or print it under --dry-run. A
+# failed command is reported as `[fail]` on stderr and returns non-zero, so a
+# broken step can never look like success (dry-run stays non-mutating and 0).
 run() {
     local desc; desc="$(l10n "${1:-}")"; shift || true
     if (( DRY_RUN )); then
         say_f "  [dry-run] {1}" "$desc"
         say_f "            \$ {1}" "$*"
-    else
-        say_f "  [run] {1}" "$desc"
-        "$@"
+        return 0
     fi
+    say_f "  [run] {1}" "$desc"
+    local rc=0
+    "$@" || rc=$?
+    if (( rc != 0 )); then
+        printf '  %s[fail]%s %s (exit %d)\n' "$C_ERR" "$C_RESET" "$desc" "$rc" >&2
+    fi
+    return "$rc"
 }
 
 # --------------------------------------------------------------------------- #
@@ -1845,7 +1864,10 @@ verify() {
     fi
     [[ -f "$TMP/$SUMS" ]] || die "$(t "missing {1} (cannot verify {2})" "$SUMS" "$asset")"
     local want got
-    want="$(awk -v a="$asset" '$2==a || $2=="*"a {print $1}' "$TMP/$SUMS" | head -1)"
+    # Release checksums are generated with `sha256 ./<asset>`, so the stored
+    # name may carry a "./" prefix (and binary-mode entries a "*"); strip both
+    # before comparing, matching the macOS verifier.
+    want="$(awk -v a="$asset" '{ n=$2; sub(/^\*/, "", n); sub(/^\.\//, "", n); if (n == a) { print $1; exit } }' "$TMP/$SUMS")"
     [[ -n "$want" ]] || die "$(t "{1} not listed in {2}" "$asset" "$SUMS")"
     got="$(sha256sum "$TMP/$asset" | awk '{print $1}')"
     if [[ "$want" != "$got" ]]; then
@@ -3386,8 +3408,10 @@ exec_config() {
         return 0
     fi
     if [[ -f "$src" ]] || (( DRY_RUN )); then
-        run_f "create {1}" "$CONFIG_DIR" mkdir -p "$CONFIG_DIR"
-        run_f "write {1} from default" "$CONFIG_FILE" cp "$src" "$CONFIG_FILE"
+        run_f "create {1}" "$CONFIG_DIR" mkdir -p "$CONFIG_DIR" \
+            || die "could not create $CONFIG_DIR"
+        run_f "write {1} from default" "$CONFIG_FILE" cp "$src" "$CONFIG_FILE" \
+            || die "could not write $CONFIG_FILE from $src"
         if [[ -n "$LANG_CODE" ]]; then
             if (( DRY_RUN )); then
                 say_f "  [dry-run] set [stt] language = \"{1}\" in {2}" "$LANG_CODE" "$CONFIG_FILE"
@@ -3396,7 +3420,8 @@ exec_config() {
                     say_f "  [dry-run] set [tts] voice = \"{1}\" in {2}" "$LANG_TTS_VOICE" "$CONFIG_FILE"
             else
                 set_config_value "$CONFIG_FILE" stt language "$LANG_CODE" \
-                    tts language "$LANG_CODE" tts voice "$LANG_TTS_VOICE"
+                    tts language "$LANG_CODE" tts voice "$LANG_TTS_VOICE" \
+                    || die "could not set the language in $CONFIG_FILE"
                 ok_f "wrote language {1} to {2}" "$LANG_CODE" "$CONFIG_FILE"
             fi
         fi
