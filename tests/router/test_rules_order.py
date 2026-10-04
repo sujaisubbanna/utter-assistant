@@ -120,11 +120,28 @@ CASES = [
 
     # --- explicit open: URL / domain / site / app / unknown ----------------
     ("open_url", "open https://example.com/x", _NONE,
-     plan_of(step("ensure_url", {"url": "https://example.com/x", "site": "x"},
+     plan_of(step("ensure_url", {"url": "https://example.com/x", "site": "example"},
                   "app", "open https://example.com/x"))),
     ("open_domain", "open example.com/path", _NONE,
-     plan_of(step("ensure_url", {"url": "https://example.com/path", "site": "x"},
+     plan_of(step("ensure_url", {"url": "https://example.com/path", "site": "example"},
                   "app", "open example.com/path"))),
+    # Site-key boundaries: short keys ("x", "hn", "yt") only match whole
+    # words/phrases; a URL/domain uses its own host label, longest key wins.
+    ("open_domain_x_com", "open x.com", _NONE,
+     plan_of(step("ensure_url", {"url": "https://x.com", "site": "x"},
+                  "app", "open x.com"))),
+    ("open_domain_netflix", "open netflix.com", _NONE,
+     plan_of(step("ensure_url", {"url": "https://netflix.com", "site": "netflix"},
+                  "app", "open netflix.com"))),
+    ("open_site_short_yt", "open yt", _NONE,
+     plan_of(step("ensure_url", {"url": "https://www.youtube.com", "site": "yt"},
+                  "app", "open yt"))),
+    ("open_site_short_hn", "open hn", _NONE,
+     plan_of(step("ensure_url", {"url": "https://news.ycombinator.com", "site": "hn"},
+                  "app", "open hn"))),
+    ("open_site_google_maps_longest", "open google maps", _NONE,
+     plan_of(step("ensure_url", {"url": "https://maps.google.com", "site": "google maps"},
+                  "app", "open google maps"))),
     ("open_site", "open youtube", _NONE,
      plan_of(step("ensure_url", {"url": "https://www.youtube.com", "site": "youtube"},
                   "app", "open youtube"))),
@@ -150,6 +167,12 @@ CASES = [
      plan_of(step("ensure_url", {"url": "https://github.com", "site": "github"},
                   "app", "focus github"),
              step("niri", {"command": "close-window", "args": []}, "app", "close window"))),
+    # "close tab" is the browser shortcut; "close window" stays a niri close.
+    ("close_tab_browser", "close tab", _BROWSER,
+     plan_of(step("key", {"chord": "ctrl+w"}, "keyboard", "close_tab in firefox"))),
+    ("close_tab_needs_browser", "close tab", _NONE, None),
+    ("close_window_niri", "close window", _BROWSER,
+     plan_of(step("niri", {"command": "close-window", "args": []}, "app", "close window"))),
 
     # --- search: site-specific beats generic -------------------------------
     ("search_site", "search youtube for lofi beats", _NONE,
