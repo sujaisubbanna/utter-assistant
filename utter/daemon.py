@@ -603,15 +603,23 @@ class Utter:
                 stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
                                         channels=self.cfg.audio.channels, dtype="float32",
                                         device=(self.cfg.audio.device or None), callback=cb)
-                stream.start()
                 session["stream"] = stream
             idle.begin("listen")
             if sleeper.asleep:
                 sleeper.wake()
                 _play("wake")
-            _play("dictate" if mode == "dictation" else "start")
+            # Dictation gets its own cue; the assistant lane keeps its original
+            # key-down behaviour (no sound) so it is unchanged.
+            if mode == "dictation":
+                _play("dictate")
+            # Emit ``listening`` before capture starts so the first audio level
+            # lands on a listening panel (the pre-refactor order).
             osd.listening("dictation" if mode == "dictation" else "assistant")
             log.info("PTT down (%s) - listening", mode)
+            # Start outside the lock: the first callback may fire synchronously
+            # (and the pre-refactor loop never held rec_lock across start()), so
+            # holding it here could deadlock capture.
+            stream.start()
 
         def stop(mode: str) -> None:
             with rec_lock:
