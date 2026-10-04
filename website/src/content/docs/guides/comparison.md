@@ -34,14 +34,44 @@ proprietary, and they are best described as **local-capable** rather than fully 
 - **Local by default, no cloud required.** Unlike Wispr Flow, which is cloud-only, and Aqua Voice,
   which is cloud-based with no offline mode, Utter's speech, models and screenshots stay on your
   machine.
-- **Rules first, and a model that only chooses.** Utter's model may *select among fixed
-  candidates*; it cannot author action arguments from untrusted screen content. This is the named
-  **Action-Selector Pattern**, a formally studied prompt-injection defence, and it aligns with the
-  OWASP LLM01 mitigations for prompt injection.
+- **Rules first, and a model that only chooses.** The decision head picks from a fixed list of
+  prepared candidates and cannot write an action's arguments; see *Nothing on your screen can
+  author an action* below.
 - **Open source and local** — unlike Talon's closed source, with its automatic crash reports and
   optional usage metrics.
 - **Honest local peers, not just competitors.** Handy, Vocalinux and YazSes are doing the same
   local-first work; see the note below.
+
+## Nothing on your screen can author an action
+
+Utter labels every value that can influence an action with its **provenance** — where that value
+came from. Your spoken command and explicit input in the settings app are `user` and **trusted**.
+Anything read from the screen — the accessibility tree, OCR, window titles, the clipboard or a web
+page — is `screen` and **untrusted**. Untrusted content may try to influence a choice, but it can
+never write the action's arguments: it can only **select among candidates Utter already prepared**.
+
+The guarantee is **structural**, enforced by the **runner** (the trust boundary) rather than
+merely asked of the model in a prompt. Screen text is never turned into a `terminal` command or an
+arbitrary `open_url` scheme, and arguments that derive from `screen` provenance are rejected by
+policy before anything runs. This resembles the named **Action-Selector Pattern**, a formally
+studied defence against prompt injection, and is adjacent to the OWASP LLM01 mitigations. The big
+vendors' own guidance treats on-screen content as untrusted and recommends confirmation for
+consequential actions; Utter makes the restriction part of the mechanism rather than a
+probabilistic filter.
+
+- **Provenance tagging.** Every action-influencing value is marked `user` (trusted) or `screen`
+  (untrusted), so the runner always knows the source.
+- **Select, never author.** Untrusted content **may only choose among precomputed candidates**; it
+  may **never create new arguments** for an action.
+- **The model picks by letter.** On any model-driven path the constrained decision head
+  (`llm.choose`) is **non-optional**: it chooses from a fixed list, it does not write the action.
+- **Rejected by policy.** A request whose concrete arguments come from `screen` provenance is
+  refused with error **`-32006`** before any plugin is called.
+- **Titles and URLs are contained.** Titles are truncated and sanitised, and `open_url` allows only
+  `http`, `https` and `mailto`.
+- **Consequential actions ask first, with the details.** Confirmation is argument-bearing — it
+  shows the concrete URL, command or target — and the target is re-validated after you approve it
+  (this closes the "time-of-check to time-of-use", or TOCTOU, gap).
 
 ## Jarvis-style assistants
 
@@ -118,3 +148,5 @@ Primary sources for the claims on this page:
   [github.com/open-jarvis/OpenJarvis](https://github.com/open-jarvis/OpenJarvis)
 - `microsoft/JARVIS` (HuggingGPT research orchestrator):
   [github.com/microsoft/JARVIS](https://github.com/microsoft/JARVIS)
+- Utter's own trust model (provenance, select-never-author, `-32006`, confirmation):
+  [github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRUST.md](https://github.com/sujaisubbanna/utter-assistant/blob/main/docs/TRUST.md)
