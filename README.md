@@ -42,7 +42,7 @@ Utter is a context-aware desktop assistant, natively supported on **Linux (Wayla
 
 | Feature | What it does |
 |---|---|
-| Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into the field you started in (both keys work on Linux and macOS). |
+| Push-to-talk | Hold the *assistant key* to run a command, or the *dictation key* to type what you say into the field you started in (both keys work on Linux and macOS). Optionally clean up dictated text locally — see `[dictation] format`. |
 | Desktop actions | Open apps and websites, focus and close windows, switch workspaces, control media, press app shortcuts. |
 | Context aware | Knows which app is focused and what is on screen — accessibility info first, screenshots only as a last resort. |
 | Target any app | Name the app up front instead of relying on focus: `codex type ok`, `spotify pause`, `close steam`. |
@@ -184,7 +184,7 @@ Shipped: KDE Plasma (KWin) backend (implemented and unit-tested, not yet exercis
 
 **Dictation**
 - [ ] **Pick the input field** — choose where dictated text goes instead of relying on what is focused, with an accessibility-tree picker and a screen-grid fallback for apps that expose no fields (Electron, web). macOS first; Linux best-effort via AT-SPI.
-- [ ] **Local dictation formatting** — clean up transcripts locally: punctuation, filler removal and a per-app tone. Today's tools do this in the cloud; it can run as a small local post-processing pass.
+- [x] **Local dictation formatting** — clean up transcripts locally: punctuation and filler removal, opt in with `[dictation] format = "local"`. Reformat-only, off by default, and falls back to the raw transcript on any failure. A per-app tone is still future work.
 
 ## Documentation
 

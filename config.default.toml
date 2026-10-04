@@ -55,6 +55,15 @@ language = "auto"
 # model/path. Empty = derive from `language` (espeak) or the engine default.
 voice = ""
 
+[dictation]
+# The dictation lane types your words verbatim (assistant commands are never
+# formatted). Optionally clean up the transcript before typing it:
+#   "off"   = type exactly what speech-to-text returned (default, no LLM call)
+#   "local" = rewrite with the existing local LLM: punctuation, capitalisation
+#             and filler removal only. It never changes meaning or answers you.
+#             5 s timeout; on any failure the raw transcript is typed instead.
+format = "off"
+
 [router]
 # rules first; the tiny planner LLM is only consulted when no rule matches.
 llm_fallback = true

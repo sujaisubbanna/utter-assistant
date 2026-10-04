@@ -83,6 +83,18 @@ Linux spoken replies (macOS uses `[macos] tts_backend` / `tts_voice` / `tts_rate
 | `language` | `auto` | spoken language, same resolution rules as `[stt] language` |
 | `voice` | `""` | engine voice: espeak name (`en-gb`, `de`) or a Piper `.onnx` model/path; empty derives from `language` |
 
+### `[dictation]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `format` | `off` | `off` types the raw transcript; `local` cleans it up first with the local LLM |
+
+`format = "local"` makes a reformat-only pass over dictated text before it is typed: punctuation,
+capitalisation and filler removal. It never changes meaning, answers you or translates, and it
+applies to the dictation lane only — assistant commands are routed verbatim. It reuses the routing
+model (`[router] llm_base_url`, or `[macos.runtime]` on a Mac). Off by default; 5 s timeout; on any
+failure the raw transcript is typed instead.
+
 ### `[router]`
 
 | Key | Default | Meaning |

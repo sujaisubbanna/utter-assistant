@@ -104,6 +104,20 @@ The defaults assume a common `keyd` remap (see [§3](#3-hotkeys--push-to-talk)).
 On macOS spoken replies still use `[macos] tts_backend` / `tts_voice` / `tts_rate`; `[tts]` is
 the Linux path (see [§4](#4-stt-backends)).
 
+### `[dictation]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `format` | `off` | `off` = type the raw transcript; `local` = clean it up first with the local LLM |
+
+`format = "local"` runs a **reformat-only** pass over the dictation transcript before it is typed:
+punctuation, capitalisation and filler removal ("um", "uh"). It **never changes meaning**, answers
+the text or translates it, and it applies to the **dictation lane only** — assistant commands are
+routed verbatim and are never formatted. It reuses the model already used for routing
+(`[router] llm_base_url` on Linux, `[macos.runtime]` on macOS). It is **off by default**, has a
+5 s timeout, and on any failure (server down, timeout, empty/odd reply) the **raw transcript is
+typed instead** — your words are never lost. Unknown values are treated as `off`.
+
 ### `[router]`
 
 | Key | Default | Meaning |
