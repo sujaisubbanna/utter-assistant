@@ -311,7 +311,7 @@ fn models_path() -> PathBuf {
                 .map(|home| PathBuf::from(home).join(".local/share"))
                 .unwrap_or_else(|_| PathBuf::from(".local/share"))
         });
-    data_home.join("utter/models")
+    data_home.join("utter-models")
 }
 
 #[tauri::command]
