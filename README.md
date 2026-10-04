@@ -123,6 +123,18 @@ Every command takes `--json` and returns a stable `utter.cli/v1` envelope. `--dr
 
 A tiny **runner** supervises swappable **plugins** over one versioned protocol. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## How Utter compares
+
+| Tool | Open source | Local/offline | Platforms | Voice → actions? |
+|---|---|---|---|---|
+| **Utter** | Yes (Apache-2.0) | Local by default; no cloud | Linux (Wayland: niri, KDE/KWin) + macOS | Yes |
+| **Talon Voice** | No (proprietary) | Local; crash reports + optional metrics | macOS/Windows; Linux/X11 only, no Wayland | Yes |
+| **Wispr Flow** | No (proprietary) | Cloud-only | macOS/Windows/Android | No (dictation) |
+| **Handy** | Yes (MIT) | Fully offline | Windows/macOS/Linux | No (dictation) |
+| **Vocalinux** | Yes (AGPL-3.0) | 100% offline | Linux (X11 + Wayland) | No (dictation) |
+
+Source-checked detail, including where Utter is behind: **[How Utter compares](https://utter.sujaisubbanna.com/guides/comparison/)**.
+
 ## Install
 
 Natively supported on Linux on Wayland — niri and KDE Plasma first-class, plus PipeWire — and on macOS, both with Python 3.12+. Full detail: [docs/INSTALL.md](docs/INSTALL.md).
