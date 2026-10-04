@@ -124,4 +124,14 @@ def get_clipboard() -> str:
 
 _LINUX_DEFAULT = _COMMANDS  # tests replace _COMMANDS directly; honour that
 
-__all__ = ["get_clipboard", "commands_for", "kwin_order", "reset_cache"]
+
+def set_clipboard(text: str) -> bool:
+    """Copy ``text`` to the Wayland clipboard via ``wl-copy``. Never raises."""
+    try:
+        proc = subprocess.run(["wl-copy"], input=text or "", text=True, timeout=_TIMEOUT)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+    return proc.returncode == 0
+
+
+__all__ = ["get_clipboard", "set_clipboard", "commands_for", "kwin_order", "reset_cache"]
