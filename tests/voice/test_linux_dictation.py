@@ -94,7 +94,7 @@ def _target() -> FocusedWindow:
 def _run_linux(*, press=(), dispatch=None, target=None, text="hello world",
                type_dictation_result=None, real_type=False, clipboard_ok=True,
                dictation_key="KEY_F13", assistant_key="KEY_INSERT",
-               legacy_key="", still_focused=True, handle_ok=True):
+               legacy_key="", still_focused=True, handle_ok=True, asleep=False):
     """Run ``Utter.run_hotkey`` once; return the observed seams.
 
     ``press`` is a list of configured key names pressed in order (down -> one
@@ -156,7 +156,7 @@ def _run_linux(*, press=(), dispatch=None, target=None, text="hello world",
         patch("utter.daemon._copy_to_clipboard", side_effect=fake_copy),
         patch("utter.daemon._Osd", return_value=osd),
         patch("utter.platform.is_macos", return_value=False),
-        patch("utter.sleep.get", return_value=MagicMock(asleep=False)),
+        patch("utter.sleep.get", return_value=MagicMock(asleep=asleep)),
         patch("utter.sleep.idle", return_value=MagicMock()),
     ]
     if real_type:
@@ -238,7 +238,31 @@ class LinuxAssistantLaneTest(unittest.TestCase):
         r.osd.final.assert_called_once_with("hello world", True)
         plays = [c.args[0] for c in r.play.call_args_list]
         self.assertIn("detected", plays)
-        self.assertNotIn("start", plays)  # assistant lane keeps its old sounds
+        self.assertIn("start", plays)  # same key-down cue as macOS
+
+    def test_assistant_key_down_plays_wake_then_start(self):
+        r = _run_linux(press=["KEY_INSERT"], handle_ok=True, asleep=True)
+        plays = [c.args[0] for c in r.play.call_args_list]
+        self.assertEqual(plays[:2], ["wake", "start"])
+
+    def test_dictation_key_down_plays_dictate(self):
+        r = _run_linux(press=["KEY_F13"], target=_target(), asleep=False)
+        plays = [c.args[0] for c in r.play.call_args_list]
+        self.assertEqual(plays[0], "dictate")
+
+    def test_dictation_key_down_wakes_before_dictate(self):
+        r = _run_linux(press=["KEY_F13"], target=_target(), asleep=True)
+        plays = [c.args[0] for c in r.play.call_args_list]
+        self.assertEqual(plays[:2], ["wake", "dictate"])
+
+    def test_key_up_sounds_unchanged(self):
+        # key-up only appends the result cue; the key-down cue is untouched
+        r = _run_linux(press=["KEY_INSERT"], handle_ok=True)
+        self.assertEqual([c.args[0] for c in r.play.call_args_list],
+                         ["start", "detected"])
+        r = _run_linux(press=["KEY_F13"], target=_target())
+        self.assertEqual([c.args[0] for c in r.play.call_args_list],
+                         ["dictate", "typed"])
 
     def test_legacy_hotkey_still_drives_assistant(self):
         r = _run_linux(press=["KEY_RIGHTCTRL"], dictation_key="",

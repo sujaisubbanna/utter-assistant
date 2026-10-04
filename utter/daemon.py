@@ -608,10 +608,10 @@ class Utter:
             if sleeper.asleep:
                 sleeper.wake()
                 _play("wake")
-            # Dictation gets its own cue; the assistant lane keeps its original
-            # key-down behaviour (no sound) so it is unchanged.
-            if mode == "dictation":
-                _play("dictate")
+            # Same key-down cue on both platforms: the dictation lane gets
+            # "dictate", the assistant lane "start" (both after "wake" when the
+            # press woke the daemon).
+            _play("dictate" if mode == "dictation" else "start")
             # Emit ``listening`` before capture starts so the first audio level
             # lands on a listening panel (the pre-refactor order).
             osd.listening("dictation" if mode == "dictation" else "assistant")
