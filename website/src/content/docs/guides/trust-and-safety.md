@@ -70,8 +70,7 @@ enabled_ops = ["action.terminal"]   # or "action.input"
 ```
 
 The Safety page shows the same toggles under **Risky abilities**, behind a warning, and keeps a
-banner visible while any of them is on. Under **Limits** you can restrict which terminal
-commands are allowed and list phrases that are always refused.
+banner visible while any of them is on.
 
 ## Socket and IPC trust
 
@@ -89,9 +88,13 @@ to drive your desktop by default:
 
 Plugins declare permissions in their manifest (for example `network`, `microphone`). With
 `[security] enforce = true` in the runner config, subprocess plugins are started under
-`systemd-run --user --scope` (preferred) or `bwrap` with hardening such as `NoNewPrivileges`,
-restricted address families, device allow-lists, read-only paths and seccomp or landlock where
-available.
+`systemd-run --user --scope` (preferred) or `bwrap`, with: `NoNewPrivileges`, address families
+restricted to `AF_UNIX`, a private `/tmp`, a default-deny device cgroup (`DevicePolicy=closed`
+plus `DeviceAllow` for the few nodes a process needs — audio only when the plugin declares
+`microphone`), and read-only system/interpreter paths plus any declared
+`read_paths`/`write_paths`. On systemd releases that reject these settings on transient scopes,
+the runner falls back to `bwrap`, which applies equivalent isolation; if neither wrapper runs,
+plugins start unhardened and every permission is **advisory**.
 
 **If a permission cannot be enforced on a platform, it is labelled advisory**, never implied
 safe. `assistant doctor` and the **Plugins** page print the enforced-versus-advisory status per

@@ -95,9 +95,12 @@ y luego regenera el catálogo. Consulta [Aplicaciones y acciones](/guides/apps-a
 
 ### ¿Qué idiomas habla?
 
-La aplicación de ajustes y el instalador incluyen 10 idiomas de interfaz: inglés, español, alemán, francés,
-italiano, portugués, chino, japonés, coreano y ruso. El idioma hablado es un ajuste aparte
-(por defecto, el de tu sistema), así que puedes usar la interfaz en español y hablar en inglés.
+La aplicación de ajustes incluye 10 idiomas de interfaz: inglés, español, alemán, francés,
+italiano, portugués, chino, japonés, coreano y ruso. El **instalador web publicado (`curl … | bash`)
+es solo en inglés**: la vía de una línea solo incluye `install.sh`, sin los archivos de traducción,
+mientras que un checkout del código fuente o el árbol completo del instalador habla esos mismos 10
+idiomas. El idioma hablado es un ajuste aparte (por defecto, el de tu sistema), así que puedes usar
+la interfaz en español y hablar en inglés.
 El reconocimiento de voz depende del modelo: por defecto es un modelo whisper solo para inglés (`.en`),
 y puedes optar por un modelo multilingüe (`small`, `large-v3-turbo`, …) desde la aplicación de ajustes o el
 instalador. Utter nunca descarga un modelo por su cuenta.

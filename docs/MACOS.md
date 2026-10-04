@@ -315,7 +315,9 @@ The same Tauri app, built as `utter.app`, with platform-aware pages:
 | Voice | writes `[macos]`: push-to-talk keys by name (Right ⌘ / Right ⌥ …), Apple Speech / whisper.cpp / VocaMac engine + fallback, locale, on-device switch |
 | Spoken replies | `say` / AVSpeechSynthesizer, voice name, rate, with a test button |
 | Troubleshooting | log tail reads `~/Library/Logs/utter/*.log` instead of `journalctl` |
-| Models, App actions, AI model, Screen, Plugins, Safety | unchanged |
+| AI model | the LLM endpoint/model come from `[macos.runtime]` (`llm_provider`, `llm_base_url`, `llm_model`) instead of `[router]` |
+| Screen | the vision endpoint/model come from `[macos.runtime]` (`vision_provider`, `vision_base_url`, `vision_model`) instead of `[vision]`; `[vision] enabled`/`target_width` and `[perception]` still apply |
+| Models, App actions, Plugins, Safety | unchanged |
 
 Linux builds never show the macOS pages: the switch is `std::env::consts::OS` in
 the Rust backend, exposed as `platform_info`.

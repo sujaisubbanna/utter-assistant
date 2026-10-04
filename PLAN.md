@@ -78,7 +78,8 @@ config_schema="schema.json"
 - `protocol.hello` returns the **negotiated** version; runner computes
   `provides ∩ requires`.
 - **Strict config validation** (unknown/mistyped keys warn) + config migration path.
-- **Compatibility/deprecation policy:** support protocol N-2; document deprecations;
+- **Compatibility/deprecation policy:** the reference runner accepts exactly protocol `1.0` / abi
+  `1` today; N-2 support is planned. Document deprecations;
   `doctor` reports drift vs the install lockfile.
 - **`doctor`** cheap by default; `doctor --deep` does model load + latency-budgeted round-trip.
 

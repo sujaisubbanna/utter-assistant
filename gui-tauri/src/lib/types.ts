@@ -16,7 +16,7 @@ export interface AppInfo {
   python: string;
   config_path: string;
   theme_path: string;
-  /** The real model store (`$XDG_DATA_HOME/utter/models`). */
+  /** The real model store (`$XDG_DATA_HOME/utter-models`). */
   models_path: string;
   runner_sock: string;
 }
