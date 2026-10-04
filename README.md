@@ -176,6 +176,11 @@ Shipped: KDE Plasma (KWin) backend (implemented and unit-tested, not yet exercis
 - [ ] **More apps** — more hand-tuned profiles and actions.
 - [ ] **Key sequences** — let one action press several keys in order (for example `/`, type, Enter) so common steps need no vision.
 - [ ] **More TTS voices** — beyond eSpeak, Speech Dispatcher and Piper.
+- [ ] **Fully translate the settings app** — a few strings are still hardcoded English (Troubleshooting labels) and the app-targeting note omits the supported-compositor caveat.
+
+**Trust & infrastructure**
+- [ ] **Plugin-declared sandbox paths** — `read_paths`/`write_paths` work from the runner config; expose them in the plugin manifest (`utter-plugin.toml`) so a plugin can declare what it needs.
+- [ ] **Apply `seccomp`/`landlock`** in the plugin sandbox — today `enforce` applies `NoNewPrivileges`, a private `/tmp`, a default-deny device cgroup and read-only paths, but not syscall filtering.
 
 **Dictation**
 - [ ] **Pick the input field** — choose where dictated text goes instead of relying on what is focused, with an accessibility-tree picker and a screen-grid fallback for apps that expose no fields (Electron, web). macOS first; Linux best-effort via AT-SPI.
