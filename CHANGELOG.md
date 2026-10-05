@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.10] - 2026-10-05
+
+### Fixed
+- **Upgrading restarts the services.** The installer used
+  `systemctl --user enable --now`, which leaves an already-running unit on the
+  old core, so an upgrade kept `utter-runner` on the previous config (still
+  `config.m3.toml`, no `UTTER_DRY_RUN`) until a manual restart. It now enables,
+  then restarts.
+
 ## [0.4.9] - 2026-10-05
 
 ### Added
