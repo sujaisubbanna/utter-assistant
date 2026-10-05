@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.15] - 2026-10-05
+
+### Added
+- **Native llama.cpp planner on macOS and Windows.** The planner
+  (Qwen3-4B-Instruct-2507) now runs via `llama-server` with a GGUF build
+  (`unsloth/Qwen3-4B-Instruct-2507-GGUF`, Q4_K_M), so it no longer needs a
+  vLLM endpoint on those platforms. Linux keeps vLLM + AWQ. Adds
+  `assistant inference check` (models + tool call + structured JSON) and a
+  `planner_backend` field to `assistant inference status --json`.
+- **Settings app shows the planner runtime per platform** (vLLM on Linux,
+  llama.cpp on macOS/Windows) with a **Check server** action.
+
+### Changed
+- The router sends the nested `response_format` wrapper and ignores
+  `reasoning_content`, for llama.cpp compatibility.
+- Installers provision the planner per platform; whisper.cpp STT stays
+  mandatory everywhere.
+- Docs, README and the documentation website now cover Linux (niri + KDE
+  Plasma), macOS and Windows.
+
 ## [0.4.14] - 2026-10-05
 
 ### Added
