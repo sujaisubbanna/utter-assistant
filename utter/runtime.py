@@ -214,8 +214,8 @@ def _probe_runtime_macos(cfg) -> dict[str, Any]:
     }
 
     # STT
-    stt_primary = getattr(cfg.macos, "stt_backend", "apple_speech")
-    stt_fallback = getattr(cfg.macos, "stt_fallback", "whisper_cpp")
+    stt_primary = getattr(cfg.macos, "stt_backend", "whisper_cpp")
+    stt_fallback = getattr(cfg.macos, "stt_fallback", "apple_speech")
     apple_avail = platform.has_module("Speech") and platform.has_module("Foundation")
     whisper_avail = platform.has_module("pywhispercpp") or bool(shutil.which("whisper-cli"))
     vocamac_info = probe_vocamac()
@@ -232,7 +232,10 @@ def _probe_runtime_macos(cfg) -> dict[str, Any]:
         stt_msg = "VocaMac file transcription CLI available"
     else:
         stt_status = "unavailable"
-        stt_msg = "No STT backend available (requires Speech.framework, pywhispercpp, or VocaMac)"
+        # VocaMac is never required: the default chain is whisper.cpp ->
+        # Apple Speech, so the guidance only names those.
+        stt_msg = ("No STT backend available: install pywhispercpp for "
+                   "whisper.cpp, or grant Speech.framework access")
 
     stt_role = {
         "primary": stt_primary,

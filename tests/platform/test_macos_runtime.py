@@ -217,5 +217,82 @@ vision_model = "qwen2.5-vl:7b"
         self.assertEqual(spec_flat[1], "llm_model")
 
 
+class TestMacosDefaultsDoNotRequireVocamac(unittest.TestCase):
+    """Regression: VocaMac is an opt-in backend, never a default or a prompt.
+
+    A default macOS install must chain whisper.cpp -> Apple Speech, and an
+    absent VocaMac.app must not show up as a missing dependency (which the
+    settings app renders as "install VocaMac") nor in the STT guidance text.
+    """
+
+    def test_default_stt_chain_is_whisper_then_apple(self):
+        from utter.voice import stt
+        chain = stt.select_backends(
+            "darwin", Config().stt, Config().macos,
+            has_module=lambda _n: False, which=lambda _n: None,
+        )
+        self.assertEqual(chain, ["whisper_cpp", "apple_speech"])
+
+    def test_deps_omit_vocamac_when_absent(self):
+        from assistant import deps as deps_mod
+        with forced_platform("darwin"):
+            with patch.object(deps_mod, "_vocamac_installed", return_value=False):
+                report = deps_mod.probe_deps()
+        self.assertNotIn("vocamac", report)
+        self.assertNotIn("vocamac", deps_mod.missing_deps(report))
+
+    def test_deps_include_vocamac_when_installed(self):
+        from assistant import deps as deps_mod
+        with forced_platform("darwin"):
+            with patch.object(deps_mod, "_vocamac_installed", return_value=True):
+                report = deps_mod.probe_deps()
+        self.assertTrue(report.get("vocamac"))
+        self.assertNotIn("vocamac", deps_mod.missing_deps(report))
+
+    def test_stt_unavailable_message_never_requires_vocamac(self):
+        with forced_platform("darwin"):
+            with patch.object(runtime, "probe_http_models",
+                              return_value=(False, [], "Connection refused")), \
+                    patch.object(runtime.platform, "has_module", return_value=False), \
+                    patch.object(runtime.shutil, "which", return_value=None), \
+                    patch.object(runtime.Path, "is_file", return_value=False):
+                rep = runtime.probe_runtime(cfg=Config())
+        stt_role = rep["stt"]
+        self.assertFalse(stt_role["available"])
+        self.assertNotIn("vocamac", stt_role["message"].lower())
+        self.assertEqual(stt_role["primary"], "whisper_cpp")
+        self.assertEqual(stt_role["fallback"], "apple_speech")
+
+    def test_runner_start_hint_is_macos_specific(self):
+        from assistant import doctor
+        with forced_platform("darwin"):
+            hint = doctor._runner_start_hint()
+        self.assertIn("brew services start utter", hint)
+        self.assertIn("launchctl kickstart", hint)
+        self.assertNotIn("systemctl", hint)
+
+    def test_status_socket_error_is_actionable_and_macos_aware(self):
+        import argparse
+        import io
+        from assistant import __main__ as cli_main
+        from assistant.runner_client import RunnerClient
+
+        class _Boom(RunnerClient):
+            def connect(self):  # noqa: D401 - test double
+                raise FileNotFoundError(2, "No such file or directory")
+
+        with forced_platform("darwin"):
+            with patch.object(cli_main, "RunnerClient", _Boom):
+                buf = io.StringIO()
+                with contextlib.redirect_stderr(buf):
+                    rc = cli_main.cmd_status(
+                        argparse.Namespace(json=False, timeout=0.1))
+        message = buf.getvalue()
+        self.assertEqual(rc, 1)
+        self.assertIn("runner isn't running", message)
+        self.assertIn("brew services start utter", message)
+        self.assertNotIn("systemctl", message)
+
+
 if __name__ == "__main__":
     unittest.main()

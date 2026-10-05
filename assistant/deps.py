@@ -68,10 +68,20 @@ def _compositor_name() -> str:
 ADVISORY = "advisory/not-implemented"
 
 
+def _vocamac_installed() -> bool:
+    """True when a VocaMac.app install is present (macOS optional backend)."""
+    if util.which("VocaMac"):
+        return True
+    return any(os.path.exists(os.path.expanduser(p)) for p in (
+        "/Applications/VocaMac.app",
+        "~/Applications/VocaMac.app",
+    ))
+
+
 def probe_deps() -> dict[str, Any]:
     from utter import platform
     if platform.is_macos():
-        return {
+        mac_deps: dict[str, Any] = {
             "screencapture": bool(util.which("screencapture")),
             "pbpaste": bool(util.which("pbpaste")),
             "pbcopy": bool(util.which("pbcopy")),
@@ -79,8 +89,14 @@ def probe_deps() -> dict[str, Any]:
             "afplay": bool(util.which("afplay")),
             "osascript": bool(util.which("osascript")),
             "ollama": bool(util.which("ollama")),
-            "vocamac": bool(util.which("VocaMac") or os.path.exists(os.path.expanduser("/Applications/VocaMac.app"))),
         }
+        # VocaMac is an optional, user-installed STT backend — never required and
+        # never a default. Only surface it when it is actually present, so
+        # `doctor` (and the settings app) never reports it as a missing
+        # dependency or prompts the user to install it.
+        if _vocamac_installed():
+            mac_deps["vocamac"] = True
+        return mac_deps
     if platform.is_windows():
         return {
             # Tools that do exist natively (or as a normal install).
