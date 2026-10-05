@@ -7,6 +7,7 @@ import { humanizeError } from "../lib/errors";
 import { humanBytes, parseJsonLine } from "../lib/format";
 import { useModelStatus, type ModelKind, type ModelNeed } from "../lib/models";
 import { Icon } from "./icons";
+import { InferenceInstallButton } from "./InferenceInstall";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Modal } from "./ui/Modal";
@@ -184,6 +185,8 @@ export function ModelRequiredDialog({
           <Button variant="primary" icon="download" onClick={() => void start()}>
             {t("modelRequired.download")}
           </Button>
+        ) : need.kind === "vision" ? (
+          <InferenceInstallButton onInstalled={onInstalled} />
         ) : (
           <Button variant="primary" icon="sliders" onClick={openModels}>
             {t("modelRequired.openModels")}
@@ -280,7 +283,7 @@ export function ModelRequiredDialog({
             <Note>{t("modelRequired.estimatedNote")}</Note>
           )}
           {need.kind === "stt" && <Note>{t("modelRequired.sttNote")}</Note>}
-          {need.kind === "vision" && !need.source && <Note>{t("modelRequired.noSourceNote")}</Note>}
+          {need.kind === "vision" && !need.source && <Note>{t("modelRequired.shardedNote")}</Note>}
         </div>
       )}
     </Modal>

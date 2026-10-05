@@ -5,7 +5,7 @@ import argparse
 import signal
 from typing import Optional
 
-from . import __version__, doctor, install_state, models, recommend, util
+from . import __version__, doctor, inference, install_state, models, recommend, util
 from .runner_client import RunnerClient, RunnerError
 
 
@@ -109,6 +109,27 @@ def cmd_status(args: argparse.Namespace) -> int:
             print(f"  - {p.get('id')} [{p.get('kind')}] epoch={p.get('epoch')} "
                   f"status={p.get('status')}")
     return 0
+
+
+def cmd_inference(args: argparse.Namespace) -> int:
+    """Provision (download) and inspect the vision + planner models.
+
+    ``install`` streams ``scripts/install_inference.sh``; with ``--json`` it
+    speaks NDJSON (start / progress / done|error) so the settings UI can follow
+    along. ``status`` reports whether the two model dirs look complete.
+    """
+    action = args.inference_action
+    if action == "install":
+        return inference.install(json_progress=args.json)
+    if action == "status":
+        data = inference.status()
+        if args.json:
+            util.emit(data)
+        else:
+            print(inference.human(data))
+        return 0
+    util.eprint(f"unknown inference action: {action}")
+    return 2
 
 
 def cmd_models(args: argparse.Namespace) -> int:
@@ -314,6 +335,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_dict.add_argument("--config", default=None, help="path to config.toml")
     p_dict.add_argument("--json", action="store_true")
     p_dict.set_defaults(func=cmd_dictation)
+
+    p_inf = sub.add_parser("inference", help="provision/status the vision + planner models")
+    isub = p_inf.add_subparsers(dest="inference_action", required=True)
+    i_install = isub.add_parser("install", help="download and prepare the inference stack")
+    i_install.add_argument("--json", action="store_true")
+    i_install.set_defaults(func=cmd_inference)
+    i_status = isub.add_parser("status", help="report whether the models are complete")
+    i_status.add_argument("--json", action="store_true")
+    i_status.set_defaults(func=cmd_inference)
+    p_inf.set_defaults(func=cmd_inference)
 
     p_models = sub.add_parser("models", help="model store")
     msub = p_models.add_subparsers(dest="models_action", required=True)

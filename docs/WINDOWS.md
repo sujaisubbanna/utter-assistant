@@ -176,6 +176,12 @@ runtime set — `numpy`, `sounddevice`, `pywin32`, `uiautomation`, `comtypes`,
 `mss`. Optional STT (`pywhispercpp`) is intentionally left out until a
 `win_amd64`/cp312 wheel is confirmed, so the extra always installs cleanly.
 
+The vision/planner inference provisioner (`scripts/install_inference.sh`,
+`python -m assistant inference install`) is **not supported on Windows yet**:
+the CLI exits 1 with `not supported on Windows yet`, so the settings UI can show
+a clear message instead of a failed download. `assistant inference status`
+still reports whether the model directories are complete.
+
 ## CI (`windows-latest`)
 
 `.github/workflows/windows.yml` runs on a real Windows runner (independent of the

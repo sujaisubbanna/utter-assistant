@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Idempotent setup for the inference lane (vision + planner).
 #
-# Creates .venv if missing, installs vLLM + the Hugging Face CLI, and downloads
-# the UI-TARS vision model and the Qwen3-4B AWQ planner into models/. Neither
-# model can be store-pulled: they ship as multi-file (sharded safetensors)
-# repositories, and the model store fetches a single file. This script downloads
-# the complete repo directory instead, which is what vLLM needs.
+# Creates .venv if missing, installs the runtime, and downloads the UI-TARS
+# vision model and the Qwen3-4B AWQ planner into models/. Neither model can be
+# store-pulled: they ship as multi-file (sharded safetensors) repositories, and
+# the model store fetches a single file. This script downloads the complete repo
+# directory instead, which is what vLLM needs.
+#
+# Platform:
+#   Linux   vLLM (>=0.10), served by scripts/serve_vision.sh / serve_planner.sh.
+#   macOS   transformers + torch (Metal/MPS) + accelerate; vLLM has no macOS
+#           wheel. The vision model is served by
+#           scripts/serve_vision_transformers.py. Same models are downloaded.
 #
 # Python: `uv` is used when it is on PATH; otherwise a plain `python3 -m venv`
 # plus pip is used. Set UTTER_INFERENCE_PYTHON to pin the interpreter.
@@ -13,6 +19,8 @@
 # Usage:
 #   scripts/install_inference.sh
 #   setsid bash -c 'scripts/install_inference.sh > /tmp/vllm-install.log 2>&1; echo EXIT=$? >> /tmp/vllm-install.log' &
+#
+# The settings UI calls this through `assistant inference install`.
 #
 # Env:
 #   UTTER_INFERENCE_PYTHON     interpreter for .venv (default: uv's 3.12, else python3)
@@ -35,7 +43,15 @@ INSTALL_PLANNER="${UTTER_INSTALL_PLANNER_MODEL:-1}"
 INFERENCE_PYTHON="${UTTER_INFERENCE_PYTHON:-}"
 UV="$(command -v uv 2>/dev/null || true)"
 
-echo "[install_inference] repo=$REPO_ROOT"
+# Target platform. Darwin serves via transformers (no vLLM wheel); everything
+# else keeps the existing vLLM path. Windows is refused earlier by
+# `assistant inference install`, so it never reaches this script.
+case "$(uname -s 2>/dev/null || printf 'unknown')" in
+    Darwin) PLATFORM="macos" ;;
+    *)      PLATFORM="linux" ;;
+esac
+
+echo "[install_inference] repo=$REPO_ROOT platform=$PLATFORM"
 if [[ -n "$UV" ]]; then
     echo "[install_inference] using uv: $UV"
 else
@@ -102,8 +118,15 @@ model_present() {
 # --------------------------------------------------------------------------- #
 # python packages
 # --------------------------------------------------------------------------- #
-echo "[install_inference] installing vllm"
-pip_install "vllm>=0.10"
+if [[ "$PLATFORM" == "macos" ]]; then
+    # vLLM has no macOS wheel. Serve the vision model with transformers on
+    # Metal (MPS) via scripts/serve_vision_transformers.py instead.
+    echo "[install_inference] installing transformers + accelerate + torch (Apple/MPS)"
+    pip_install "transformers>=4.45" "accelerate>=1.0" "torch>=2.2"
+else
+    echo "[install_inference] installing vllm"
+    pip_install "vllm>=0.10"
+fi
 
 echo "[install_inference] installing huggingface_hub[cli]"
 pip_install "huggingface_hub[cli]"
@@ -143,5 +166,10 @@ case "${INSTALL_PLANNER,,}" in
 esac
 
 echo "[install_inference] done"
-echo "[install_inference] next: scripts/serve_vision.sh   # http://127.0.0.1:8000/v1 (uitars)"
-echo "[install_inference] next: scripts/serve_planner.sh  # http://127.0.0.1:8001/v1 (qwen3-4b)"
+if [[ "$PLATFORM" == "macos" ]]; then
+    echo "[install_inference] macOS serves the vision model via scripts/serve_vision_transformers.py"
+    echo "[install_inference] run: .venv/bin/python scripts/serve_vision_transformers.py --model $VISION_MODEL_DIR --port 8000"
+else
+    echo "[install_inference] next: scripts/serve_vision.sh   # http://127.0.0.1:8000/v1 (uitars)"
+    echo "[install_inference] next: scripts/serve_planner.sh  # http://127.0.0.1:8001/v1 (qwen3-4b)"
+fi

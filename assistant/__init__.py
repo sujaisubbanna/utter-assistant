@@ -5,6 +5,7 @@ Stdlib only. The installer lane calls these frozen entry points::
     python -m assistant doctor [--json]
     python -m assistant models list|show <name>|pull <source>|rm <name>|prune [--json]
     python -m assistant recommend [--json]
+    python -m assistant inference install|status [--json]
     python -m assistant status [--json]
     python -m assistant install-state record|show
 """

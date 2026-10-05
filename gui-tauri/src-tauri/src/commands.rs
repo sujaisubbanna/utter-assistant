@@ -836,6 +836,101 @@ pub fn cancel_models_pull(state: State<AppState>, pull_id: String) -> Result<(),
     Ok(())
 }
 
+/// Whether the sharded vision + planner models are provisioned, and where.
+///
+/// `assistant inference status --json` reports `{vision, planner, *_path}`.
+#[tauri::command]
+pub async fn inference_status(state: State<'_, AppState>) -> Result<Value, String> {
+    let cmd = state.assistant(&["inference", "status", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| io_message(&error))?;
+        Ok(parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        ))
+    })
+    .await
+}
+
+/// Download the sharded vision + planner models, streaming NDJSON progress as
+/// `inference://progress` and a final `inference://done`.
+///
+/// Mirrors `start_models_pull`: the CLI (`assistant inference install --json`)
+/// is POSIX-only and exits 1 on Windows, so this only spawns on non-Windows
+/// hosts; callers hide the action there.
+#[tauri::command(rename_all = "camelCase")]
+pub fn start_inference_install(
+    app: AppHandle,
+    state: State<AppState>,
+    id: String,
+) -> Result<(), String> {
+    if cfg!(windows) {
+        return Err("inference install is not supported on Windows yet".to_string());
+    }
+    let cmd = state.assistant(&["inference", "install", "--json"]);
+    let mut child = cmd.spawn_piped().map_err(|error| io_message(&error))?;
+    let stdout = child.stdout.take().ok_or_else(|| err("no stdout pipe"))?;
+    let stderr = child.stderr.take();
+    let children = state.children.clone();
+    children.lock().unwrap().insert(id.clone(), child);
+
+    // Drain stderr in its own thread so a chatty installer can never deadlock.
+    if let Some(stderr) = stderr {
+        let app_err = app.clone();
+        let id_err = id.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            let mut text = String::new();
+            for line in reader.lines().map_while(Result::ok) {
+                if text.len() < 8192 {
+                    text.push_str(&line);
+                    text.push('\n');
+                }
+            }
+            if !text.trim().is_empty() {
+                let _ = app_err.emit(
+                    "inference://stderr",
+                    serde_json::json!({ "id": id_err, "text": text }),
+                );
+            }
+        });
+    }
+
+    let app_handle = app.clone();
+    let id_done = id.clone();
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines().map_while(Result::ok) {
+            if line.trim().is_empty() {
+                continue;
+            }
+            // Forward the raw line plus its `event` name when parseable, so the
+            // UI can react without re-parsing (it still keeps the raw line).
+            let name = serde_json::from_str::<Value>(&line)
+                .ok()
+                .and_then(|value| value.get("event").and_then(|v| v.as_str()).map(str::to_string));
+            let _ = app_handle.emit(
+                "inference://progress",
+                serde_json::json!({ "id": id_done.clone(), "line": line, "event": name }),
+            );
+        }
+        let code = if let Some(mut child) = children.lock().unwrap().remove(&id_done) {
+            child.wait().ok().and_then(|status| status.code()).unwrap_or(-1)
+        } else {
+            -1
+        };
+        let _ = app_handle.emit("inference://done", serde_json::json!({ "id": id_done, "code": code }));
+    });
+
+    Ok(())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn cancel_inference_install(state: State<AppState>, id: String) -> Result<(), String> {
+    state.kill_child(&id);
+    Ok(())
+}
+
 // --------------------------------------------------------------------------- //
 // services (systemd | launchd | schtasks)
 // --------------------------------------------------------------------------- //
