@@ -21,6 +21,7 @@ import type {
   RunnerPolicy,
   StatusReport,
   UnitStatus,
+  WindowInfo,
 } from "./types";
 
 /**
@@ -51,6 +52,9 @@ export const api = {
   status: () => invoke<StatusReport>("status"),
   doctor: (timeout?: number) => invoke<DoctorReport>("doctor", { timeout }),
   recommend: () => invoke<Recommendation>("recommend"),
+
+  // Open windows for the Voice page's dictation-target picker.
+  contextWindows: () => invoke<WindowInfo[]>("context_windows"),
 
   modelsList: () =>
     invoke<{ models?: ModelEntry[]; store?: ModelStoreInfo }>("models_list"),

@@ -242,6 +242,7 @@ pub fn run() {
             commands::status,
             commands::doctor,
             commands::recommend,
+            commands::context_windows,
             commands::models_list,
             commands::models_show,
             commands::models_remove,

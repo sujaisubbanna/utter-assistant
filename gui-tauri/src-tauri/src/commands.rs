@@ -590,6 +590,70 @@ pub async fn recommend(state: State<'_, AppState>) -> Result<Value, String> {
     .await
 }
 
+/// One open window as `assistant windows --json` reports it, for the dictation
+/// target picker. `id` passes through untouched because compositors may report
+/// it as a number or a string; the UI turns it into a pin spec.
+#[derive(Serialize)]
+pub struct WindowInfo {
+    pub id: Value,
+    pub pid: i64,
+    pub app_id: String,
+    pub title: String,
+    pub focused: bool,
+}
+
+fn parse_windows(value: &Value) -> Vec<WindowInfo> {
+    value
+        .get("windows")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    Some(WindowInfo {
+                        id: item.get("id")?.clone(),
+                        pid: item.get("pid").and_then(Value::as_i64).unwrap_or(0),
+                        app_id: item
+                            .get("app_id")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        title: item
+                            .get("title")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        focused: item.get("focused").and_then(Value::as_bool).unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The open windows the dictation target picker can pin. Empty when the
+/// compositor reports none; a stale backend surfaces as a readable error.
+#[tauri::command]
+pub async fn context_windows(state: State<'_, AppState>) -> Result<Vec<WindowInfo>, String> {
+    let cmd = state.assistant(&["windows", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| io_message(&error))?;
+        let value = parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        );
+        if value.get("ok").and_then(Value::as_bool) == Some(false) {
+            let message = value
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("windows are unavailable");
+            return Err(message.to_string());
+        }
+        Ok(parse_windows(&value))
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn models_list(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["models", "list", "--json"]);

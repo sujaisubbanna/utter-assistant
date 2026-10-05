@@ -88,6 +88,19 @@ export interface AudioSource {
   description: string;
 }
 
+/**
+ * One open window from `assistant windows --json`, used by the dictation
+ * target picker. `id` can be a number or a string, so callers turn it into a
+ * pin spec with `String(id)` before storing it in `[dictation] target`.
+ */
+export interface WindowInfo {
+  id: number | string;
+  pid: number;
+  app_id: string;
+  title: string;
+  focused: boolean;
+}
+
 export interface PluginPermission {
   name?: string;
   enforced?: boolean;
