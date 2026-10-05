@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import ctypes.util
-import grp
 import os
 import subprocess
 from typing import Any
+
+try:  # grp/pwd are Unix-only; importing grp at module scope breaks Windows.
+    import grp
+except ImportError:  # pragma: no cover - exercised only on Windows
+    grp = None  # type: ignore[assignment]
 
 from . import util
 
@@ -23,6 +27,8 @@ def _systemd_user() -> bool:
 
 
 def _in_input_group() -> bool:
+    if grp is None:
+        return False
     try:
         gid = grp.getgrnam("input").gr_gid
     except KeyError:
@@ -34,7 +40,7 @@ def _in_input_group() -> bool:
 
         user = pwd.getpwuid(os.getuid()).pw_name
         return user in grp.getgrnam("input").gr_mem
-    except (KeyError, ImportError):
+    except (KeyError, ImportError, AttributeError):
         return False
 
 
@@ -56,7 +62,13 @@ def _compositor_name() -> str:
         return "unknown"
 
 
-def probe_deps() -> dict[str, bool]:
+# Windows backends (audio capture, input injection, screen grab) are not
+# implemented yet. They are reported as "advisory/not-implemented" rather than
+# absent, so ``doctor`` does not tell Windows users to install Linux tooling.
+ADVISORY = "advisory/not-implemented"
+
+
+def probe_deps() -> dict[str, Any]:
     from utter import platform
     if platform.is_macos():
         return {
@@ -68,6 +80,17 @@ def probe_deps() -> dict[str, bool]:
             "osascript": bool(util.which("osascript")),
             "ollama": bool(util.which("ollama")),
             "vocamac": bool(util.which("VocaMac") or os.path.exists(os.path.expanduser("/Applications/VocaMac.app"))),
+        }
+    if platform.is_windows():
+        return {
+            # Tools that do exist natively (or as a normal install).
+            "powershell": bool(util.which("powershell") or util.which("pwsh")),
+            "nvidia-smi": bool(util.which("nvidia-smi")),
+            "ollama": bool(util.which("ollama")),
+            # Backends with no Windows implementation in this release.
+            "wasapi_audio": ADVISORY,
+            "win32_input": ADVISORY,
+            "win32_screen": ADVISORY,
         }
     comp = _compositor_name()
     deps: dict[str, bool] = {}

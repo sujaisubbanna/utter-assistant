@@ -58,6 +58,15 @@ def _drift(runner_info: dict) -> list[dict]:
     return drift
 
 
+def _runner_start_hint() -> str:
+    """How to start the runner, phrased for the active platform."""
+    from utter import platform
+
+    if platform.is_windows():
+        return "start the Utter service from Settings"
+    return "Start it with: systemctl --user start utter-runner.service"
+
+
 def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
     from utter import runtime
     runner_info = {"protocol": RUNNER_PROTOCOL, "abi": RUNNER_ABI, "version": _runner_version()}
@@ -81,7 +90,7 @@ def build_report(sock: Optional[str] = None, timeout: float = 10.0) -> dict:
         report["ok"] = False
         report["error"] = (
             f"the runner isn't running: no socket at {sock_path}. "
-            "Start it with: systemctl --user start utter-runner.service"
+            + _runner_start_hint()
         )
         report["socket"] = sock_path
         report["drift"] = _drift(runner_info)

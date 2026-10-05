@@ -1,5 +1,16 @@
 """Unix-socket client API: dir 0700, socket 0600, SO_PEERCRED uid check,
 default-deny allow-list / token auth, rate limiting, fd passing (TRUST §5, §13).
+
+Windows transport plan (P0 note, not implemented here): this module is Unix-only
+(``asyncio.start_unix_server`` + ``SO_PEERCRED``/``LOCAL_PEERCRED``). Windows has
+no peer-credential equivalent, so the P1 spike will choose between two shapes and
+keep this module as the Unix path:
+  * AF_UNIX (Windows 10 1803+): same path-based socket, but peer identity comes
+    from the token (``runner.auth``) alone — no kernel uid/binaries check; or
+  * AF_INET loopback: bind 127.0.0.1:<port>, still token-gated, with the port
+    recorded in place of the socket path.
+Either way the default-deny auth and framing stay unchanged; only the listener
+and peer-identity source differ.
 """
 
 from __future__ import annotations
