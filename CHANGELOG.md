@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-10-05
+
+### Fixed
+- **A fresh install now works.** Three defects kept voice inert: the installer
+  never installed the voice daemon (`utter.service`) or its runtime
+  dependencies, push-to-talk crashed the daemon on audio devices that do not
+  accept 16 kHz, and the wizard skipped the speech model entirely on `--yes`.
+  The installer now starts the daemon, bundles the Linux voice runtime (numpy,
+  evdev, sounddevice, pywhispercpp), pulls the curated speech model
+  (`ggml-small.en.bin`) by default, and negotiates a capture rate the device
+  supports, resampling to 16 kHz for Whisper.
+- **Hugging Face vision links no longer pretend to work.** The UI-TARS repos are
+  sharded and cannot be fetched by the single-file model store, so their "Get
+  it" pull is gone. Vision is provisioned with `scripts/install_inference.sh`,
+  and a failed pull now explains the sharded-repo case.
+
 ## [0.4.3] - 2026-10-05
 
 ### Fixed
