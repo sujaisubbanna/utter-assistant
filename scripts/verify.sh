@@ -77,6 +77,9 @@ echo "== platform: macOS detection + backend selection (runs on Linux) =="
 "$PY" tests/platform/test_macos_wiring.py || rc=1
 "$PY" tests/platform/test_macos_background_input.py || rc=1
 
+echo "== platform: Windows detection + path/dependency seams (runs on Linux/macOS) =="
+"$PY" tests/platform/test_windows_detection.py || rc=1
+
 echo "== platform: compositor detection + KWin backend (no live Plasma needed) =="
 "$PY" tests/platform/test_compositor_detection.py || rc=1
 

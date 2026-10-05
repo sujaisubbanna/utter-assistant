@@ -11,25 +11,67 @@ from typing import Any
 
 
 # --------------------------------------------------------------------------- #
-# XDG paths
+# XDG / Windows paths
 # --------------------------------------------------------------------------- #
+def _is_windows() -> bool:
+    """True when the active platform is Windows (honours UTTER_PLATFORM)."""
+    from utter import platform
+
+    return platform.is_windows()
+
+
+def _windows_local_appdata() -> Path:
+    return Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+
+
+def _windows_appdata() -> Path:
+    return Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+
+
 def xdg_data_home() -> Path:
-    return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    override = os.environ.get("XDG_DATA_HOME")
+    if override:
+        return Path(override)
+    if _is_windows():
+        return _windows_local_appdata()
+    return Path(Path.home() / ".local" / "share")
 
 
 def xdg_state_home() -> Path:
-    return Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
+    override = os.environ.get("XDG_STATE_HOME")
+    if override:
+        return Path(override)
+    if _is_windows():
+        return _windows_local_appdata()
+    return Path(Path.home() / ".local" / "state")
+
+
+def xdg_config_home() -> Path:
+    override = os.environ.get("XDG_CONFIG_HOME")
+    if override:
+        return Path(override)
+    if _is_windows():
+        return _windows_appdata()
+    return Path(Path.home() / ".config")
+
+
+def config_dir() -> Path:
+    """Per-user config directory (``~/.config/utter`` / ``%APPDATA%\\utter``)."""
+    return xdg_config_home() / "utter"
 
 
 def xdg_runtime_dir() -> Path:
     override = os.environ.get("XDG_RUNTIME_DIR")
     if override:
         return Path(override)
+    if _is_windows():
+        # No XDG runtime dir on Windows; the socket path just needs a stable,
+        # per-machine temp location (the transport itself is a P1 spike).
+        return Path(tempfile.gettempdir())
     linux_default = Path(f"/run/user/{os.getuid()}")
     if linux_default.is_dir():
         return linux_default
     # macOS has no XDG runtime dir; mirror runner.socket.default_socket_path().
-    import tempfile
     return Path(tempfile.gettempdir()) / f"utter-{os.getuid()}"
 
 
@@ -93,6 +135,10 @@ def models_root() -> Path:
     override = os.environ.get("UTTER_MODELS")
     if override:
         return Path(override)
+    if _is_windows():
+        # Windows lives entirely under %LOCALAPPDATA%\utter\models; there is no
+        # legacy XDG store to migrate from.
+        return xdg_data_home() / "utter" / "models"
     canonical = xdg_data_home() / _MODELS_DIRNAME
     if _dir_has_entries(canonical):
         return canonical
