@@ -11,7 +11,10 @@
 """
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import tempfile
 import tomllib
 import unittest
 from pathlib import Path
@@ -48,6 +51,45 @@ class TestInstallerContract(unittest.TestCase):
         # gi-capable interpreter selection prefers the distro python.
         self.assertIn("/usr/bin/python3", script)
         self.assertIn("py_has_gi", script)
+
+
+    def test_release_lookup_survives_api_rate_limit(self):
+        script = INSTALL.read_text(encoding="utf-8")
+        self.assertIn("_latest_tag()", script)
+        self.assertIn("GITHUB_TOKEN", script)
+        self.assertIn("/releases/latest", script)
+        self.assertIn("/releases/tag/", script)
+        # Both resolve paths use the shared helper, not a direct API call.
+        self.assertNotIn('curl -fsSL "$api" | sed', script)
+
+    def test_latest_tag_falls_back_to_redirect(self):
+        script = INSTALL.read_text(encoding="utf-8")
+        match = re.search(r"^_latest_tag\(\) \{.*?^\}", script, re.S | re.M)
+        assert match is not None, "_latest_tag not found in install.sh"
+        with tempfile.TemporaryDirectory() as d:
+            bindir = Path(d) / "bin"
+            bindir.mkdir()
+            fake = bindir / "curl"
+            fake.write_text(
+                "#!/bin/sh\n"
+                'case "$*" in\n'
+                "  *api.github.com*) exit 22 ;;\n"
+                "  *) printf 'HTTP/2 302\\r\\nlocation: "
+                "https://github.com/o/r/releases/tag/v9.9.9\\r\\n\\r\\n' ;;\n"
+                "esac\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            runner = Path(d) / "run.sh"
+            runner.write_text(match.group(0) + "\n_latest_tag\n", encoding="utf-8")
+            env = dict(os.environ)
+            env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+            env["UTTER_REPO"] = "o/r"
+            env.pop("GITHUB_TOKEN", None)
+            env.pop("GH_TOKEN", None)
+            out = subprocess.run(["bash", str(runner)], capture_output=True,
+                                 text=True, env=env)
+            self.assertEqual(out.stdout.strip(), "v9.9.9", out.stderr)
 
 
 if __name__ == "__main__":

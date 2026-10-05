@@ -194,6 +194,28 @@ done
 # Release resolution mirrors the Linux resolve_release() below so the
 # UTTER_VERSION / UTTER_BASE_URL overrides and the GitHub `releases/latest`
 # lookup behave identically.
+
+# _latest_tag — newest release tag without depending solely on the rate-limited
+# GitHub API (unauthenticated api.github.com 403s quickly on shared IPs).
+# Prefers the API, authenticating with GITHUB_TOKEN/GH_TOKEN when set; falls back
+# to the releases/latest HTML redirect, which has no API quota. bash-3.2 safe.
+_latest_tag() {
+    local api="https://api.github.com/repos/$UTTER_REPO/releases/latest"
+    local tok="${GITHUB_TOKEN:-${GH_TOKEN:-}}" tag=""
+    if [[ -n "$tok" ]]; then
+        tag="$(curl -fsSL -H "Authorization: Bearer $tok" "$api" 2>/dev/null \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
+    else
+        tag="$(curl -fsSL "$api" 2>/dev/null \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
+    fi
+    if [[ -z "$tag" ]]; then
+        tag="$(curl -fsSIL "https://github.com/$UTTER_REPO/releases/latest" 2>/dev/null \
+            | sed -n 's#^[Ll]ocation: .*/releases/tag/\([^[:space:]]*\).*#\1#p' | tail -1 || true)"
+    fi
+    printf '%s' "$tag"
+}
+
 if [[ "$(uname -s)" == "Darwin" ]]; then
 
 MAC_ARCH=""
@@ -234,7 +256,6 @@ macos_target() {
 
 # macos_resolve_release — mirrors resolve_release() (see the Linux section below)
 macos_resolve_release() {
-    local api
     if [[ -n "$UTTER_BASE_URL" ]]; then
         MAC_BASE_URL="${UTTER_BASE_URL%/}"
         [[ "$UTTER_VERSION" == "latest" ]] && \
@@ -245,9 +266,8 @@ macos_resolve_release() {
             if (( DRY_RUN )); then
                 MAC_VER="<latest>"
             else
-                api="https://api.github.com/repos/$UTTER_REPO/releases/latest"
-                printf '  querying: %s\n' "$api"
-                MAC_VER="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
+                printf '  querying: %s\n' "https://github.com/$UTTER_REPO/releases/latest"
+                MAC_VER="$(_latest_tag)"
                 [[ -n "$MAC_VER" ]] || macos_die "could not resolve the latest release for $UTTER_REPO"
             fi
         else
@@ -1858,14 +1878,11 @@ resolve_release() {
         VER="$UTTER_VERSION"
     else
         if [[ "$UTTER_VERSION" == "latest" ]]; then
-            local api="https://api.github.com/repos/$UTTER_REPO/releases/latest"
             if (( DRY_RUN )); then
                 VER="<latest>"
             else
-                say_f "  querying: {1}" "$api"
-                # `|| true` keeps a failed request from tripping `set -e` so the
-                # friendly error below is the one the user sees.
-                VER="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
+                say_f "  querying: {1}" "https://github.com/$UTTER_REPO/releases/latest"
+                VER="$(_latest_tag)"
                 [[ -n "$VER" ]] || die "$(t "could not resolve the latest release for {1}" "$UTTER_REPO")"
             fi
         else
