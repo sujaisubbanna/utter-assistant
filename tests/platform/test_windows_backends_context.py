@@ -194,6 +194,8 @@ class LazyImportTest(unittest.TestCase):
             with self.assertRaises(win_desktop.WindowsUnavailable):
                 win_desktop.require_windows()
 
+    @unittest.skipIf(sys.platform == "win32",
+                     "asserts non-Windows host degrade behaviour")
     def test_providers_degrade_on_linux(self):
         with forced_platform("linux"):
             self.assertIsNone(win_desktop.focused_window())
