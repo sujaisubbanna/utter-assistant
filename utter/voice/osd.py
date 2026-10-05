@@ -24,7 +24,10 @@ Design rules:
     * Disabled (``UTTER_OSD=0`` or ``[osd] enabled=false``) => **no writes**.
     * **Never raises** out of the public API and never blocks the recognition
       thread; windowed transcription runs in a single daemon worker with at most
-      one decode in flight.
+      one decode in flight, serialized on a shared lock with the listener's own
+      transcription. Windowed *partial* transcription is **opt-in**
+      (``[osd] stream=true``); the default keeps the waveform + final text and
+      runs no model inference while listening.
     * If windowed STT is unavailable/unsafe the emitter falls back to an empty
       ``text`` and relies on the level meter.
 """
@@ -96,6 +99,7 @@ class OsdEmitter:
         audio_source: Optional[Callable[[], List[bytes]]] = None,
         transcriber=None,
         transcriber_factory: Optional[Callable[[], object]] = None,
+        transcribe_lock: Optional[threading.Lock] = None,
         config=None,
         on_partial: Optional[Callable[[str], None]] = None,
         clock: Callable[[], float] = time.time,
@@ -127,6 +131,10 @@ class OsdEmitter:
         self._audio_source = audio_source
         self._transcriber = transcriber
         self._transcriber_factory = transcriber_factory
+        # Shared with the listener's final transcribe so a window decode and the
+        # utterance decode never run on the same model concurrently. The
+        # listener passes its own transcriber here so only ONE model is loaded.
+        self._transcribe_lock = transcribe_lock
         # Full configuration (used to build a platform-correct windowed STT
         # transcriber); optional so existing callers keep the default loader.
         self._config = config
@@ -430,7 +438,11 @@ class OsdEmitter:
             logger.debug("osd numpy unavailable", exc_info=True)
             return None
         try:
-            return transcriber.transcribe(samples) or ""
+            lock = self._transcribe_lock
+            if lock is None:
+                return transcriber.transcribe(samples) or ""
+            with lock:
+                return transcriber.transcribe(samples) or ""
         except Exception:
             logger.debug("osd window transcribe failed", exc_info=True)
             return None

@@ -32,6 +32,10 @@ def _setup_logging(level: str = "INFO") -> None:
 
 log = logging.getLogger("utter")
 
+#: Safety net for a missed push-to-talk key-up: a press held longer than this
+#: with no release is force-stopped so the daemon cannot wedge on "listening".
+_PTT_MAX_HOLD_S = 60.0
+
 
 def _play(name: str) -> None:
     try:
@@ -355,7 +359,8 @@ class _Osd:
     raise into the audio/recognition path.
     """
 
-    def __init__(self, cfg, audio_source=None, native=None):
+    def __init__(self, cfg, audio_source=None, native=None, transcriber=None,
+                 transcribe_lock=None):
         self.em = None
         self.watcher = None
         self._native = native
@@ -366,6 +371,8 @@ class _Osd:
             self.em = OsdEmitter(
                 cfg=getattr(cfg, "osd", None),
                 audio_source=audio_source,
+                transcriber=transcriber,
+                transcribe_lock=transcribe_lock,
                 config=cfg,
                 on_partial=self._on_partial,
             )
@@ -645,16 +652,46 @@ class Utter:
 
         stt = Transcriber.for_platform(self.cfg)
         rec_lock = threading.Lock()
+        # Serializes the listener's final transcribe with any OSD window decode
+        # so the single STT model is never run concurrently from two threads.
+        transcribe_lock = threading.Lock()
         session: dict = {"stream": None, "chunks": [], "mode": None, "target": None,
-                         "rate": 0}
+                         "rate": 0, "watchdog": None}
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
         # Additive OSD: waveform + listening/final, plus the loading state on
-        # cold start and after wake. A disabled emitter writes nothing.
-        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock))
+        # cold start and after wake. A disabled emitter writes nothing. The
+        # listener's own transcriber is handed over so windowed partials (opt-in)
+        # reuse ONE model instead of loading a second one.
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock),
+                   transcriber=stt, transcribe_lock=transcribe_lock)
         osd.begin_loading()
         osd.watch_sleep(sleeper)
+
+        def _watchdog_fire(mode: str) -> None:
+            log.warning("PTT (%s) still down after %.0fs with no key-up; forcing stop",
+                        mode, _PTT_MAX_HOLD_S)
+            try:
+                stop(mode)
+            except Exception:  # noqa: BLE001 - the safety net must never kill the daemon
+                log.exception("PTT watchdog stop failed")
+
+        def _arm_watchdog(mode: str) -> None:
+            timer = threading.Timer(_PTT_MAX_HOLD_S, _watchdog_fire, args=(mode,))
+            timer.daemon = True
+            with rec_lock:
+                old = session.get("watchdog")
+                if old is not None:
+                    old.cancel()
+                session["watchdog"] = timer
+            timer.start()
+
+        def _disarm_watchdog_locked() -> None:
+            timer = session.get("watchdog")
+            session["watchdog"] = None
+            if timer is not None:
+                timer.cancel()
 
         def start(mode: str) -> None:
             with rec_lock:
@@ -697,6 +734,8 @@ class Utter:
             # (and the pre-refactor loop never held rec_lock across start()), so
             # holding it here could deadlock capture.
             stream.start()
+            # Bounded safety net: a missed key-up cannot leave us listening.
+            _arm_watchdog(mode)
 
         def stop(mode: str) -> None:
             with rec_lock:
@@ -704,10 +743,20 @@ class Utter:
                 if stream is None or session["mode"] != mode:
                     return
                 session["stream"] = None
-                stream.stop(); stream.close()
+                _disarm_watchdog_locked()
+                rate = int(session.get("rate") or self.cfg.audio.sample_rate)
+            # Stop/close OUTSIDE rec_lock. PortAudio's stream.stop() waits for
+            # the in-flight callback to return, and that callback acquires
+            # rec_lock; holding it here deadlocked the daemon (the key-up was
+            # never processed and osd.json stayed "listening" forever).
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:  # noqa: BLE001 - best-effort teardown
+                log.debug("stream teardown failed", exc_info=True)
+            with rec_lock:
                 data = (np.concatenate(session["chunks"]) if session["chunks"]
                         else np.zeros((0, 1), dtype="float32"))
-                rate = int(session.get("rate") or self.cfg.audio.sample_rate)
             try:
                 audio = data.reshape(-1).astype("float32")
                 if audio.size < rate * 0.2:
@@ -716,10 +765,12 @@ class Utter:
                     return
                 audio = _resample_linear(audio, rate, STT_SAMPLE_RATE)
                 try:
-                    text = stt.transcribe(audio)
-                except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                    with transcribe_lock:
+                        text = stt.transcribe(audio)
+                except Exception as exc:  # noqa: BLE001 - never kill the PTT loop
+                    log.error("transcription failed: %s", exc)
                     osd.idle()
-                    raise
+                    return
                 log.info("transcript (%s): %r", mode, text)
                 if not text:
                     osd.idle()
@@ -814,8 +865,9 @@ class Utter:
         log.info("macOS voice: stt chain=%s dictation=%s assistant=%s hotkeys=%s",
                  [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)
         rec_lock = threading.Lock()
+        transcribe_lock = threading.Lock()
         session: dict = {"stream": None, "chunks": [], "mode": None, "target": None,
-                         "rate": 0}
+                         "rate": 0, "watchdog": None}
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
@@ -823,11 +875,36 @@ class Utter:
         # assistant lane only, driven directly (no file polling).
         native = _NativeOverlay()
         dismiss_ms = _osd_dismiss_ms(self.cfg)
-        # Additive OSD for both dictation and assistant keys.
+        # Additive OSD for both dictation and assistant keys. Share the
+        # listener's transcriber (one model) and its lock (serialized decodes).
         osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock),
-                   native=native)
+                   native=native, transcriber=stt, transcribe_lock=transcribe_lock)
         osd.begin_loading()
         osd.watch_sleep(sleeper)
+
+        def _watchdog_fire(mode: str) -> None:
+            log.warning("PTT (%s) still down after %.0fs with no key-up; forcing stop",
+                        mode, _PTT_MAX_HOLD_S)
+            try:
+                stop(mode)
+            except Exception:  # noqa: BLE001 - the safety net must never kill the daemon
+                log.exception("PTT watchdog stop failed")
+
+        def _arm_watchdog(mode: str) -> None:
+            timer = threading.Timer(_PTT_MAX_HOLD_S, _watchdog_fire, args=(mode,))
+            timer.daemon = True
+            with rec_lock:
+                old = session.get("watchdog")
+                if old is not None:
+                    old.cancel()
+                session["watchdog"] = timer
+            timer.start()
+
+        def _disarm_watchdog_locked() -> None:
+            timer = session.get("watchdog")
+            session["watchdog"] = None
+            if timer is not None:
+                timer.cancel()
 
         def start(mode: str) -> None:
             # Lazy permission re-check: once the user grants Accessibility /
@@ -860,9 +937,12 @@ class Utter:
                     native.idle()
                     idle.end("listen")
                     return
-                stream.start()
                 session["stream"] = stream
                 session["rate"] = rate
+            # Start outside rec_lock: a synchronous first callback must be able
+            # to take rec_lock (same reason as the Linux lane).
+            stream.start()
+            _arm_watchdog(mode)
             idle.begin("listen")
             if sleeper.asleep:
                 sleeper.wake()
@@ -878,9 +958,17 @@ class Utter:
                 if stream is None or session["mode"] != mode:
                     return
                 session["stream"] = None
-                stream.stop(); stream.close()
-                data = np.concatenate(session["chunks"]) if session["chunks"] else np.zeros((0, 1), dtype="float32")
+                _disarm_watchdog_locked()
                 rate = int(session.get("rate") or self.cfg.audio.sample_rate)
+            # Stop/close outside rec_lock: PortAudio waits for the in-flight
+            # callback, which needs rec_lock (same deadlock as the Linux lane).
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:  # noqa: BLE001 - best-effort teardown
+                log.debug("stream teardown failed", exc_info=True)
+            with rec_lock:
+                data = np.concatenate(session["chunks"]) if session["chunks"] else np.zeros((0, 1), dtype="float32")
             try:
                 audio = data.reshape(-1).astype("float32")
                 if audio.size < rate * 0.2:
@@ -890,7 +978,8 @@ class Utter:
                     return
                 audio = _resample_linear(audio, rate, STT_SAMPLE_RATE)
                 try:
-                    text = stt.transcribe(audio)
+                    with transcribe_lock:
+                        text = stt.transcribe(audio)
                 except Exception as e:  # noqa: BLE001
                     log.error("transcription failed: %s", e)
                     osd.idle()

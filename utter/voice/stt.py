@@ -412,7 +412,10 @@ class Transcriber:
         model_ref = self._resolve_whispercpp_model()
         self.model_path = model_ref
         self._warn_english_only(model_ref)
-        n_threads = max(1, (os.cpu_count() or 4))
+        # Leave one core for the UI/audio threads. Using every core makes ggml's
+        # OpenMP barrier spin against the rest of the daemon and, with a second
+        # model in the OSD, could deadlock. One model + one spare core is plenty.
+        n_threads = max(1, (os.cpu_count() or 2) - 1)
         logger.info("loading whisper.cpp model %s (n_threads=%d)", model_ref, n_threads)
         return Model(model_ref, n_threads=n_threads)
 

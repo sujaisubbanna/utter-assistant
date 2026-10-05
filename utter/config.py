@@ -146,7 +146,11 @@ class OsdConfig:
     enabled: bool = True
     position: str = "bottom_center"
     dismiss_ms: int = 1200
-    stream: bool = True
+    # Windowed partial transcription while listening. Off by default: it runs a
+    # full STT decode every `stream_interval_ms` and, on a slow CPU, competes
+    # with the listener's final transcription. The waveform + final text are
+    # unaffected. Set true to opt back into live partials.
+    stream: bool = False
     stream_interval_ms: int = 700
     window_s: float = 6.0
 
