@@ -1,0 +1,107 @@
+name: windows-installer
+
+# Build the Windows installers (NSIS .exe required, WiX .msi best-effort) on a
+# real windows-latest host and upload them as workflow artifacts, so the
+# packaging can be validated without cutting a release. This is deliberately
+# independent of `release.yml` (which attaches its build to the GitHub Release).
+#
+# Signing / secrets: the NSIS and MSI installers are UNSIGNED, which needs NO
+# repository secret. Authenticode signing is future work: add
+# WINDOWS_CERTIFICATE (base64 .pfx) and WINDOWS_CERTIFICATE_PASSWORD secrets and
+# export them to the Tauri build env.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "gui-tauri/**"
+      - ".github/workflows/windows-installer.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows-installers:
+    # Native Windows target (x86_64-pc-windows-msvc) — installers cannot be
+    # cross-built meaningfully from Linux for this project.
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "gui-tauri/src-tauri -> target"
+
+      - name: Check gui-tauri present
+        id: gui
+        run: |
+          if [[ -f gui-tauri/package.json ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::gui-tauri/ is not present in this checkout; nothing to build."
+          fi
+
+      - name: Install GUI dependencies
+        if: steps.gui.outputs.present == 'true'
+        working-directory: gui-tauri
+        run: pnpm install --frozen-lockfile
+
+      # NSIS is the required installer: if it fails, the packaging is broken.
+      - name: Build NSIS installer (.exe) — required
+        if: steps.gui.outputs.present == 'true'
+        working-directory: gui-tauri
+        run: pnpm dlx @tauri-apps/cli build --bundles nsis
+
+      # MSI/WiX is best-effort: a WiX toolchain hiccup should not hide the NSIS
+      # result. The upload step below fails only if no NSIS .exe was produced.
+      - name: Build MSI installer (.msi) — best-effort
+        if: steps.gui.outputs.present == 'true'
+        working-directory: gui-tauri
+        continue-on-error: true
+        run: pnpm dlx @tauri-apps/cli build --bundles msi
+
+      - name: Collect installers
+        if: steps.gui.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          BUNDLE="gui-tauri/src-tauri/target/release/bundle"
+          mkdir -p dist
+          find "$BUNDLE/nsis" -maxdepth 1 -name '*-setup.exe' -exec cp {} dist/ \; || true
+          find "$BUNDLE/msi" -maxdepth 1 -name '*.msi' -exec cp {} dist/ \; || true
+          if ! compgen -G "dist/*-setup.exe" >/dev/null; then
+            echo "::error::no NSIS installer produced"
+            exit 1
+          fi
+          echo "--- installers ---"
+          ls -lh dist
+
+      - name: Upload installers
+        if: steps.gui.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: utter-windows-installers
+          path: dist/*
+          if-no-files-found: error
