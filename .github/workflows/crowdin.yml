@@ -89,6 +89,16 @@ jobs:
 
       # 3. Convert the JSON back into the shipped locale files, so the PR carries
       #    ready-to-use .ts/.sh rather than Crowdin's intermediate JSON.
+      - name: Fix workspace ownership after Crowdin
+        if: steps.guard.outputs.configured == 'true'
+        run: |
+          # The crowdin/github-action runs in Docker as root and can leave the
+          # workspace (including .git) owned by root, which makes the later
+          # create-pull-request commit fail with "Permission denied" on
+          # .git/COMMIT_EDITMSG. Restore ownership to the runner user.
+          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Import translations into locale files
         if: steps.guard.outputs.configured == 'true'
         run: python scripts/i18n_crowdin.py import
