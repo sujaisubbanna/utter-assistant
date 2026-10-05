@@ -65,11 +65,12 @@ export const PROMPTS = new Set(["microphone", "speech_recognition", "input_monit
  *  agents must be restarted when either flips to granted. */
 export const RESTART_ON_GRANT = ["input_monitoring", "accessibility"];
 
-// macOS runs two launchd agents. On Linux the installer only installs the
-// runner user unit (`install/utter-runner.service`); the old utter-bridge and
-// friends are legacy units the installer removes, so they are not shown.
+// macOS runs two launchd agents. On Linux the installer installs two user
+// units: the runner (`install/utter-runner.service`) and the voice daemon
+// (`systemd/utter.service`). The old utter-bridge and friends are legacy units
+// the installer leaves alone, so they are not shown.
 export const MAC_AGENT_UNITS = ["utter-runner", "utter-bridge"];
-export const LINUX_AGENT_UNITS = ["utter-runner"];
+export const LINUX_AGENT_UNITS = ["utter-runner", "utter.service"];
 const SETUP_SEEN = "utter.setup.seen";
 
 export function markSetupSeen(): void {

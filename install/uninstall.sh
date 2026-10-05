@@ -27,6 +27,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 UNIT_DST_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 UNIT_DST="$UNIT_DST_DIR/utter-runner.service"
+DAEMON_UNIT_DST="$UNIT_DST_DIR/utter.service"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/utter"
 STATE_FILE="$STATE_DIR/install.json"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/utter"
@@ -60,7 +61,7 @@ fi
 # 1. stop + disable units
 # --------------------------------------------------------------------------- #
 step "1. stop + disable units"
-UNITS=(utter-runner)
+UNITS=(utter-runner utter)
 # Legacy units are only touched if they exist and were not installed by us.
 for u in utter-bridge utter-vision utter-planner utter-audio-defaults; do
     if systemctl --user list-unit-files "${u}.service" 2>/dev/null | grep -q "${u}.service"; then
@@ -84,6 +85,11 @@ if [[ -f "$UNIT_DST" ]]; then
     run "remove $UNIT_DST" rm -f "$UNIT_DST"
 else
     note "unit not present: $UNIT_DST"
+fi
+if [[ -f "$DAEMON_UNIT_DST" ]]; then
+    run "remove $DAEMON_UNIT_DST" rm -f "$DAEMON_UNIT_DST"
+else
+    note "unit not present: $DAEMON_UNIT_DST"
 fi
 run "reload systemd user manager" systemctl --user daemon-reload
 

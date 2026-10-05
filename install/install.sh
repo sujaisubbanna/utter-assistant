@@ -35,6 +35,10 @@ REPO="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 UNIT_SRC="$SCRIPT_DIR/utter-runner.service"
 UNIT_DST_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 UNIT_DST="$UNIT_DST_DIR/utter-runner.service"
+# The voice daemon ships in the repo's systemd/ dir (the core tarball keeps the
+# same layout); without it a fresh install has no working voice.
+DAEMON_UNIT_SRC="$REPO/systemd/utter.service"
+DAEMON_UNIT_DST="$UNIT_DST_DIR/utter.service"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/utter"
 STATE_FILE="$STATE_DIR/install.json"
 
@@ -213,24 +217,34 @@ if (( IN_INPUT_GROUP )); then
 fi
 
 # --------------------------------------------------------------------------- #
-# 4. runner service
+# 4. runner + voice daemon services
 # --------------------------------------------------------------------------- #
-step "4. runner user service"
+step "4. runner + voice daemon user services"
 say "  unit source: $UNIT_SRC"
 say "  unit target: $UNIT_DST"
+say "  daemon unit source: $DAEMON_UNIT_SRC"
+say "  daemon unit target: $DAEMON_UNIT_DST"
 if [[ ! -f "$UNIT_SRC" ]]; then
     warn "unit file missing: $UNIT_SRC"
+fi
+if [[ ! -f "$DAEMON_UNIT_SRC" ]]; then
+    warn "daemon unit file missing: $DAEMON_UNIT_SRC"
 fi
 
 if (( DO_SERVICE )); then
     run "create $UNIT_DST_DIR" mkdir -p "$UNIT_DST_DIR"
+    # Both units ship with @REPO@ placeholders; point them at this checkout.
     install_unit() { sed "s|@REPO@|$REPO|g" "$UNIT_SRC" > "$UNIT_DST"; }
+    install_daemon_unit() { sed "s|@REPO@|$REPO|g" "$DAEMON_UNIT_SRC" > "$DAEMON_UNIT_DST"; }
     run "install utter-runner.service (repo: $REPO)" install_unit
+    run "install utter.service (voice daemon)" install_daemon_unit
     run "reload systemd user manager" systemctl --user daemon-reload
     if (( DRY_RUN )); then
-        run "enable + start the runner" systemctl --user enable --now utter-runner.service
+        run "enable + start the runner and daemon" \
+            systemctl --user enable --now utter-runner.service utter.service
     elif (( ASSUME_YES )); then
-        run "enable + start the runner" systemctl --user enable --now utter-runner.service
+        run "enable + start the runner and daemon" \
+            systemctl --user enable --now utter-runner.service utter.service
     else
         note "not enabling (pass --yes to apply)"
     fi
@@ -242,6 +256,8 @@ fi
 # 5. legacy units (opt-in, never disturbed)
 # --------------------------------------------------------------------------- #
 step "5. legacy units (optional)"
+# utter.service is installed by this installer (section 4), not legacy, so it is
+# deliberately absent from LEGACY.
 LEGACY=(utter-bridge utter-vision utter-planner utter-audio-defaults)
 FOUND_LEGACY=()
 for u in "${LEGACY[@]}"; do
@@ -322,6 +338,6 @@ if (( DRY_RUN )); then
     say "Dry-run complete. Re-run with --yes to apply."
 else
     say "Install complete."
-    say "  status:  systemctl --user status utter-runner.service"
-    say "  logs:    journalctl --user -u utter-runner.service -f"
+    say "  status:  systemctl --user status utter-runner.service utter.service"
+    say "  logs:    journalctl --user -u utter-runner.service -u utter.service -f"
 fi

@@ -14,6 +14,13 @@ export const SERVICES: ServiceDef[] = [
     descKey: "general.serviceNames.runnerDesc",
   },
   {
+    // The voice daemon (`python -m utter.daemon`). Reuses existing copy:
+    // "Voice assistant" and the Voice page description — no new i18n keys.
+    unit: "utter.service",
+    labelKey: "setup.agent.assistant",
+    descKey: "voice.description",
+  },
+  {
     unit: "utter-vision",
     labelKey: "general.serviceNames.vision",
     descKey: "general.serviceNames.visionDesc",

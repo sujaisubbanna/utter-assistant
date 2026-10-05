@@ -3,7 +3,7 @@
 
 Verifies:
   - macOS runtime resolution: Metal GPU, Ollama LLM, Ollama Vision, Apple Speech / whisper.cpp, say.
-  - Linux runtime resolution: CUDA/ROCm GPU, vLLM LLM/Vision, faster-whisper, espeak-ng.
+  - Linux runtime resolution: CUDA/ROCm GPU, vLLM LLM/Vision, whisper.cpp, espeak-ng.
   - Graceful degradation when external tools (Ollama, VocaMac) are unavailable or not installed.
   - Config parsing for [macos.runtime] and synchronization with [macos].
   - CLI settings resolution for macos.runtime keys.
@@ -128,7 +128,7 @@ class TestMacosRuntime(unittest.TestCase):
             self.assertIn(rep["device"], ("cuda", "rocm", "cpu"))
             self.assertEqual(rep["llm"]["provider"], "vllm")
             self.assertEqual(rep["vision"]["provider"], "vllm")
-            self.assertEqual(rep["stt"]["primary"], "faster_whisper")
+            self.assertEqual(rep["stt"]["primary"], "whisper_cpp")
 
     def test_resolve_router_platform_aware(self):
         cfg = Config()

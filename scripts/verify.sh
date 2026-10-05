@@ -137,6 +137,9 @@ fi
 if [ -f tests/m5/test_installer_models.py ]; then
     "$PY" tests/m5/test_installer_models.py || rc=1
 fi
+if [ -f tests/m5/test_installer_voice_service.py ]; then
+    "$PY" tests/m5/test_installer_voice_service.py || rc=1
+fi
 if [ -f tests/m5/test_serve_model_resolution.py ]; then
     "$PY" tests/m5/test_serve_model_resolution.py || rc=1
 fi

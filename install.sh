@@ -1417,6 +1417,9 @@ GUI_BIN="$BIN_DIR/utter-gui"
 ASSISTANT_BIN="$BIN_DIR/assistant"
 DESKTOP_FILE="$APPS_DIR/utter-gui.desktop"
 RUNNER_UNIT="$UNIT_DIR/utter-runner.service"
+# The voice daemon (`python -m utter.daemon`) ships as a second user unit; the
+# runner supervises plugins, but does not start the daemon.
+DAEMON_UNIT="$UNIT_DIR/utter.service"
 NOCTALIA_PLUGINS="${NOCTALIA_PLUGINS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/noctalia/plugins}"
 NOCTALIA_DEST="$NOCTALIA_PLUGINS/utter"
 SYMLINK_PATH="$HOME/.local/bin/utter-gui"
@@ -1573,8 +1576,12 @@ found_core() {
 }
 
 found_units() {
-    if [[ -f "$RUNNER_UNIT" ]]; then
-        field_f "found:" "unit installed ({1})" "$RUNNER_UNIT"
+    if [[ -f "$RUNNER_UNIT" && -f "$DAEMON_UNIT" ]]; then
+        field "found:" "runner + voice daemon units installed"
+    elif [[ -f "$RUNNER_UNIT" ]]; then
+        field_f "found:" "runner unit installed ({1}); voice daemon unit missing" "$RUNNER_UNIT"
+    elif [[ -f "$DAEMON_UNIT" ]]; then
+        field_f "found:" "voice daemon unit installed ({1}); runner unit missing" "$DAEMON_UNIT"
     elif _systemd_user_ok; then
         field "found:" "systemd --user available, no unit yet"
     else
@@ -2191,6 +2198,7 @@ do_uninstall() {
             sub "$ASSISTANT_BIN"
             sub "$DESKTOP_FILE"
             sub "$RUNNER_UNIT"
+            sub "$DAEMON_UNIT"
             sub "$SHARE_DIR"
             say ""
             say "Nothing removed. Re-run with --yes to remove them:"
@@ -2377,6 +2385,7 @@ do_uninstall_legacy() {
         [[ -f "$icon" ]] && run_f "remove {1}" "$icon" rm -f "$icon" || true
     done
     [[ -f "$RUNNER_UNIT" ]] && run_f "remove {1}" "$RUNNER_UNIT" rm -f "$RUNNER_UNIT" || note "no runner unit"
+    [[ -f "$DAEMON_UNIT" ]] && run_f "remove {1}" "$DAEMON_UNIT" rm -f "$DAEMON_UNIT" || note "no voice daemon unit"
     if [[ -d "$SHARE_DIR" ]]; then
         run_f "remove {1}" "$SHARE_DIR" rm -rf "$SHARE_DIR"
     else
@@ -2855,7 +2864,7 @@ fi
 
 # sub-questions (asked once, after the walk)
 if [[ "$(decision_of units)" == "yes" ]] && (( ! ASSUME_YES )); then
-    if ask_yn "n" "  Enable and start utter-runner.service now?"; then
+    if ask_yn "n" "  Enable and start utter-runner.service + utter.service now?"; then
         ENABLE_UNITS=1
     fi
     (( QUIT )) && { say "Quit before making any changes."; exit 0; }
@@ -2907,7 +2916,7 @@ for i in "${!COMP_IDS[@]}"; do
         fi
     fi
 done
-if (( ENABLE_UNITS )); then say_f "  units: enable + start utter-runner.service now"; fi
+if (( ENABLE_UNITS )); then say_f "  units: enable + start utter-runner.service + utter.service now"; fi
 if [[ -n "$LANG_CODE" ]]; then
     say_f "  language: {1} (English default otherwise)" "$LANG_CODE"
 else
@@ -2965,10 +2974,11 @@ exec_deps() {
 }
 
 # ensure_python_deps — make `python -m assistant` and the utter_py plugin
-# importable. The core needs PyYAML + requests; prefer an existing venv in the
-# core tree, create one if needed, else fall back to a --user install. Uses
-# python3 explicitly and never relies on a bare `python`. Sets ASSISTANT_PY to
-# the interpreter that should run the plugin.
+# importable. The core needs PyYAML + requests; the voice daemon also needs the
+# Linux voice runtime (numpy, evdev, sounddevice, pywhispercpp). Prefer an
+# existing venv in the core tree, create one if needed, else fall back to a
+# --user install. Uses python3 explicitly and never relies on a bare `python`.
+# Sets ASSISTANT_PY to the interpreter that should run the plugin.
 ASSISTANT_PY=""
 ensure_python_deps() {
     local py="" c
@@ -2979,7 +2989,7 @@ ensure_python_deps() {
     if [[ -z "$py" ]] && command -v python3 >/dev/null 2>&1; then py="$(command -v python3)"; fi
     [[ -n "$py" ]] || { warn "no python3 on PATH; cannot install assistant dependencies"; return 0; }
 
-    if "$py" -c 'import yaml, requests' >/dev/null 2>&1; then
+    if "$py" -c 'import yaml, requests, numpy, evdev, sounddevice, pywhispercpp' >/dev/null 2>&1; then
         say "  assistant Python dependencies already present"
         ASSISTANT_PY="$py"
         return 0
@@ -2989,7 +2999,7 @@ ensure_python_deps() {
     if (( DRY_RUN )); then
         ASSISTANT_PY="$venv/bin/python"
         run_f "create {1}" "$venv" python3 -m venv "$venv"
-        run "install PyYAML + requests" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests
+        run "install PyYAML + requests + Linux voice runtime" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp
         return 0
     fi
 
@@ -2997,17 +3007,17 @@ ensure_python_deps() {
         python3 -m venv "$venv" >/dev/null 2>&1 || true
     fi
     if [[ -x "$venv/bin/python" ]] \
-        && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
-        ok_f "installed PyYAML + requests into {1}" "$venv"
+        && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp >/dev/null 2>&1; then
+        ok_f "installed PyYAML + requests + Linux voice runtime into {1}" "$venv"
         ASSISTANT_PY="$venv/bin/python"
         return 0
     fi
-    if "$py" -m pip install --user --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
-        ok "installed PyYAML + requests for the user"
+    if "$py" -m pip install --user --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp >/dev/null 2>&1; then
+        ok "installed PyYAML + requests + Linux voice runtime for the user"
         ASSISTANT_PY="$py"
         return 0
     fi
-    warn "could not install PyYAML + requests; install them yourself: python3 -m pip install --user PyYAML requests"
+    warn "could not install voice dependencies; install them yourself: python3 -m pip install --user PyYAML requests numpy evdev sounddevice pywhispercpp"
     ASSISTANT_PY="$py"
     return 0
 }
@@ -3086,33 +3096,53 @@ WRAP
 
 exec_units() {
     section "install systemd user units"
-    local unit_src=""
-    if [[ -f "$SHARE_DIR/install/utter-runner.service" ]]; then
-        unit_src="$SHARE_DIR/install/utter-runner.service"
-    else
+    # The runner supervises plugins; the daemon (`python -m utter.daemon`) is a
+    # second unit that actually gives fresh installs voice. Prefer the installed
+    # core tree, else the extracted core context. If one unit is absent from the
+    # tarball the other still installs.
+    if [[ ! -f "$SHARE_DIR/install/utter-runner.service" || ! -f "$SHARE_DIR/systemd/utter.service" ]]; then
         ensure_core_context
-        unit_src="$CORE_CONTEXT/install/utter-runner.service"
     fi
-    if [[ -f "$unit_src" ]] || (( DRY_RUN )); then
+    local runner_src="$SHARE_DIR/install/utter-runner.service"
+    [[ -f "$runner_src" ]] || runner_src="$CORE_CONTEXT/install/utter-runner.service"
+    local daemon_src="$SHARE_DIR/systemd/utter.service"
+    [[ -f "$daemon_src" ]] || daemon_src="$CORE_CONTEXT/systemd/utter.service"
+
+    if [[ -f "$runner_src" ]] || [[ -f "$daemon_src" ]] || (( DRY_RUN )); then
         run_f "create {1}" "$UNIT_DIR" mkdir -p "$UNIT_DIR"
-        # The unit ships with @REPO@ placeholders; point them at the installed
+        # Both units ship with @REPO@ placeholders; point them at the installed
         # core tree, or systemd tries to run a literal "@REPO@" path.
-        install_unit() { sed "s|@REPO@|$SHARE_DIR|g" "$unit_src" > "$RUNNER_UNIT"; }
-        run "install utter-runner.service" install_unit
+        local names=() files=()
+        if [[ -f "$runner_src" ]] || (( DRY_RUN )); then
+            install_runner() { sed "s|@REPO@|$SHARE_DIR|g" "$runner_src" > "$RUNNER_UNIT"; }
+            run "install utter-runner.service" install_runner
+            names+=("utter-runner.service"); files+=("$RUNNER_UNIT")
+        else
+            warn "no runner unit found in the core tree; skipping utter-runner.service"
+        fi
+        if [[ -f "$daemon_src" ]] || (( DRY_RUN )); then
+            install_daemon() { sed "s|@REPO@|$SHARE_DIR|g" "$daemon_src" > "$DAEMON_UNIT"; }
+            run "install utter.service" install_daemon
+            names+=("utter.service"); files+=("$DAEMON_UNIT")
+        else
+            warn "no daemon unit found in the core tree; skipping utter.service"
+        fi
         if command -v systemctl >/dev/null 2>&1; then
             run "reload systemd user manager" systemctl --user daemon-reload || true
         fi
-        if (( ENABLE_UNITS )); then
-            run "enable + start the runner" systemctl --user enable --now utter-runner.service
-        else
-            note "enable later with: systemctl --user enable --now utter-runner.service"
+        if (( ${#names[@]} )); then
+            if (( ENABLE_UNITS )); then
+                run "enable + start the units" systemctl --user enable --now "${names[@]}"
+            else
+                note "enable later with: systemctl --user enable --now ${names[*]}"
+            fi
         fi
         reset_record
-        D_FILES=("$RUNNER_UNIT")
-        D_UNITS=("utter-runner.service")
-        record_component units "systemd user unit" "$VER_NUM" "systemd" 0 "$ASSISTANT_BIN"
+        D_FILES=("${files[@]}")
+        D_UNITS=("${names[@]}")
+        record_component units "systemd user units" "$VER_NUM" "systemd" 0 "$ASSISTANT_BIN"
     else
-        warn "no runner unit found in the core tree; skipping systemd wiring"
+        warn "no systemd units found in the core tree; skipping systemd wiring"
     fi
 }
 

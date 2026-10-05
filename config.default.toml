@@ -29,14 +29,19 @@ device = ""          # empty = default input
 
 [stt]
 # local whisper backend: "faster_whisper" | "whisper_cpp" | "none" (transcription disabled)
-backend = "faster_whisper"
-model = "distil-small.en"
+# Default is whisper.cpp: it needs no Python inference stack, and the installer
+# pulls the model below into the assistant model store (nothing is downloaded
+# automatically at runtime).
+backend = "whisper_cpp"
+# The installer pulls hf:ggerganov/whisper.cpp:ggml-small.en.bin (English, runs
+# on CPU or GPU) into the store; that file is what this name resolves to.
+model = "ggml-small.en.bin"
 device = "cuda"          # Linux-only: CUDA/NVIDIA (ignored on macOS)
 compute_type = "float16"
 # Spoken language: "auto" (detect from LC_ALL/LC_MESSAGES/LANG, else let
 # Whisper auto-detect) or a code such as "en", "en-GB", "de-DE". This is
 # independent of the settings-app UI language. NOTE: ".en" models (including
-# the default distil-small.en) only speak English; pick a multilingual model
+# the default ggml-small.en.bin) only speak English; pick a multilingual model
 # such as "small" or "large-v3-turbo" for other languages (the Voice page
 # offers this explicitly; nothing is downloaded automatically).
 language = "auto"
