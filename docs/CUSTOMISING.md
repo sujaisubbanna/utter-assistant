@@ -299,7 +299,8 @@ Two things use the local planner endpoint on `:8001`:
   decision head both fail (`utter/router/planner.py`). Disable with
   `[router] llm_fallback = false`.
 
-Serve the planner (GPU 1, port 8001, model name `qwen3-4b`):
+Serve the planner (port 8001, model name `qwen3-4b`). On **Linux** it is vLLM + 4-bit AWQ
+(GPU 1 by default):
 
 ```bash
 scripts/serve_planner.sh
@@ -312,12 +313,32 @@ Model/port/GPU are overridable via `UTTER_PLANNER_MODEL_PATH`,
 `UTTER_PLANNER_GPU_MEM_UTIL`, `UTTER_CUDA_VISIBLE_DEVICES`
 (`serve_planner.sh:5-25,36-51`).
 
-The default checkpoint is `models/Qwen3-4B-Instruct-2507-AWQ-4bit` (W4A16 AWQ).
+The Linux default checkpoint is `models/Qwen3-4B-Instruct-2507-AWQ-4bit` (W4A16 AWQ).
+
+On **macOS/Windows** the planner is **llama.cpp** over the
+`unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M checkpoint, on the same endpoint and served name so
+`[router] llm_base_url` / `llm_model` are unchanged. `python -m assistant inference install`
+fetches the GGUF and a pinned `llama-server` build, so there is nothing to install by hand:
+
+```bash
+scripts/serve_planner_llamacpp.sh
+# under the hood:
+# llama-server --model <gguf> --alias qwen3-4b --host 127.0.0.1 --port 8001 \
+#     -c 4096 -ngl auto -fa auto --jinja --reasoning off -np 1 --no-webui
+```
+
+`--reasoning off` is **mandatory** (Qwen3-4B-Instruct-2507 is often misdetected as a thinking
+model); `-ngl auto` offloads what it can (Metal/CUDA) and falls back to CPU. Overrides:
+`UTTER_PLANNER_PORT`, `UTTER_PLANNER_SERVED_NAME`, `UTTER_PLANNER_MODEL_PATH`,
+`UTTER_PLANNER_CTX`, `UTTER_LLAMACPP_NGL`, `UTTER_LLAMACPP_SERVER`, `UTTER_LLAMACPP_DIR`,
+`UTTER_LLAMACPP_TAG`. Vision is still served separately (below). Any other OpenAI-compatible server
+works on any platform; just point `llm_base_url` and `llm_model` at it.
 
 ### GPU memory & latency
 
-The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers**. Per-component
-footprint:
+The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers** — this section
+is Linux-specific; on macOS/Windows the planner runs under llama.cpp and vision under
+`scripts/serve_vision_transformers.py`, so these fractions do not apply. Per-component footprint:
 
 | Component | Model | Precision | GPU memory setting | On disk |
 |---|---|---|---|---|
@@ -358,8 +379,8 @@ Latency was measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **
 
 ## 6. Vision
 
-The T3 tier grounds a description to a click point using **UI-TARS-2B-SFT** served by
-vLLM:
+The T3 tier grounds a description to a click point using **UI-TARS-2B-SFT**. On **Linux** it is
+served by vLLM:
 
 ```bash
 scripts/serve_vision.sh
@@ -373,6 +394,10 @@ setsid bash -c 'scripts/serve_vision.sh > /tmp/vllm-serve.log 2>&1 &'
   `UTTER_VISION_GPU_MEM_UTIL`, `UTTER_CUDA_VISIBLE_DEVICES`.
 - The planner and vision servers share GPU 1 via `--gpu-memory-utilization`
   (vision 0.55, planner 0.30 — `serve_planner.sh:9-12`).
+
+On **macOS/Windows** the same UI-TARS checkpoint is served by the cross-platform
+`scripts/serve_vision_transformers.py` on the same `http://127.0.0.1:8000/v1` / `uitars` endpoint;
+there is no vLLM wheel there. See [MACOS.md](MACOS.md) and [WINDOWS.md](WINDOWS.md).
 
 Client side (`utter/vision/`):
 

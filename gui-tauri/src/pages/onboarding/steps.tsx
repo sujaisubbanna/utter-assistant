@@ -23,6 +23,9 @@ import { usePoll } from "../../lib/hooks";
 import {
   REQUIRED_SPEECH_SOURCE,
   inferenceReady,
+  plannerBackend,
+  plannerBackendLabel,
+  plannerModelLabel,
   speechInstalled,
   useInferenceStatus,
 } from "../../lib/inference";
@@ -827,7 +830,7 @@ const STT_SIZES: Record<string, number> = {
 
 export function ModelsStep({ data, commit, nav }: StepProps) {
   const { t } = useI18n();
-  const { isMac } = usePlatform();
+  const { isMac, os } = usePlatform();
   const { set, setMany } = useConfig();
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [recError, setRecError] = useState(false);
@@ -846,6 +849,9 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
   const engineDoneRef = useRef(false);
   const [engineOpen, setEngineOpen] = useState(false);
   const { status: engine, refresh: refreshEngine } = useInferenceStatus();
+  // Which runtime serves the planner on this host (from the engine, else the
+  // platform default: vLLM on Linux, llama.cpp on macOS/Windows).
+  const activeBackend = plannerBackend(engine, os);
 
   useEffect(() => {
     api.recommend().then(setRecommendation).catch(() => setRecError(true));
@@ -1055,6 +1061,12 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
             <Badge tone="accent">{t("onboarding.models.required")}</Badge>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("onboarding.models.runtimeBody")}</p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            {t("onboarding.models.runtimePlanner", {
+              backend: plannerBackendLabel(activeBackend),
+              model: plannerModelLabel(activeBackend),
+            })}
+          </p>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">{t("onboarding.models.runtimeSize")}</p>
         </div>
         <Switch
@@ -1162,6 +1174,7 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
       <InferenceInstallDialog
         open={engineOpen}
         onClose={closeEngine}
+        backend={activeBackend}
         onInstalled={() => {
           engineDoneRef.current = true;
           void refreshEngine();

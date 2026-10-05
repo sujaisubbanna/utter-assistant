@@ -129,6 +129,18 @@ def cmd_inference(args: argparse.Namespace) -> int:
         else:
             print(inference.human(data))
         return 0
+    if action == "check":
+        try:
+            data = inference.check(base_url=getattr(args, "base_url", None),
+                                   timeout=getattr(args, "timeout", 8.0))
+        except (RuntimeError, ValueError, OSError) as exc:
+            data = {"ok": False, "reachable": False, "base_url": None,
+                    "errors": [str(exc)]}
+        if args.json:
+            util.emit(data)
+        else:
+            print(inference.human_check(data))
+        return 0 if data.get("ok") else 1
     util.eprint(f"unknown inference action: {action}")
     return 2
 
@@ -345,6 +357,11 @@ def build_parser() -> argparse.ArgumentParser:
     i_status = isub.add_parser("status", help="report whether the models are complete")
     i_status.add_argument("--json", action="store_true")
     i_status.set_defaults(func=cmd_inference)
+    i_check = isub.add_parser("check", help="smoke-check a running planner endpoint (:8001)")
+    i_check.add_argument("--json", action="store_true")
+    i_check.add_argument("--base-url", default=None, help="OpenAI base URL (default http://127.0.0.1:8001/v1)")
+    i_check.add_argument("--timeout", type=float, default=8.0)
+    i_check.set_defaults(func=cmd_inference)
     p_inf.set_defaults(func=cmd_inference)
 
     p_models = sub.add_parser("models", help="model store")

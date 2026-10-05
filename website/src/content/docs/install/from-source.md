@@ -68,8 +68,8 @@ the unit runs through `scripts/utter-wayland-ready.sh`, which discovers `WAYLAND
 |---|---|
 | `utter-runner` | the modular runner (plugin supervisor), installed by the installer |
 | `utter-bridge` | legacy Python assistant (voice→action), for older installs |
-| `utter-vision` | vLLM UI-TARS grounding server (`:8000`) |
-| `utter-planner` | vLLM planner (`:8001`) |
+| `utter-vision` | vLLM UI-TARS grounding server (`:8000`) — Linux |
+| `utter-planner` | vLLM planner (`:8001`) — Linux |
 | `utter-audio-defaults` | keeps the chosen output and denoised input pinned |
 
 Only the runner unit (and the legacy `utter.service` plus `ydotoold.service`) ship in the
@@ -118,8 +118,9 @@ $XDG_DATA_HOME/utter-models/      # override with UTTER_MODELS
 - `rm` drops the manifest and any now-unreferenced blobs; `prune` collects orphans.
 
 The installer offers model tiers and pulls a **curated default source** for the ones you accept
-(STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`; the decision tier has no documented source and
-the UI-TARS vision repos are sharded, so provision vision with `scripts/install_inference.sh`).
+(STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`; the decision tier is a multi-file AWQ repo on
+Linux or a GGUF on macOS/Windows, and the UI-TARS vision repos are sharded, so provision vision
+and the planner with `scripts/install_inference.sh`).
 `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override them. `assistant
 recommend` suggests a profile for your GPU and RAM first. See the [Models guide](/guides/models/).
 

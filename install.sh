@@ -2605,13 +2605,14 @@ present_step() {
         field "sudo" "no"
     fi
     run_dep_probe "$id"
-    # Perception provisions the non-pullable vLLM stack; say so up front so the
-    # user knows what accepting the step downloads and how to point at it.
+    # Perception provisions the non-pullable vision + planner stack via the
+    # platform-aware `assistant inference install` (Linux: vLLM + AWQ, several
+    # GB); say so up front so the user knows what accepting the step downloads.
     if [[ "$id" == "perception" ]]; then
         if perception_gpu_ok; then
-            note "default on this machine (NVIDIA GPU): runs scripts/install_inference.sh (vLLM + UI-TARS vision + planner, several GB)"
+            note "default on this machine (NVIDIA GPU): runs the platform inference provisioner (assistant inference install: vLLM + UI-TARS vision + planner, several GB)"
         else
-            note "selectable: runs scripts/install_inference.sh (vLLM + UI-TARS vision + planner, several GB); needs a >= 8 GB NVIDIA GPU"
+            note "selectable: runs the platform inference provisioner (assistant inference install: vLLM + UI-TARS vision + planner, several GB); needs a >= 8 GB NVIDIA GPU"
         fi
         note "without it, vision stays off and context uses accessibility only"
         note "override the planner with UTTER_MODEL_DECISION / vision with UTTER_MODEL_VISION"
@@ -2653,13 +2654,16 @@ MODEL_TIER_SIZES=()
 #   stt      ggml-small.en.bin (~466 MB) — English, runs on CPU or GPU
 # The vision tier (UI-TARS) is deliberately left without a store source: those
 # repos are sharded safetensors (model-0000N-of-0000M.safetensors + an index),
-# so a single-file `models pull` cannot fetch them. Provision vision with
-# scripts/install_inference.sh, which downloads the full repo directory, then
-# serve it with scripts/serve_vision.sh. The 4-bit AWQ planner has a documented
+# so a single-file `models pull` cannot fetch them. Provision vision and the
+# planner with the platform-aware provisioner — `assistant inference install`
+# (through its scripts/install_inference.sh wrapper) downloads the full repo
+# directories; Linux serves them with scripts/serve_vision.sh +
+# scripts/serve_planner.sh, macOS/Windows serve vision with
+# scripts/serve_vision_transformers.py. The 4-bit AWQ planner has a documented
 # Hugging Face repo (cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit) but is likewise
-# multi-file, so it is provisioned by scripts/install_inference.sh too (the
-# decision tier still needs UTTER_MODEL_DECISION for any custom store source).
-# Installs without a 24 GB NVIDIA GPU keep zero-model mode and pull nothing.
+# multi-file, so it is provisioned the same way (the decision tier still needs
+# UTTER_MODEL_DECISION for any custom store source). Installs without a 24 GB
+# NVIDIA GPU on Linux keep zero-model mode and pull nothing.
 DEFAULT_MODEL_STT="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
 DEFAULT_MODEL_VISION=""
 
@@ -3568,17 +3572,18 @@ exec_perception() {
     local script; script="$(inference_script)"
     if [[ -z "$script" ]]; then
         warn "scripts/install_inference.sh not found; provision the vision/planner stack manually:"
-        say "  bash <core-tree>/scripts/install_inference.sh"
-        say "  (installs vLLM into .venv and downloads UI-TARS + the Qwen3-4B AWQ planner)"
+        say "  bash <core-tree>/scripts/install_inference.sh   # delegates to:"
+        say "  <venv-python> -m assistant inference install"
+        say "  (installs the platform runtime for this host and downloads UI-TARS + the planner)"
         note "the assistant works without it: context falls back to accessibility only"
         reset_record
         record_component perception "Perception deps" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
         return 0
     fi
-    say "  Provisioning the optional vision + planner stack:"
-    say "    vLLM + huggingface_hub into .venv; UI-TARS vision and the Qwen3-4B"
-    say "    AWQ planner into models/ (several GB — this can take a while)."
-    run "provision inference models (vLLM + UI-TARS + planner)" bash "$script"
+    say "  Provisioning the optional vision + planner stack via \`assistant inference install\`:"
+    say "    runtime + huggingface_hub into .venv (Linux: vLLM); UI-TARS vision and"
+    say "    the planner into models/ (Linux: 4-bit AWQ; several GB — this can take a while)."
+    run "provision inference models (assistant inference install: UI-TARS + planner)" bash "$script"
     reset_record
     D_KEEP=1
     record_component perception "Perception deps" "$VER_NUM" "install_inference" 0 "$ASSISTANT_BIN"

@@ -9,11 +9,15 @@ This page assumes Utter is installed. If it is not, start with the [install over
 
 - **Linux on Wayland** and **macOS**. On Linux, **niri** and **KDE Plasma (KWin)** are first-class;
   other compositors get partial support (dictation, typing, launching; no window actions). Dictation
-  and the assistant key work on Linux and macOS.
+  and the assistant key work on Linux and macOS. **Windows** is opt-in and experimental.
 - **PipeWire** for audio (Linux).
 - **Python 3.12 or newer**.
 - An NVIDIA GPU is recommended for the larger models, but not required. Utter runs with no
   models at all, and with CPU-only speech recognition.
+- For the planner: **vLLM + AWQ on Linux**, **llama.cpp + GGUF on macOS/Windows**, both on
+  `http://127.0.0.1:8001/v1` (`qwen3-4b`). Vision is vLLM on Linux,
+  `scripts/serve_vision_transformers.py` on macOS/Windows, on `:8000` (`uitars`). Speech
+  recognition always uses the mandatory whisper.cpp model.
 
 ## 1. Start the runner and open the settings app
 

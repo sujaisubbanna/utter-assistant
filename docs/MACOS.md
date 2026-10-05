@@ -19,8 +19,8 @@ in `utter/macos/` is imported and every existing code path is unchanged.
 | Push-to-talk | evdev / keyd | Quartz `CGEventTap` via PyObjC (`utter/macos/hotkey.py`), `pynput` fallback |
 | Speech-to-text | faster-whisper / whisper.cpp | local **whisper.cpp** (default, on-device) → Apple `Speech.framework` (`SFSpeechRecognizer`, on-device) fallback; optional **VocaMac** CLI backend |
 | Spoken replies | plugin lane | `say` (default) or `AVSpeechSynthesizer` |
-| Decision router / LLM | vLLM (`http://127.0.0.1:8001/v1`) | **Ollama** (`http://127.0.0.1:11434/v1`, Metal) default; LM Studio / llama.cpp |
-| Vision / Grounding | UI-TARS (`http://127.0.0.1:8000/v1`) | **Ollama** VLM (`llama3.2-vision:11b`, Metal) default; LM Studio |
+| Decision router / planner | vLLM + AWQ (`http://127.0.0.1:8001/v1`, `qwen3-4b`, Linux) | **llama.cpp `llama-server` + GGUF** (`http://127.0.0.1:8001/v1`, `qwen3-4b`, Metal); Ollama / LM Studio remain optional `[macos.runtime]` providers |
+| Vision / Grounding | vLLM UI-TARS (`http://127.0.0.1:8000/v1`, `uitars`, Linux) | **`scripts/serve_vision_transformers.py`** (`http://127.0.0.1:8000/v1`, `uitars`, Metal/MPS); Ollama VLM (`llama3.2-vision:11b`) optional |
 | Key presses / typing | `wtype` → `ydotool` | Quartz `CGEventPost` → AppleScript (`System Events`) |
 | Mouse | `ydotool` | Quartz mouse / scroll events |
 | Focused app + window | `niri msg --json` | `NSWorkspace.frontmostApplication` + Accessibility `AXUIElement` title, `CGWindowListCopyWindowInfo` |
@@ -80,16 +80,46 @@ Rather than bundling or shipping an ad-hoc inference server, Utter integrates wi
 
 | Role | Tool | Why chosen | Default Endpoint & Model |
 |---|---|---|---|
-| **LLM / Decision Router** | **Ollama** ([ollama.com](https://ollama.com)) | First-class Metal acceleration, zero-config on Apple Silicon, standard Homebrew daemon (`brew services start ollama`), OpenAI-compatible `/v1` API | `http://127.0.0.1:11434/v1`<br>`qwen2.5:3b` |
-| **Vision / Screen Grounding** | **Ollama** | Single daemon hosts both text and multimodal vision models, unified memory management | `http://127.0.0.1:11434/v1`<br>`llama3.2-vision:11b` |
-| **STT (Voice Input)** | **whisper.cpp** / **Apple Speech** | Offline high-accuracy primary via `whisper.cpp` with Metal acceleration; built-in zero-model fallback via `SFSpeechRecognizer` (on-device) | `models/whisper/` / Built-in |
+| **Planner / Decision Router** | **llama.cpp** (`scripts/serve_planner_llamacpp.sh`) | First-class Metal acceleration, OpenAI-compatible `/v1` API, single-file GGUF; runs natively on Apple Silicon and Intel | `http://127.0.0.1:8001/v1`<br>`qwen3-4b` (`unsloth/Qwen3-4B-Instruct-2507-GGUF`, Q4_K_M) |
+| **Vision / Screen Grounding** | **transformers** (`scripts/serve_vision_transformers.py`) | UI-TARS ships as sharded safetensors and macOS has no vLLM wheel; Metal/MPS acceleration | `http://127.0.0.1:8000/v1`<br>`uitars` (UI-TARS-2B-SFT) |
+| **STT (Voice Input)** | **whisper.cpp** / **Apple Speech** | Offline high-accuracy primary via `whisper.cpp` with Metal acceleration; built-in zero-model fallback via `SFSpeechRecognizer` (on-device) | `models/whisper/` / Built-in (whisper.cpp model is **mandatory**) |
 | **TTS (Spoken Replies)** | System **`say`** | Built-in macOS speech synthesizer, native voices, zero setup | Built-in |
+
+Ollama and LM Studio are still supported as drop-in OpenAI-compatible providers for the router
+(they host both text and multimodal models); see [Alternative Local Servers](#alternative-local-servers).
 
 ### Alternative Local Servers
 
 Utter's macOS runtime resolver (`utter/runtime.py`) speaks standard OpenAI `/v1` HTTP endpoints:
-- **LM Studio** ([lmstudio.ai](https://lmstudio.ai)): Start the local server (`lms server start` or via the GUI) on `http://127.0.0.1:1234/v1`. Configure `[macos.runtime] llm_provider = "lm_studio"`.
-- **llama.cpp** ([github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)): Start `llama-server` with `-ngl 99` (offload all layers to Metal) on `http://127.0.0.1:8080/v1`. Configure `[macos.runtime] llm_provider = "llamacpp"`.
+- **Ollama** ([ollama.com](https://ollama.com)): first-class Metal acceleration and a standard
+  Homebrew daemon (`brew install ollama && brew services start ollama`), on
+  `http://127.0.0.1:11434/v1`. Configure `[macos.runtime] llm_provider = "ollama"` and pull a
+  router model (e.g. `ollama pull qwen2.5:3b`) / a vision model
+  (`ollama pull llama3.2-vision:11b`).
+- **LM Studio** ([lmstudio.ai](https://lmstudio.ai)): start the local server
+  (`lms server start` or via the GUI) on `http://127.0.0.1:1234/v1`. Configure
+  `[macos.runtime] llm_provider = "lm_studio"`.
+- **llama.cpp** ([github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)): this
+  is how the planner lane is served. `python -m assistant inference install` downloads the
+  `unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M checkpoint and fetches the matching `llama-server`
+  build (pinned in `models/llama.cpp/build.json`) — no manual install needed. Serve it with the
+  bundled script:
+
+  ```bash
+  scripts/serve_planner_llamacpp.sh
+  # under the hood:
+  # llama-server --model <gguf> --alias qwen3-4b --host 127.0.0.1 --port 8001 \
+  #     -c 4096 -ngl auto -fa auto --jinja --reasoning off -np 1 --no-webui
+  ```
+
+  `--reasoning off` is **mandatory** — Qwen3-4B-Instruct-2507 is often misdetected as a thinking
+  model and would otherwise emit reasoning tokens. `-ngl auto` offloads what it can to Metal and
+  falls back to CPU; `--alias qwen3-4b` is the served name `[router] llm_model` expects, and
+  `--jinja` applies the model's chat template. Overrides: `UTTER_PLANNER_PORT`,
+  `UTTER_PLANNER_SERVED_NAME`, `UTTER_PLANNER_MODEL_PATH`, `UTTER_PLANNER_CTX`,
+  `UTTER_LLAMACPP_NGL`, `UTTER_LLAMACPP_SERVER`, `UTTER_LLAMACPP_DIR`, `UTTER_LLAMACPP_TAG`. To
+  route the legacy `[macos.runtime]` path through it, set `llm_provider = "llamacpp"` and
+  `llm_base_url = "http://127.0.0.1:8001/v1"`.
 
 ### UI-TARS via transformers (optional, no Ollama)
 
@@ -98,24 +128,28 @@ still provision it locally, exactly like Linux:
 
 ```bash
 python -m assistant inference install        # add --json for NDJSON progress
-python -m assistant inference status --json
+python -m assistant inference status --json  # planner_backend is "llamacpp" here
+python -m assistant inference check  --json  # smoke-check the running planner (:8001)
 ```
 
 That installs `transformers` + `torch` (Metal/MPS) + `accelerate` into `.venv` and downloads the
-same UI-TARS vision and Qwen3-4B planner repos as Linux. Vision is then served by
-`scripts/serve_vision_transformers.py` (an OpenAI-compatible `/v1` endpoint on port 8000), not by
-vLLM:
+UI-TARS vision repo plus the platform planner artifact: the Qwen3-4B-Instruct-2507 **GGUF** (Linux
+gets the AWQ repo instead). Vision is then served by `scripts/serve_vision_transformers.py` (an
+OpenAI-compatible `/v1` endpoint on port 8000), not by vLLM:
 
 ```bash
 .venv/bin/python scripts/serve_vision_transformers.py \
     --model models/UI-TARS-2B-SFT --served-model-name uitars --port 8000
 ```
 
-On Windows the same provisioner installs `torch` + `transformers` + `accelerate`
-(CUDA when an NVIDIA GPU is present, else the CPU wheel) and serves vision with the
-same cross-platform script; see [WINDOWS.md](WINDOWS.md).
+The planner is served separately by llama.cpp `llama-server` on port 8001 (see above). On Windows
+the same provisioner installs `torch` + `transformers` + `accelerate` (CUDA when an NVIDIA GPU is
+present, else the CPU wheel), serves vision with the same cross-platform script, and serves the
+planner with the same llama.cpp + GGUF path; see [WINDOWS.md](WINDOWS.md).
 
-### Setup & Recommended Models
+### Optional: Ollama setup & recommended models
+
+If you prefer Ollama as the provider (it is no longer required for the planner lane):
 
 1. **Install Ollama via Homebrew:**
    ```bash
@@ -416,7 +450,12 @@ For Apple Speech, a resolved `[stt] language` (see
 picking up `LANG=de_DE.UTF-8` gives `de-DE`. When nothing resolves,
 `speech_locale` is used, then `en-US`.
 
-On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native endpoints configured in `[macos.runtime]` (defaulting to local Ollama) rather than the Linux-only CUDA / vLLM / UI-TARS defaults.
+On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native endpoints configured
+in `[macos.runtime]` rather than the Linux-only CUDA / vLLM / UI-TARS defaults. The shipped
+vision + planner lane does **not** need Ollama: the planner is llama.cpp `llama-server` at
+`http://127.0.0.1:8001/v1` (`qwen3-4b`) and vision is `scripts/serve_vision_transformers.py` at
+`http://127.0.0.1:8000/v1` (`uitars`). Point `[macos.runtime]`'s `llm_base_url` / `vision_base_url`
+(and providers) at those URLs, or leave it on Ollama if you run an Ollama server instead.
 
 ## Platform matrix
 
@@ -480,7 +519,7 @@ On macOS, `[router]` and `[vision]` automatically resolve to the Metal-native en
 
 - Hardware-specific behaviour (microphone capture, physical Quartz event taps, Accessibility
   synthetic typing, Screen Recording) is verified on macOS; edge cases can still differ per machine.
-- Metal inference throughput depends on the Mac's unified memory and the Ollama / LM Studio model chosen.
+- Metal inference throughput depends on the Mac's unified memory and the llama.cpp / Ollama / LM Studio model chosen.
 - Signed and notarized releases require Apple Developer credentials; without them the
   `.app`/`.dmg` build is fail-safe and ships unsigned.
 

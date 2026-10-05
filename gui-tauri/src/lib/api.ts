@@ -14,6 +14,7 @@ import type {
   ModelStoreInfo,
   Palette,
   InstallStatus,
+  InferenceCheckResult,
   InferenceStatus,
   PendingDictation,
   PermissionReport,
@@ -76,8 +77,11 @@ export const api = {
   cancelModelsPull: (pullId: string) => invoke<void>("cancel_models_pull", { pullId }),
 
   // The sharded vision + planner models are not in the store, so they have
-  // their own status probe and installer (POSIX only).
+  // their own status probe and installer (every platform).
   inferenceStatus: () => invoke<InferenceStatus>("inference_status"),
+  // Smoke-test the planner endpoint (`assistant inference check`). The backend
+  // reports success/failure plus the command's own message.
+  inferenceCheck: () => invoke<InferenceCheckResult>("inference_check"),
   startInferenceInstall: (id: string) => invoke<void>("start_inference_install", { id }),
   cancelInferenceInstall: (id: string) =>
     invoke<void>("cancel_inference_install", { id }),

@@ -222,11 +222,39 @@ The vision/planner inference provisioner is **supported on Windows**:
 `scripts/install_inference.sh` wrapper) selects a Windows plan and installs
 `torch` + `transformers` + `accelerate` into `.venv` — CUDA when `nvidia-smi`
 is present, otherwise the CPU wheel from `https://download.pytorch.org/whl/cpu`
-— then downloads both repos with `huggingface_hub.snapshot_download`. vLLM is
-**not** installed on Windows (no native wheel). Vision is served by the
-cross-platform `scripts/serve_vision_transformers.py`; the AWQ planner still
-expects a vLLM endpoint, so use one locally (WSL/NVIDIA) or an existing server.
-`assistant inference status` reports whether the model directories are complete.
+— then downloads the UI-TARS vision repo and the planner GGUF through the model
+store. vLLM is **not** installed on Windows (no native wheel). Vision is served
+by the cross-platform `scripts/serve_vision_transformers.py`; the planner is
+served natively by **llama.cpp `llama-server` + GGUF** (no WSL needed) on the
+same `http://127.0.0.1:8001/v1` endpoint / `qwen3-4b` name as Linux.
+`assistant inference status` reports whether the payloads are complete and which
+planner backend (`vllm`/`llamacpp`) applies.
+
+### Planner: llama.cpp + GGUF
+
+Linux keeps **vLLM + AWQ**; Windows uses **llama.cpp**, so the planner runs
+natively without a CUDA-capable vLLM. `assistant inference install` downloads the
+`unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M file and fetches the matching
+`llama-server` build from the llama.cpp release, pinned in
+`models\llama.cpp\build.json` — no separate install step. Serve it with the
+bundled script (Git Bash/MSYS), or run the equivalent flags directly:
+
+```bash
+scripts/serve_planner_llamacpp.sh
+# llama-server --model <gguf> --alias qwen3-4b --host 127.0.0.1 --port 8001 \
+#     -c 4096 -ngl auto -fa auto --jinja --reasoning off -np 1 --no-webui
+```
+
+`--reasoning off` is **mandatory** — Qwen3-4B-Instruct-2507 is often misdetected
+as a thinking model and would otherwise emit reasoning tokens. `-ngl auto`
+offloads what it can to CUDA and falls back to CPU. `--alias qwen3-4b` matches
+the default `[router] llm_model`, and `--jinja` applies the model's chat template.
+Overrides: `UTTER_PLANNER_PORT`, `UTTER_PLANNER_SERVED_NAME`,
+`UTTER_PLANNER_MODEL_PATH`, `UTTER_PLANNER_CTX`, `UTTER_LLAMACPP_NGL`,
+`UTTER_LLAMACPP_SERVER`, `UTTER_LLAMACPP_DIR` and `UTTER_LLAMACPP_TAG`. Any other
+OpenAI-compatible server works too. Speech recognition is still the **mandatory
+whisper.cpp** model (see [above](#mandatory-stt-model-whispercpp)) — the planner
+never replaces it.
 
 The implementation lives in `assistant/inference.py` (stdlib + the venv it
 creates); `scripts/install_inference.sh` is a thin wrapper that calls

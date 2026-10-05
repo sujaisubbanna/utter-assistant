@@ -852,6 +852,27 @@ pub async fn inference_status(state: State<'_, AppState>) -> Result<Value, Strin
     .await
 }
 
+/// Smoke-test the planner endpoint: `assistant inference check --json`.
+///
+/// The command emits a JSON report (`{ok, reachable, base_url, detail, errors}`)
+/// and exits non-zero when the check fails, so the exit status is merged in as
+/// the authoritative `ok`.
+#[tauri::command]
+pub async fn inference_check(state: State<'_, AppState>) -> Result<Value, String> {
+    let cmd = state.assistant(&["inference", "check", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| io_message(&error))?;
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let mut value = parse_json_lossy(&stdout, &stderr);
+        if let Some(object) = value.as_object_mut() {
+            object.insert("ok".into(), Value::Bool(out.status.success()));
+        }
+        Ok(value)
+    })
+    .await
+}
+
 /// Download the sharded vision + planner models, streaming NDJSON progress as
 /// `inference://progress` and a final `inference://done`.
 ///

@@ -96,8 +96,8 @@ Package removals are **printed**, never performed automatically.
 |---|---|
 | `utter-runner` | the modular runner (plugin supervisor) — installed by this installer |
 | `utter-bridge` | legacy Python assistant (voice→action), for older installs |
-| `utter-vision` | vLLM UI-TARS grounding server (`:8000`) |
-| `utter-planner` | vLLM planner (`:8001`) |
+| `utter-vision` | vLLM UI-TARS grounding server (`:8000`) — Linux |
+| `utter-planner` | vLLM planner (`:8001`) — Linux |
 | `utter-audio-defaults` | keeps TV output / RNNoise input pinned |
 
 The runner unit uses `scripts/utter-wayland-ready.sh`, which discovers `WAYLAND_DISPLAY`,
@@ -110,7 +110,7 @@ inherit the session environment automatically.
 python3 -m assistant doctor [--json]                    # deps + plugin negotiation + drift
 python -m assistant recommend [--json]                 # hardware-aware profile suggestions
 python -m assistant models list|show <n>|pull <src>|rm <n>|prune [--json]
-python -m assistant inference install|status [--json]    # vision + planner provisioner
+python -m assistant inference install|status|check [--json]  # vision + planner provisioner / smoke-check
 python -m assistant status [--json]                    # runner.status passthrough
 python -m assistant install-state record|show
 ```
@@ -146,29 +146,52 @@ are:
 |---|---|---|
 | STT | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | ~466 MB; runs on CPU or GPU |
 | Vision | — | UI-TARS repos are multi-file (sharded safetensors); the single-file store cannot pull them. The inference provisioner downloads the full repo |
-| Decision / planner | `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit` | multi-file 4-bit AWQ; provisioned by the inference provisioner, not the store. `UTTER_MODEL_DECISION` overrides it with any source you trust |
+| Decision / planner | Linux: `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`; macOS/Windows: `unsloth/Qwen3-4B-Instruct-2507-GGUF` (`Q4_K_M`) | Linux serves the multi-file 4-bit AWQ repo under vLLM; macOS/Windows download the single-file GGUF and a pinned `llama-server` build. `UTTER_MODEL_DECISION` overrides it with any source you trust |
 
-Vision and the decision/planner model are **provisioned**, not store-pulled: both ship as
-multi-file (sharded safetensors) repos and the store fetches a single file. The provisioner is
+Vision is **provisioned**, not store-pulled: the UI-TARS repo ships as multi-file (sharded
+safetensors) and the store fetches a single file. The provisioner is
 `assistant/inference.py` (the wizard's **Perception** component, run through
 `scripts/install_inference.sh`, which is a thin wrapper). When you accept it, it creates
-`.venv`, installs the platform runtime + `huggingface_hub`, and downloads UI-TARS vision and the
-Qwen3-4B AWQ planner into `models/` with `huggingface_hub.snapshot_download` (several GB).
+`.venv`, installs the platform runtime + `huggingface_hub`, and downloads UI-TARS vision into
+`models/` with `huggingface_hub.snapshot_download` (several GB), plus the platform's planner
+artifact: the Qwen3-4B **AWQ** repo on Linux, the Qwen3-4B **GGUF** on macOS/Windows.
 
-Because that stack runs under vLLM on an NVIDIA GPU, the Perception step is **on by default only
-when `nvidia-smi` reports a card with at least 8 GB VRAM**; on any other machine it defaults off
-(installing it would waste disk). It stays selectable either way — answer "yes" in the wizard or
-pass `--only perception` — and nothing is downloaded without consent. With `--yes` the
-recommended defaults are accepted, so Perception is installed on a supported GPU. `UTTER_MODEL_STT`
-/ `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults.
+Because the Linux stack runs under vLLM on an NVIDIA GPU, the Perception step is **on by default
+only when `nvidia-smi` reports a card with at least 8 GB VRAM**; on any other machine it defaults
+off (installing it would waste disk). It stays selectable either way — answer "yes" in the wizard
+or pass `--only perception` — and nothing is downloaded without consent. With `--yes` the
+recommended defaults are accepted, so Perception is installed on a supported GPU. On macOS
+(Metal/MPS) and Windows (CUDA or CPU) the same provisioner and step work through the platform
+runtime; the wizard's GPU default is Linux-specific. `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` /
+`UTTER_MODEL_DECISION` override the defaults.
 
-The runtime and serving path are platform-specific:
+The runtime and serving path are platform-specific. Vision answers on `:8000` and the planner on
+`:8001`/`qwen3-4b` everywhere; only the engines differ:
 
-| Platform | Runtime | Serve |
-|---|---|---|
-| Linux | `vllm>=0.10` | `scripts/serve_vision.sh` (`:8000`) + `scripts/serve_planner.sh` (`:8001`) |
-| macOS | `transformers` + `torch` (Metal/MPS) + `accelerate` (no vLLM wheel) | `scripts/serve_vision_transformers.py` |
-| Windows | `torch` (CUDA when an NVIDIA GPU is present, else the CPU wheel) + `transformers` + `accelerate` | `scripts/serve_vision_transformers.py` |
+| Platform | Vision runtime | Vision serve (`:8000`) | Planner runtime | Planner serve (`:8001`) |
+|---|---|---|---|---|
+| Linux | `vllm>=0.10` | `scripts/serve_vision.sh` (UI-TARS) | `vllm>=0.10` | `scripts/serve_planner.sh` (4-bit AWQ) |
+| macOS | `transformers` + `torch` (Metal/MPS) + `accelerate` (no vLLM wheel) | `scripts/serve_vision_transformers.py` | llama.cpp (auto-fetched, pinned) | `scripts/serve_planner_llamacpp.sh` (Q4_K_M GGUF) |
+| Windows | `torch` (CUDA when an NVIDIA GPU is present, else the CPU wheel) + `transformers` + `accelerate` | `scripts/serve_vision_transformers.py` | llama.cpp (auto-fetched, pinned) | `scripts/serve_planner_llamacpp.sh` (Q4_K_M GGUF) |
+
+On macOS and Windows `python -m assistant inference install` downloads the
+`unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M checkpoint, fetches the matching `llama-server` build
+from the llama.cpp release and pins it in `models/llama.cpp/build.json`, then serves it on the same
+endpoint and served name as Linux:
+
+```bash
+scripts/serve_planner_llamacpp.sh
+# or, backgrounded with logs:
+setsid bash -c 'scripts/serve_planner_llamacpp.sh > /tmp/llamacpp-planner.log 2>&1 &'
+```
+
+The script runs `llama-server --model <gguf> --alias qwen3-4b --host 127.0.0.1 --port 8001
+-c 4096 -ngl auto -fa auto --jinja --reasoning off -np 1 --no-webui`. `--reasoning off` is
+**mandatory** — Qwen3-4B-Instruct-2507 is often misdetected as a thinking model and would otherwise
+emit reasoning tokens. `-ngl auto` picks the GPU layers (Metal on macOS, CUDA on Windows; CPU when
+neither is available). Overrides: `UTTER_PLANNER_PORT`, `UTTER_PLANNER_SERVED_NAME`,
+`UTTER_PLANNER_MODEL_PATH` (a GGUF file or its directory), `UTTER_PLANNER_CTX`, `UTTER_LLAMACPP_NGL`,
+`UTTER_LLAMACPP_SERVER`, `UTTER_LLAMACPP_DIR` and `UTTER_LLAMACPP_TAG`.
 
 The settings UI runs the same provisioner through
 `python -m assistant inference install [--json]` (NDJSON progress, see
@@ -199,7 +222,9 @@ configured the installer prints that command for you to run later. Nothing uses 
 ### GPU planning (VRAM & latency)
 
 The shipped serving scripts (`scripts/serve_planner.sh`, `scripts/serve_vision.sh`) assume **one
-NVIDIA GPU shared by both vLLM servers**. Per-component footprint:
+NVIDIA GPU shared by both vLLM servers**. This section is Linux-specific: on macOS/Windows vision
+runs under `serve_vision_transformers.py` and the planner under llama.cpp, so these GPU-memory
+fractions do not apply. Per-component footprint:
 
 | Component | Model | Precision | Server | GPU memory setting | On disk |
 |---|---|---|---|---|---|
