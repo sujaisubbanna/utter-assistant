@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import security
+from . import platform as _platform
 from .plugin import PluginConfig
 
 
@@ -18,6 +19,7 @@ from .plugin import PluginConfig
 class RunnerConfig:
     plugins: list[PluginConfig] = field(default_factory=list)
     socket_path: str = ""
+    socket_transport: str = ""
     allow_binaries: list[str] = field(default_factory=list)
     socket_allow_same_uid: bool | None = None
     socket_token: str = ""
@@ -65,6 +67,7 @@ def load_config(path: str | Path) -> RunnerConfig:
         )
     runner = data.get("runner", {})
     cfg.socket_path = str(runner.get("socket_path", "") or "")
+    cfg.socket_transport = str(runner.get("socket_transport", "") or "").strip().lower()
     cfg.rpc_timeout_ms = int(runner.get("rpc_timeout_ms", cfg.rpc_timeout_ms))
     cfg.handle_ttl = float(runner.get("handle_ttl", cfg.handle_ttl))
     cfg.handle_root = str(runner.get("handle_root", "") or "")
@@ -94,6 +97,13 @@ def check_config(path: str | Path) -> tuple[bool, list[str]]:
     msgs: list[str] = []
     if not cfg.plugins:
         msgs.append("warning: no [[plugin]] entries")
+    if cfg.socket_transport and cfg.socket_transport not in ("unix", "tcp"):
+        msgs.append(
+            f"error: runner.socket_transport {cfg.socket_transport!r} must be "
+            "'unix' or 'tcp'"
+        )
+    transport = _platform.resolve_transport(cfg.socket_transport)
+    tcp = transport == _platform.TCP if cfg.socket_transport in ("", "unix", "tcp") else False
     seen: set[str] = set()
     for p in cfg.plugins:
         if not p.id:
@@ -105,11 +115,33 @@ def check_config(path: str | Path) -> tuple[bool, list[str]]:
             msgs.append(f"warning: plugin {p.id}: runtime {p.runtime!r} unsupported (subprocess only)")
         if p.transport not in ("stdio", "connect", "listen"):
             msgs.append(f"error: plugin {p.id}: unknown transport {p.transport!r}")
+        elif tcp and p.transport in ("connect", "listen"):
+            msgs.append(
+                f"error: plugin {p.id}: transport {p.transport!r} unsupported on the "
+                "tcp/Windows transport (stdio only)"
+            )
         if not p.entrypoint:
             msgs.append(f"error: plugin {p.id}: empty entrypoint")
         if p.cwd and not Path(p.cwd).is_dir():
             msgs.append(f"warning: plugin {p.id}: cwd {p.cwd!r} is not a directory")
-    if cfg.socket_section_present and not (
+    if tcp:
+        # No SO_PEERCRED on Windows/TCP: only a token gives default-deny.
+        if cfg.allow_binaries:
+            msgs.append(
+                "error: [socket] allow_binaries is unsupported on the tcp/Windows "
+                "transport (no peer executable identity); use a token"
+            )
+        if cfg.socket_allow_same_uid:
+            msgs.append(
+                "error: [socket] allow_same_uid is unsupported on the tcp/Windows "
+                "transport (no peer uid); use a token"
+            )
+        if cfg.socket_section_present and not cfg.socket_token:
+            msgs.append(
+                "error: [socket] on the tcp/Windows transport requires a token for "
+                "default-deny"
+            )
+    elif cfg.socket_section_present and not (
         cfg.allow_binaries or cfg.socket_token or cfg.socket_allow_same_uid
     ):
         msgs.append(

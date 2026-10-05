@@ -23,6 +23,7 @@ import logging
 from typing import Any, Callable
 
 from . import security
+from . import platform as _platform
 from .config import RunnerConfig, check_config, load_config  # noqa: F401 - re-exported
 from .handles import HandleStore, default_root
 from .handles_api import HandlesApiMixin
@@ -32,6 +33,7 @@ from .plugin import (
     RUNNER_CAPS,
     PluginInstance,
     capability_report,
+    runner_caps,
 )
 from .policy import ConfirmationRequired, Policy, Provenance
 from .rpc import (
@@ -75,7 +77,6 @@ class Host(HandlesApiMixin):
             lossy_queue=config.lossy_queue, credit_window=config.credit_window
         )
         self._security_wrapper = self._build_wrapper(config)
-        self._available: set[str] = set(RUNNER_CAPS)
         self._supervisors: list[asyncio.Task] = []
         self._stopping = False
         self._capabilities: dict[str, list[dict]] = {}
@@ -87,7 +88,10 @@ class Host(HandlesApiMixin):
             allow_same_uid=allow_same_uid,
             token=config.socket_token,
             on_disconnect=self._on_client_disconnect,
+            transport=config.socket_transport,
         )
+        # fd.pass only exists on the Unix transport; do not advertise it on TCP.
+        self._available: set[str] = runner_caps(fd_pass=self.socket.supports_fd_pass)
 
     @staticmethod
     def _build_wrapper(config: RunnerConfig) -> security.Wrapper:
@@ -100,6 +104,10 @@ class Host(HandlesApiMixin):
 
     @staticmethod
     def _effective_same_uid(config: RunnerConfig) -> bool:
+        # The TCP/Windows transport has no peer credentials; same-uid is never
+        # a grant there (only the token is).
+        if _platform.resolve_transport(config.socket_transport) == _platform.TCP:
+            return False
         if config.socket_allow_same_uid is not None:
             return config.socket_allow_same_uid
         if not config.socket_section_present:
@@ -199,6 +207,10 @@ class Host(HandlesApiMixin):
         if method == "handle.create":
             return self.handle_create(params)
         if method == "fd.pass":
+            if not self.socket.supports_fd_pass:
+                raise RpcError(
+                    DEGRADED, "fd.pass unsupported over the tcp transport"
+                )
             return self.fd_pass(params)
         raise RpcError(METHOD_NOT_FOUND, f"unknown method: {method}")
 

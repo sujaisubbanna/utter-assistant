@@ -1,16 +1,15 @@
-"""Unix-socket client API: dir 0700, socket 0600, SO_PEERCRED uid check,
-default-deny allow-list / token auth, rate limiting, fd passing (TRUST §5, §13).
+"""Cross-platform client API: default-deny token auth, rate limiting, fd passing.
 
-Windows transport plan (P0 note, not implemented here): this module is Unix-only
-(``asyncio.start_unix_server`` + ``SO_PEERCRED``/``LOCAL_PEERCRED``). Windows has
-no peer-credential equivalent, so the P1 spike will choose between two shapes and
-keep this module as the Unix path:
-  * AF_UNIX (Windows 10 1803+): same path-based socket, but peer identity comes
-    from the token (``runner.auth``) alone — no kernel uid/binaries check; or
-  * AF_INET loopback: bind 127.0.0.1:<port>, still token-gated, with the port
-    recorded in place of the socket path.
-Either way the default-deny auth and framing stay unchanged; only the listener
-and peer-identity source differ.
+**Unix** (unchanged): dir 0700, socket 0600, ``SO_PEERCRED`` uid/binaries check,
+``SCM_RIGHTS`` fd passing (TRUST §5, §13).
+
+**Windows / ``UTTER_RUNNER_TRANSPORT=tcp``** (P0): loopback TCP 127.0.0.1:<port>
+with a mandatory random token read from an ACL'd per-user file. There is no
+peer-credential equivalent, so ``allow_same_uid``/``allow_binaries`` never grant
+access on this transport — only ``runner.auth`` token auth (default-deny).
+``fd.pass`` is unavailable and is rejected with ``-32005``. The bound port is
+recorded in the endpoint JSON file (see ``runner.tokenstore``) in place of the
+socket path. Framing/handshake and the default-deny invariant are unchanged.
 """
 
 from __future__ import annotations
@@ -28,7 +27,10 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from . import fdpass, framing
+from . import platform as _platform
+from . import tokenstore
 from .rpc import (
+    DEGRADED,
     NO_RESPONSE,
     PERMISSION_DENIED,
     RpcError,
@@ -47,8 +49,13 @@ def default_socket_path() -> str:
     override = os.environ.get("UTTER_RUNNER_SOCK")
     if override:
         return override
+    if _platform.transport_kind() == _platform.TCP:
+        # TCP has no socket path; the "path" is the endpoint JSON file clients
+        # read to find 127.0.0.1:<port>.
+        return tokenstore.default_endpoint_path()
+    getuid = getattr(os, "getuid", None)
     base = os.environ.get("XDG_RUNTIME_DIR") or str(
-        Path(tempfile.gettempdir()) / f"utter-{os.getuid()}"
+        Path(tempfile.gettempdir()) / f"utter-{getuid() if getuid else os.getpid()}"
     )
     return str(Path(base) / "utter" / "runner.sock")
 
@@ -80,19 +87,36 @@ class SocketServer:
         token: str = "",
         rate_limit: tuple[int, float] = DEFAULT_RATE_LIMIT,
         on_disconnect: Callable[[RpcPeer], Awaitable[None]] | None = None,
+        transport: str = "",
+        token_path: str = "",
     ):
         self.path = str(path)
         self.handler = handler
-        self.require_uid = os.getuid() if require_uid is None else require_uid
+        self.transport = _platform.resolve_transport(transport)
+        getuid = getattr(os, "getuid", None)
+        default_uid = getuid() if getuid is not None else -1
+        self.require_uid = default_uid if require_uid is None else require_uid
         self.allow_binaries = set(allow_binaries or [])
         self.allow_same_uid = bool(allow_same_uid)
         self.token = token or ""
+        self.token_path = token_path or tokenstore.default_token_path()
         self._rate_limit = rate_limit
         self._on_disconnect = on_disconnect
         self._server: asyncio.AbstractServer | None = None
         self._peers: set[tuple[RpcPeer, Any]] = set()
 
+    @property
+    def supports_fd_pass(self) -> bool:
+        """``fd.pass`` (SCM_RIGHTS) exists only on the Unix transport."""
+        return self.transport == _platform.UNIX
+
     async def start(self) -> None:
+        if self.transport == _platform.TCP:
+            await self._start_tcp()
+        else:
+            await self._start_unix()
+
+    async def _start_unix(self) -> None:
         directory = Path(self.path).parent
         directory.mkdir(parents=True, exist_ok=True)
         try:
@@ -108,6 +132,20 @@ class SocketServer:
             self.path, self.allow_same_uid, sorted(self.allow_binaries), bool(self.token),
         )
 
+    async def _start_tcp(self) -> None:
+        # Windows has no peer credentials: a random token stored in a per-user
+        # (ACL-inherited) file is the only authentication. Config-supplied token
+        # wins; otherwise a fresh one is generated once and reused.
+        self.token = tokenstore.ensure_token(self.token_path, self.token)
+        self._server = await asyncio.start_server(self._on_client, host="127.0.0.1", port=0)
+        sock = self._server.sockets[0]
+        host, port = sock.getsockname()[:2]
+        tokenstore.write_endpoint(self.path, host, port)
+        log.info(
+            "runner tcp listening at %s:%s (token=%s endpoint=%s)",
+            host, port, bool(self.token), self.path,
+        )
+
     async def stop(self) -> None:
         if self._server is not None:
             self._server.close()
@@ -119,6 +157,9 @@ class SocketServer:
             except Exception:
                 pass
         self._peers.clear()
+        if self.transport == _platform.TCP:
+            tokenstore.remove_endpoint(self.path)
+            return
         try:
             if os.path.exists(self.path):
                 os.unlink(self.path)
@@ -127,18 +168,22 @@ class SocketServer:
 
     # -- per client ------------------------------------------------------- #
     async def _on_client(self, reader: asyncio.StreamReader, writer: Any) -> None:
-        sock = writer.get_extra_info("socket")
-        creds = self._peer_creds(sock)
-        if creds is None:
-            mechanism = (
-                "LOCAL_PEERPID/LOCAL_PEERCRED" if sys.platform == "darwin"
-                else "SO_PEERCRED"
-            )
-            await self._reject(writer, f"peer credentials unavailable ({mechanism})")
-            return
-        pid, uid, _gid = creds
-        exe = self._exe(pid)
-        allowed, needs_auth, why = self._authorize_creds(pid, uid, exe)
+        if self.transport == _platform.TCP:
+            addr = writer.get_extra_info("peername")
+            allowed, needs_auth, why = self._authorize_tcp(addr)
+        else:
+            sock = writer.get_extra_info("socket")
+            creds = self._peer_creds(sock)
+            if creds is None:
+                mechanism = (
+                    "LOCAL_PEERPID/LOCAL_PEERCRED" if sys.platform == "darwin"
+                    else "SO_PEERCRED"
+                )
+                await self._reject(writer, f"peer credentials unavailable ({mechanism})")
+                return
+            pid, uid, _gid = creds
+            exe = self._exe(pid)
+            allowed, needs_auth, why = self._authorize_creds(pid, uid, exe)
         if not allowed:
             await self._reject(writer, why)
             return
@@ -159,6 +204,10 @@ class SocketServer:
                         return {}
                     raise RpcError(PERMISSION_DENIED, "invalid token")
                 raise RpcError(PERMISSION_DENIED, "authentication required (send runner.auth)")
+            if method == "fd.pass" and not self.supports_fd_pass:
+                raise RpcError(
+                    DEGRADED, "fd.pass unsupported over the tcp transport"
+                )
             result = await self.handler(method, params, peer)
             if isinstance(result, fdpass.FdReply):
                 await self._send_fd_reply(peer, rid, result)
@@ -209,6 +258,16 @@ class SocketServer:
                 pass
 
     # -- auth ------------------------------------------------------------- #
+    def _authorize_tcp(self, addr: Any) -> tuple[bool, bool, str]:
+        """TCP is token-only: no peer creds, so creds-based grants never apply.
+
+        ``allow_same_uid``/``allow_binaries`` are deliberately ignored — on
+        Windows they cannot be established and must never grant access.
+        """
+        if not self.token:
+            return False, False, "default-deny: no token configured for tcp transport"
+        return True, True, f"loopback tcp {addr!r}: token auth required"
+
     def _authorize_creds(self, pid: int, uid: int, exe: str | None) -> tuple[bool, bool, str]:
         """Return (allowed, needs_auth, reason); ``SocketServer`` is default-deny."""
         if uid != self.require_uid:

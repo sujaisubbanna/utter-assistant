@@ -10,6 +10,8 @@ handle_ttl = 300              # seconds before an unreferenced handle is GC'd
 lossy_queue = 256             # bounded frames per lossy stream (drop-oldest)
 credit_window = 64            # reliable-stream credit window
 # socket_path = "<XDG_RUNTIME_DIR>/utter/runner.sock"   # default if unset
+# socket_transport = "unix"   # "unix" (default) or "tcp" (Windows; token-only).
+#                             # Overridable with UTTER_RUNNER_TRANSPORT=unix|tcp.
 
 [socket]
 # M1 is default-deny: a client is accepted only if it matches `allow_binaries`

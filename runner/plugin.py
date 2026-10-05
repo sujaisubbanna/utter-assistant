@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from . import security
+from . import platform as _platform
 from .rpc import (
     RpcError,
     RpcPeer,
@@ -49,6 +50,18 @@ DEFAULT_CAPS_PATH = Path(__file__).resolve().parent.parent / "protocol" / "capab
 RUNNER_CAPS = {"host.audio.ringbuffer@1", "host.fd.pass@1", "fs.tmp@1"}
 
 SOCKET_TRANSPORTS = ("connect", "listen")
+
+
+def runner_caps(*, fd_pass: bool = True) -> set[str]:
+    """The runner's own capabilities; ``host.fd.pass@1`` only when supported.
+
+    The TCP/Windows transport has no SCM_RIGHTS, so advertise no fd passing
+    there (a plugin requiring it then fails closed rather than at call time).
+    """
+    caps = {"host.audio.ringbuffer@1", "fs.tmp@1"}
+    if fd_pass:
+        caps.add("host.fd.pass@1")
+    return caps
 
 
 @dataclass
@@ -85,7 +98,13 @@ def capability_report(
 ) -> dict[str, list[str]]:
     """Classify capabilities: unknown (warning) and unsatisfiable requires."""
     registry = registry if registry is not None else load_capabilities()
-    satisfiable = set(available or ()) | RUNNER_CAPS | set(provides)
+    # An explicit ``available`` set (the host's ``runner_caps(...)``) is
+    # authoritative so the TCP transport can withhold ``host.fd.pass@1``.
+    if available is None:
+        satisfiable = set(RUNNER_CAPS)
+    else:
+        satisfiable = set(available)
+    satisfiable |= set(provides)
     unknown = [
         c for c in list(provides) + list(requires)
         if c not in registry and not c.startswith("experimental/")
@@ -167,6 +186,12 @@ class PluginInstance:
             raise RpcError(INVALID_PARAMS, f"plugin {self.id}: runtime {self.spec.runtime!r} unsupported")
         if self.spec.transport not in ("stdio",) + SOCKET_TRANSPORTS:
             raise RpcError(INVALID_PARAMS, f"plugin {self.id}: transport {self.spec.transport!r} unsupported")
+        if self.spec.transport in SOCKET_TRANSPORTS and _platform.transport_kind() == _platform.TCP:
+            raise RpcError(
+                INVALID_PARAMS,
+                f"plugin {self.id}: transport {self.spec.transport!r} unsupported on "
+                "the tcp/Windows transport (stdio only)",
+            )
         if not self.spec.entrypoint:
             raise RpcError(INVALID_PARAMS, f"plugin {self.id}: empty entrypoint")
         self.status = "starting"

@@ -136,8 +136,10 @@ with tempfile.TemporaryDirectory() as td:
         check("win config_dir -> %APPDATA%/utter", util.config_dir() == roaming / "utter")
         check("win models_root -> %LOCALAPPDATA%/utter/models",
               util.models_root() == local / "utter" / "models")
-        check("win runner_sock_path stays under a temp dir",
-              util.runner_sock_path().endswith("runner.sock"))
+        check("win runner_sock_path -> %LOCALAPPDATA%/utter/runner.endpoint",
+              util.runner_sock_path() == str(local / "utter" / "runner.endpoint"))
+        check("win runner_token_path -> %LOCALAPPDATA%/utter/runner-token",
+              util.runner_token_path() == str(local / "utter" / "runner-token"))
 
     with forced_platform("windows"), env(
         LOCALAPPDATA=str(local), APPDATA=str(roaming),
