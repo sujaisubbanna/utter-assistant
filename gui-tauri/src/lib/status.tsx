@@ -37,7 +37,10 @@ export function RunnerStatusProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     try {
-      const next = await api.status();
+      const report = await api.status();
+      // The CLI's error is a raw socket path + shell hint; show the friendly
+      // version everywhere the report is rendered (titlebar, hero, plugins).
+      const next = report?.error ? { ...report, error: humanizeError(report.error, t) } : report;
       // Keep the previous object when the report is unchanged so an idle poll
       // does not re-render every status consumer (titlebar, General hero).
       setStatus((prev) => (sameJson(prev, next) ? prev : next));

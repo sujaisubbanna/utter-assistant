@@ -19,24 +19,22 @@ use crate::state::AppState;
 use crate::theme::{self, Palette};
 use crate::zip;
 
-/// Systemd user units the GUI is allowed to control.
+/// Service units the GUI is allowed to control. Linux uses systemd unit names;
+/// macOS maps them onto launchd labels (see `service::launchd_label`); Windows
+/// reuses the same strings as Scheduled Task names.
 const UNITS: &[&str] = &[
     "utter-runner",
+    "utter.service",
     "utter-bridge",
     "utter-vision",
     "utter-planner",
     "utter-audio-defaults",
 ];
 
-/// Extra task names Windows exposes. The UI shows the voice daemon as
-/// `utter.service` (its systemd unit); on Windows that string is reused verbatim
-/// as the Scheduled Task name, so it must pass the allow-list there.
-const WINDOWS_UNITS: &[&str] = &["utter.service"];
-
-/// Whether `unit` may be controlled on `backend`. Linux/macOS keep the exact
-/// allow-list they always had; Windows additionally accepts its task names.
-fn unit_allowed(unit: &str, backend: ServiceBackend) -> bool {
-    UNITS.contains(&unit) || (backend == ServiceBackend::Schtasks && WINDOWS_UNITS.contains(&unit))
+/// Whether `unit` may be controlled on `backend`. Every backend accepts the
+/// shared unit names above.
+fn unit_allowed(unit: &str, _backend: ServiceBackend) -> bool {
+    UNITS.contains(&unit)
 }
 
 const SYSTEMCTL_ACTIONS: &[&str] = &[
@@ -92,7 +90,7 @@ pub const IS_MACOS: bool = cfg!(target_os = "macos");
 fn launchd_log(unit: &str) -> Option<&'static str> {
     match unit {
         "utter-runner" => Some("runner.log"),
-        "utter-bridge" => Some("utter.log"),
+        "utter.service" | "utter-bridge" => Some("utter.log"),
         _ => None,
     }
 }
@@ -400,19 +398,11 @@ fn read_runner_policy(path: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Restart the runner so a config change takes effect. Windows drives its
-/// Scheduled Task; Linux/macOS keep the historical `systemctl --user` call
-/// (and its failure semantics) exactly as before.
-fn restart_runner(state: &AppState) -> bool {
-    if ServiceBackend::detect() == ServiceBackend::Schtasks {
-        return service::control(ServiceBackend::Schtasks, "restart", "utter-runner")
-            .map(|result| result.ok)
-            .unwrap_or(false);
-    }
-    state
-        .systemctl(&["restart", "utter-runner"])
-        .output()
-        .map(|out| out.status.success())
+/// Restart the runner so a config change takes effect, on whichever service
+/// manager the host actually has (systemd / launchd / Scheduled Task).
+fn restart_runner(_state: &AppState) -> bool {
+    service::control(ServiceBackend::detect(), "restart", "utter-runner")
+        .map(|result| result.ok)
         .unwrap_or(false)
 }
 
@@ -1169,12 +1159,12 @@ fn terminal_candidates() -> Vec<(String, Vec<String>)> {
     candidates
 }
 
-/// Launch the installer in the user's terminal so they can watch and confirm it.
-///
-/// We deliberately never download and run the installer ourselves: the user
-/// sees the command and its output.
+/// Launch a shell command in the user's terminal so they can watch and confirm
+/// it. We deliberately never run these ourselves: the user sees the command and
+/// its output. `command` is always one of the app's compile-time constants — it
+/// is never assembled from config or UI text.
 #[cfg(not(target_os = "macos"))]
-fn launch_installer_terminal() -> Result<(), String> {
+fn launch_terminal_command(command: &str) -> Result<(), String> {
     for (program, prefix) in terminal_candidates() {
         if !binary_exists(&program) {
             continue;
@@ -1182,7 +1172,7 @@ fn launch_installer_terminal() -> Result<(), String> {
         let mut args = prefix;
         args.push("sh".to_string());
         args.push("-lc".to_string());
-        args.push(INSTALL_COMMAND.to_string());
+        args.push(command.to_string());
         if let Ok(mut child) = std::process::Command::new(&program)
             .args(&args)
             .stdin(std::process::Stdio::null())
@@ -1200,16 +1190,16 @@ fn launch_installer_terminal() -> Result<(), String> {
     Err("no terminal emulator found".to_string())
 }
 
-/// macOS: write the fixed installer command to a temporary script and open it
-/// with Terminal (`open -a Terminal <script>`), so the user sees and confirms it.
+/// macOS: write the command to a temporary script and open it with Terminal
+/// (`open -a Terminal <script>`), so the user sees and confirms it.
 #[cfg(target_os = "macos")]
-fn launch_installer_terminal() -> Result<(), String> {
+fn launch_terminal_command(command: &str) -> Result<(), String> {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
 
     let path = std::env::temp_dir().join(format!("utter-install-{}.command", std::process::id()));
     let script = format!(
-        "#!/bin/sh\nset -e\n{INSTALL_COMMAND}\nprintf '\\nInstaller finished. You can close this window.\\n'\n"
+        "#!/bin/sh\nset -e\n{command}\nprintf '\\nFinished. You can close this window.\\n'\n"
     );
     let mut file = std::fs::File::create(&path).map_err(|error| error.to_string())?;
     file.write_all(script.as_bytes()).map_err(|error| error.to_string())?;
@@ -1244,7 +1234,48 @@ pub async fn engine_present(state: State<'_, AppState>) -> Result<bool, String> 
 /// Open the official installer in the user's terminal (never run it silently).
 #[tauri::command]
 pub async fn open_installer_terminal() -> Result<(), String> {
-    blocking(launch_installer_terminal).await
+    blocking(|| launch_terminal_command(INSTALL_COMMAND)).await
+}
+
+/// The platform-appropriate install command for a known missing dependency, or
+/// `None` when there is no safe automatic fix. Mirrors `DEP_HELP` in
+/// `src/lib/links.ts`; keep the two lists in sync. Only these compile-time
+/// constants ever reach a shell.
+fn dep_fix(dep: &str) -> Option<&'static str> {
+    if cfg!(target_os = "macos") {
+        match dep {
+            "ollama" => Some("brew install ollama && brew services start ollama"),
+            "vocamac" => Some("brew install --cask vocamac"),
+            _ => None,
+        }
+    } else if cfg!(target_os = "windows") {
+        match dep {
+            "ollama" => Some("winget install Ollama.Ollama"),
+            _ => None,
+        }
+    } else {
+        match dep {
+            "ydotoold" => Some("systemctl --user enable --now ydotool"),
+            "dbus_cli" => Some("sudo pacman -S glib2  # or: qt6-tools (qdbus6)"),
+            "systemd_user" => Some("systemctl --user daemon-reload"),
+            "input_group" => Some("sudo usermod -aG input $USER"),
+            "uinput" => Some("sudo modprobe uinput"),
+            _ => None,
+        }
+    }
+}
+
+/// Open the platform-appropriate fix for a missing dependency in the user's
+/// terminal. The dep id selects a compile-time command (see `dep_fix`); the UI
+/// never supplies shell text. Returns an error when there is no known fix.
+#[tauri::command]
+pub async fn open_dep_fix(dep: String) -> Result<(), String> {
+    blocking(move || {
+        let command =
+            dep_fix(&dep).ok_or_else(|| format!("no automatic install for {dep}"))?;
+        launch_terminal_command(command)
+    })
+    .await
 }
 
 /// Probe the planner endpoint — `GET <base>/models`.

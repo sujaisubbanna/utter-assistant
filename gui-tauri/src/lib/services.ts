@@ -7,35 +7,55 @@ export interface ServiceDef {
   descKey: MessageKey;
 }
 
+export const RUNNER_SERVICE: ServiceDef = {
+  unit: "utter-runner",
+  labelKey: "general.serviceNames.runner",
+  descKey: "general.serviceNames.runnerDesc",
+};
+
+export const DAEMON_SERVICE: ServiceDef = {
+  // The voice daemon (`python -m utter.daemon`). Reuses existing copy:
+  // "Voice assistant" and the Voice page description — no new i18n keys.
+  unit: "utter.service",
+  labelKey: "setup.agent.assistant",
+  descKey: "voice.description",
+};
+
+const VISION_SERVICE: ServiceDef = {
+  unit: "utter-vision",
+  labelKey: "general.serviceNames.vision",
+  descKey: "general.serviceNames.visionDesc",
+};
+
+const PLANNER_SERVICE: ServiceDef = {
+  unit: "utter-planner",
+  labelKey: "general.serviceNames.planner",
+  descKey: "general.serviceNames.plannerDesc",
+};
+
+const AUDIO_SERVICE: ServiceDef = {
+  unit: "utter-audio-defaults",
+  labelKey: "general.serviceNames.audio",
+  descKey: "general.serviceNames.audioDesc",
+};
+
+/** Linux and Windows run the full set of units / scheduled tasks. */
 export const SERVICES: ServiceDef[] = [
-  {
-    unit: "utter-runner",
-    labelKey: "general.serviceNames.runner",
-    descKey: "general.serviceNames.runnerDesc",
-  },
-  {
-    // The voice daemon (`python -m utter.daemon`). Reuses existing copy:
-    // "Voice assistant" and the Voice page description — no new i18n keys.
-    unit: "utter.service",
-    labelKey: "setup.agent.assistant",
-    descKey: "voice.description",
-  },
-  {
-    unit: "utter-vision",
-    labelKey: "general.serviceNames.vision",
-    descKey: "general.serviceNames.visionDesc",
-  },
-  {
-    unit: "utter-planner",
-    labelKey: "general.serviceNames.planner",
-    descKey: "general.serviceNames.plannerDesc",
-  },
-  {
-    unit: "utter-audio-defaults",
-    labelKey: "general.serviceNames.audio",
-    descKey: "general.serviceNames.audioDesc",
-  },
+  RUNNER_SERVICE,
+  DAEMON_SERVICE,
+  VISION_SERVICE,
+  PLANNER_SERVICE,
+  AUDIO_SERVICE,
 ];
+
+/** macOS has two launchd agents: the runner and the voice daemon. The
+ *  vision/planner/audio-defaults helpers are Linux-only, so they are hidden. */
+export const MAC_SERVICES: ServiceDef[] = [RUNNER_SERVICE, DAEMON_SERVICE];
+
+/** The service rows a platform should show. */
+export function servicesFor(isMac: boolean): ServiceDef[] {
+  return isMac ? MAC_SERVICES : SERVICES;
+}
 
 export const SERVICE_UNITS = SERVICES.map((service) => service.unit);
 

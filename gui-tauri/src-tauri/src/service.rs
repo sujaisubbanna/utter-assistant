@@ -57,7 +57,10 @@ pub struct UnitStatus {
 fn launchd_label(unit: &str) -> Option<&'static str> {
     match unit {
         "utter-runner" => Some("com.utter.runner"),
-        "utter-bridge" => Some("com.utter.assistant"),
+        // The voice daemon's systemd unit is `utter.service`; on macOS the same
+        // process runs under launchd as `com.utter.assistant`. `utter-bridge` is
+        // the legacy unit name, kept mapped so old installs still resolve.
+        "utter.service" | "utter-bridge" => Some("com.utter.assistant"),
         _ => None,
     }
 }

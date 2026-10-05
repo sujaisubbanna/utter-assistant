@@ -80,7 +80,7 @@ export function Titlebar({ route, onboarding = false }: { route: string; onboard
         <Logo size={20} className="shrink-0 text-primary" title={t("app.name")} />
         <span
           data-tauri-drag-region
-          className="font-display text-[16px] font-semibold lowercase tracking-[-0.02em] text-foreground max-[879px]:hidden"
+          className="font-display text-[16px] font-semibold tracking-[-0.02em] text-foreground max-[879px]:hidden"
         >
           {t("app.name")}
         </span>
@@ -115,7 +115,7 @@ export function Titlebar({ route, onboarding = false }: { route: string; onboard
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <OfflineBadge />
         {!onboarding && <ConnectionPill />}
         <div className="flex items-center gap-0.5 pl-1">

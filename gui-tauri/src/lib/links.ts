@@ -80,3 +80,27 @@ export function openLink(url: string): void {
     window.open(url, "_blank", "noopener");
   });
 }
+
+/**
+ * The installs `DEP_HELP` knows how to run automatically, grouped by the
+ * platform whose fix they are. Kept in sync with `dep_fix` in
+ * `src-tauri/src/commands.rs` (the backend is what actually runs them).
+ */
+const LINUX_FIXES = new Set(["ydotoold", "dbus_cli", "systemd_user", "input_group", "uinput"]);
+const MAC_FIXES = new Set(["ollama", "vocamac"]);
+
+/** Windows-only overrides where the Homebrew/systemd fix wouldn't apply. */
+const WINDOWS_FIXES: Record<string, string> = {
+  ollama: "winget install Ollama.Ollama",
+};
+
+/**
+ * The platform-appropriate fix command for `name`, or undefined when there is
+ * no safe automatic install. Used to show the exact command before the user
+ * agrees to run it (the backend runs the same one).
+ */
+export function depFix(name: string, os: string): string | undefined {
+  if (os === "windows") return WINDOWS_FIXES[name];
+  if (os === "macos") return MAC_FIXES.has(name) ? DEP_HELP[name]?.fix : undefined;
+  return LINUX_FIXES.has(name) ? DEP_HELP[name]?.fix : undefined;
+}

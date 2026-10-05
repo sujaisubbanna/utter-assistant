@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Icon } from "../components/icons";
+import { DepInstallButton } from "../components/DepInstall";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
@@ -16,7 +17,8 @@ import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { humanizeError } from "../lib/errors";
 import { titleCase } from "../lib/format";
-import { DEP_HELP } from "../lib/links";
+import { DEP_HELP, depFix } from "../lib/links";
+import { usePlatform } from "../lib/platform";
 import { cn } from "../lib/utils";
 import type { DoctorReport, Plugin } from "../lib/types";
 
@@ -177,6 +179,7 @@ function PluginEntry({
 
 export function PluginsPage() {
   const { t, tn } = useI18n();
+  const { os } = usePlatform();
   const toast = useToast();
   const [report, setReport] = useState<DoctorReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -270,7 +273,7 @@ export function PluginsPage() {
             <EmptyState
               icon="power"
               title={t("plugins.list.offlineTitle")}
-              description={report.error || t("plugins.list.offlineBody")}
+              description={humanizeError(report.error, t) || t("plugins.list.offlineBody")}
               action={
                 <Button icon="refresh" onClick={() => void run()}>
                   {t("common.retry")}
@@ -300,6 +303,8 @@ export function PluginsPage() {
             depNames.map((name) => {
               const ok = deps[name];
               const help = DEP_HELP[name];
+              // The platform-appropriate fix command, when the backend can run one.
+              const fix = depFix(name, os);
               const label = name in DEP_HELP ? t(`deps.${name}` as MessageKey) : titleCase(name);
               return (
                 <Row
@@ -310,14 +315,15 @@ export function PluginsPage() {
                     </span>
                   }
                   title={label}
-                  description={!ok && help?.fix ? <code className="font-mono text-[11.5px]">{help.fix}</code> : undefined}
+                  description={!ok && fix ? <code className="font-mono text-[11.5px]">{fix}</code> : undefined}
                 >
-                  {!ok && help?.fix && (
-                    <Button size="sm" variant="ghost" icon="copy" onClick={() => void copyFix(help.fix!)}>
+                  {!ok && fix && <DepInstallButton dep={name} title={label} href={help?.url} />}
+                  {!ok && help?.url && <LinkButton href={help.url}>{t("common.website")}</LinkButton>}
+                  {!ok && fix && (
+                    <Button size="sm" variant="ghost" icon="copy" onClick={() => void copyFix(fix)}>
                       {t("plugins.deps.fix")}
                     </Button>
                   )}
-                  {!ok && help?.url && <LinkButton href={help.url}>{t("common.install")}</LinkButton>}
                   <span
                     className="text-xs"
                     style={{ color: ok ? "var(--muted-foreground)" : "var(--destructive)" }}
@@ -331,7 +337,7 @@ export function PluginsPage() {
         </Section>
 
         <Section title={t("plugins.runner.title")} description={t("plugins.runner.description")}>
-          <Row leading={<Tile icon="cpu" />} title={t("plugins.runner.version")} description={report?.error || undefined}>
+          <Row leading={<Tile icon="cpu" />} title={t("plugins.runner.version")} description={humanizeError(report?.error, t) || undefined}>
             <Value>{runner.version ?? "—"}</Value>
           </Row>
           <Row leading={<Tile icon="link" />} title={t("plugins.runner.protocol")}>

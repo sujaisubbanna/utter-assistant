@@ -67,11 +67,12 @@ export const PROMPTS = new Set(["microphone", "speech_recognition", "input_monit
  *  agents must be restarted when either flips to granted. */
 export const RESTART_ON_GRANT = ["input_monitoring", "accessibility"];
 
-// macOS runs two launchd agents. On Linux the installer installs two user
-// units: the runner (`install/utter-runner.service`) and the voice daemon
-// (`systemd/utter.service`). The old utter-bridge and friends are legacy units
-// the installer leaves alone, so they are not shown.
-export const MAC_AGENT_UNITS = ["utter-runner", "utter-bridge"];
+// macOS runs two launchd agents: the runner (`com.utter.runner`) and the voice
+// daemon (`com.utter.assistant`). The daemon's unit name is `utter.service` so
+// the same row works on Linux (`systemd/utter.service`) and macOS; the backend
+// maps it to the launchd label. The old utter-bridge and friends are legacy
+// units the installer leaves alone, so they are not shown.
+export const MAC_AGENT_UNITS = ["utter-runner", "utter.service"];
 export const LINUX_AGENT_UNITS = ["utter-runner", "utter.service"];
 const SETUP_SEEN = "utter.setup.seen";
 
@@ -146,7 +147,21 @@ function PermissionRow({
   );
 }
 
-function AgentRow({ unit, status, onStart, busy }: { unit: string; status?: UnitStatus; onStart: () => void; busy: boolean }) {
+function AgentRow({
+  unit,
+  status,
+  onStart,
+  onInstall,
+  busy,
+  installing,
+}: {
+  unit: string;
+  status?: UnitStatus;
+  onStart: () => void;
+  onInstall: () => void;
+  busy: boolean;
+  installing: boolean;
+}) {
   const { t } = useI18n();
   const { isMac } = usePlatform();
   const installed = status && status.load_state !== "not-found" && Boolean(status.load_state);
@@ -170,11 +185,15 @@ function AgentRow({ unit, status, onStart, busy }: { unit: string; status?: Unit
       }
     >
       <StatusDot tone={tone} pulse={running} />
-      {installed && !running && (
+      {status && !installed && isMac ? (
+        <Button size="sm" variant="primary" icon="download" loading={installing} onClick={onInstall}>
+          {t("setup.runtime.install")}
+        </Button>
+      ) : installed && !running ? (
         <Button size="sm" variant="primary" icon="play" loading={busy} onClick={onStart}>
           {t("general.hero.start")}
         </Button>
-      )}
+      ) : null}
     </Row>
   );
 }
@@ -247,6 +266,7 @@ export function SetupPage() {
   const { get, reload: reloadConfig } = useConfig();
   const [install, setInstall] = useState<InstallStatus | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [installingAgents, setInstallingAgents] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
   const [installProgress, setInstallProgress] = useState<string | null>(null);
   const autoInstalled = useRef(false);
@@ -354,6 +374,21 @@ export function SetupPage() {
   const allGranted = Boolean(report?.all_granted);
   usePoll(() => refresh(), allGranted ? 15000 : 3000, ready && !installing);
 
+  // Bootstrap (or rewrite) the launchd agents when a row says "not installed",
+  // so the status is never a dead end.
+  const installAgents = async () => {
+    setInstallingAgents(true);
+    try {
+      setInstall(await api.macosReinstallAgents());
+      toast(t("setup.runtime.done"), "ok");
+      await refresh();
+    } catch (err) {
+      toast(t("common.saveFailed", { what: t("setup.agent.title"), error: humanizeError(err, t) }), "error");
+    } finally {
+      setInstallingAgents(false);
+    }
+  };
+
   const request = async (id: string) => {
     setRequesting(id);
     try {
@@ -453,7 +488,15 @@ export function SetupPage() {
 
           <Section title={t("general.services.title")} description={t("general.services.description")}>
             {LINUX_AGENT_UNITS.map((unit) => (
-              <AgentRow key={unit} unit={unit} status={agents[unit]} onStart={() => void start(unit)} busy={starting === unit} />
+              <AgentRow
+                key={unit}
+                unit={unit}
+                status={agents[unit]}
+                onStart={() => void start(unit)}
+                onInstall={() => void installAgents()}
+                busy={starting === unit}
+                installing={installingAgents}
+              />
             ))}
           </Section>
 
@@ -550,7 +593,15 @@ export function SetupPage() {
 
         <Section title={t("setup.agent.title")} description={t("setup.agent.description")}>
           {MAC_AGENT_UNITS.map((unit) => (
-            <AgentRow key={unit} unit={unit} status={agents[unit]} onStart={() => void start(unit)} busy={starting === unit} />
+            <AgentRow
+              key={unit}
+              unit={unit}
+              status={agents[unit]}
+              onStart={() => void start(unit)}
+              onInstall={() => void installAgents()}
+              busy={starting === unit}
+              installing={installingAgents}
+            />
           ))}
         </Section>
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "utter",
+  "productName": "Utter",
   "version": "0.4.13",
   "identifier": "org.utter.settings",
   "build": {
