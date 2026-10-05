@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-10-05
+
+### Fixed
+- **Accessibility/context detection works on remote installs.** The installer
+  built the agent venv from Homebrew Python without system site-packages, so
+  `gi`/Atspi were missing and the assistant could not read the focused element.
+  It now prefers a gi-capable interpreter (`/usr/bin/python3`), builds the venv
+  with `--system-site-packages`, recreates an old isolated venv, and installs
+  `python-gobject`/`at-spi2-core`.
+- **Push-to-talk no longer wedges.** Releasing the PTT key could deadlock the
+  daemon (`stop()` held the capture lock while PortAudio waited on the audio
+  callback), leaving it stuck "listening" until a restart. Key-up now completes,
+  a missed release is bounded by a watchdog, and a transcription failure is
+  non-fatal.
+- **The on-screen display no longer runs a second Whisper model.** Live partial
+  decoding is off by default (waveform and final text remain); together with a
+  thread cap this removes the CPU load that made the desktop and settings UI
+  stutter.
+- **The settings UI scrolls smoothly** (offscreen rows skipped, rows memoized,
+  unchanged polls no longer re-render) and **support bundles** now record a real
+  Python interpreter, so `doctor.json`/`status.json` are no longer empty.
+
 ## [0.4.4] - 2026-10-05
 
 ### Fixed
