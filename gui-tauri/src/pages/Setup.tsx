@@ -13,6 +13,7 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
 import { usePoll } from "../lib/hooks";
 import { displayMacKey } from "../lib/keys";
@@ -284,7 +285,7 @@ export function SetupPage() {
       await reloadConfig();
       toast(t("setup.runtime.done"), "ok");
     } catch (err) {
-      setInstallError(String(err));
+      setInstallError(humanizeError(err, t));
     } finally {
       setInstalling(false);
     }
@@ -303,11 +304,11 @@ export function SetupPage() {
         } else if (status.installed && !status.agents_installed && !autoInstalled.current) {
           // Agents from an older build (or none): rewrite them to launch through this app.
           autoInstalled.current = true;
-          void api.macosReinstallAgents().then(setInstall).catch((err) => setInstallError(String(err)));
+          void api.macosReinstallAgents().then(setInstall).catch((err) => setInstallError(humanizeError(err, t)));
         }
       })
-      .catch((err) => setInstallError(String(err)));
-  }, [isMac, runInstall]);
+      .catch((err) => setInstallError(humanizeError(err, t)));
+  }, [isMac, runInstall, t]);
 
   const refresh = useCallback(async () => {
     if (isMac) {
@@ -330,10 +331,10 @@ export function SetupPage() {
           setReport(next);
           setError(null);
         } else {
-          setError(String(next?.error ?? t("common.somethingWrong")));
+          setError(next?.error ? humanizeError(next.error, t) : t("common.somethingWrong"));
         }
       } catch (err) {
-        setError(String(err));
+        setError(humanizeError(err, t));
       }
     }
     try {
@@ -370,7 +371,7 @@ export function SetupPage() {
         }
       }
     } catch (err) {
-      toast(t("setup.actions.requestFailed", { error: String(err) }), "error");
+      toast(t("setup.actions.requestFailed", { error: humanizeError(err, t) }), "error");
     } finally {
       setRequesting(null);
     }
@@ -380,10 +381,10 @@ export function SetupPage() {
     setStarting(unit);
     try {
       const result = await api.systemctl(action, unit);
-      if (!result.ok) toast(t("setup.agent.startFailed", { detail: (result.stderr || result.stdout).trim() }), "error");
+      if (!result.ok) toast(t("setup.agent.startFailed", { detail: humanizeError((result.stderr || result.stdout).trim(), t) }), "error");
       await refresh();
     } catch (err) {
-      toast(t("setup.agent.startFailed", { detail: String(err) }), "error");
+      toast(t("setup.agent.startFailed", { detail: humanizeError(err, t) }), "error");
     } finally {
       setStarting(null);
     }

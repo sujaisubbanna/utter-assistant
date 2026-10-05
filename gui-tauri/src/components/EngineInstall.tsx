@@ -3,19 +3,17 @@ import { useCallback, useState } from "react";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { INSTALL_ONE_LINER, useEnginePresent } from "../lib/engine";
+import { humanizeError } from "../lib/errors";
 import { cn } from "../lib/utils";
 import { Icon } from "./icons";
 import { Button } from "./ui/Button";
 import { useToast } from "./ui/Toast";
 
 /**
- * First-run notice shown when the `assistant` engine cannot run — the case for
- * a GUI-only AppImage/deb/rpm, which ships no Python core. It offers the
- * official one-liner, a copy button and a button that opens the installer in
- * the user's own terminal (never run silently). It renders nothing when the
- * engine is present, so callers can drop it in unconditionally.
+ * Copy the installer one-liner and open it in the user's terminal (never run it
+ * silently). Shared by the full card and the slim app-wide banner.
  */
-export function EngineInstallCard({ className }: { className?: string }) {
+function useInstallerActions() {
   const { t } = useI18n();
   const toast = useToast();
   const { present } = useEnginePresent();
@@ -39,11 +37,25 @@ export function EngineInstallCard({ className }: { className?: string }) {
       await api.openInstallerTerminal();
       toast(t("engine.missing.opened"), "ok");
     } catch (error) {
-      toast(t("engine.missing.openFailed", { error: String(error) }), "error");
+      toast(t("engine.missing.openFailed", { error: humanizeError(error, t) }), "error");
     } finally {
       setOpening(false);
     }
   }, [t, toast]);
+
+  return { present, copied, opening, copy, openTerminal };
+}
+
+/**
+ * First-run notice shown when the `assistant` engine cannot run — the case for
+ * a GUI-only AppImage/deb/rpm, which ships no Python core. It offers the
+ * official one-liner, a copy button and a button that opens the installer in
+ * the user's own terminal (never run silently). It renders nothing when the
+ * engine is present, so callers can drop it in unconditionally.
+ */
+export function EngineInstallCard({ className }: { className?: string }) {
+  const { t } = useI18n();
+  const { present, copied, opening, copy, openTerminal } = useInstallerActions();
 
   if (present !== false) return null;
 
@@ -95,5 +107,54 @@ export function EngineInstallCard({ className }: { className?: string }) {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * A slim, always-visible strip for the shell. It says the same thing as the
+ * card in one line, so every page makes sense on its own when the engine is
+ * missing. Renders nothing when the engine is present.
+ */
+export function EngineInstallBanner({ className }: { className?: string }) {
+  const { t } = useI18n();
+  const { present, copied, opening, copy, openTerminal } = useInstallerActions();
+
+  if (present !== false) return null;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-3 rounded-lg bg-card px-4 py-2.5 shadow-card",
+        className,
+      )}
+      aria-live="polite"
+    >
+      <span
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+        style={{
+          color: "var(--primary)",
+          background: "color-mix(in oklab, var(--primary) 13%, transparent)",
+        }}
+      >
+        <Icon name="terminal" size={15} />
+      </span>
+      <p className="min-w-[12rem] flex-1 text-xs leading-[18px] text-muted-foreground">
+        {t("engine.missing.short")}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="ghost" icon={copied ? "check" : "copy"} onClick={() => void copy()}>
+          {copied ? t("common.copied") : t("common.copy")}
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          icon="terminal"
+          loading={opening}
+          onClick={() => void openTerminal()}
+        >
+          {t("engine.missing.openTerminal")}
+        </Button>
+      </div>
+    </div>
   );
 }

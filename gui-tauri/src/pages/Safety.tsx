@@ -16,6 +16,7 @@ import { Row, Tile } from "../components/ui/Row";
 import { useToast } from "../components/ui/Toast";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
+import { humanizeError } from "../lib/errors";
 import { usePlatform } from "../lib/platform";
 import { DANGEROUS_OPS } from "../lib/services";
 
@@ -162,7 +163,7 @@ export function SafetyPage() {
         on ? "warn" : "ok",
       );
     } catch (error) {
-      toast(t("common.saveFailed", { what: "policy.enabled_ops", error: String(error) }), "error");
+      toast(t("common.saveFailed", { what: "policy.enabled_ops", error: humanizeError(error, t) }), "error");
     }
   };
 

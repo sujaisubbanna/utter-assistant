@@ -20,6 +20,7 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { humanizeError } from "../lib/errors";
 import { usePoll } from "../lib/hooks";
 import { resetOnboarding } from "../lib/onboarding";
 import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
@@ -122,9 +123,9 @@ export function GeneralPage() {
       const nextEnabled = (state.stdout || state.stderr).trim();
       setEnabled((prev) => (prev === nextEnabled ? prev : nextEnabled));
     } catch (error) {
-      setUnitError(String(error));
+      setUnitError(humanizeError(error, t));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -145,7 +146,7 @@ export function GeneralPage() {
     const name = t(SERVICES.find((service) => service.unit === unit)?.labelKey ?? "general.serviceNames.runner");
     try {
       const result = await api.systemctl(action, unit);
-      const detail = (result.stderr || result.stdout).trim().slice(0, 140);
+      const detail = humanizeError((result.stderr || result.stdout).trim().slice(0, 140), t);
       toast(
         result.ok
           ? t("general.services.done", { action: actionLabel(action), name })

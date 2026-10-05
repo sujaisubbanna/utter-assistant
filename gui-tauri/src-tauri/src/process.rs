@@ -10,6 +10,22 @@ use std::process::{Child, Command, Output, Stdio};
 
 use serde::Serialize;
 
+/// Stable marker for a command that could not spawn because its program is
+/// missing (`ENOENT`), which in this app almost always means the Python
+/// interpreter — empty or uninstalled. The frontend branches on this instead of
+/// rendering the raw `No such file or directory (os error 2)`.
+pub const ENGINE_MISSING: &str = "engine_missing";
+
+/// Map a spawn failure to a frontend-safe message. A missing program becomes
+/// [`ENGINE_MISSING`]; anything else keeps the OS text.
+pub fn io_message(error: &io::Error) -> String {
+    if error.kind() == io::ErrorKind::NotFound {
+        ENGINE_MISSING.to_string()
+    } else {
+        error.to_string()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Cmd {
     pub program: String,
@@ -94,6 +110,10 @@ pub struct CmdResult {
     pub stdout: String,
     pub stderr: String,
     pub ok: bool,
+    /// Set only for a recognizable failure (`"engine_missing"` today), so the
+    /// UI can branch without matching on OS text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 impl CmdResult {
@@ -106,14 +126,49 @@ impl CmdResult {
                     stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
                     stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
                     ok: out.status.success(),
+                    kind: None,
                 }
             }
-            Err(err) => Self {
-                code: 127,
-                stdout: String::new(),
-                stderr: err.to_string(),
-                ok: false,
-            },
+            Err(err) => {
+                let missing = err.kind() == io::ErrorKind::NotFound;
+                Self {
+                    code: 127,
+                    stdout: String::new(),
+                    stderr: io_message(&err),
+                    ok: false,
+                    kind: missing.then(|| ENGINE_MISSING.to_string()),
+                }
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_program_maps_to_the_engine_missing_sentinel() {
+        let err = io::Error::new(io::ErrorKind::NotFound, "No such file or directory (os error 2)");
+        assert_eq!(io_message(&err), ENGINE_MISSING);
+    }
+
+    #[test]
+    fn other_spawn_errors_keep_their_text() {
+        let err = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
+        assert_eq!(io_message(&err), "denied");
+    }
+
+    #[test]
+    fn cmd_result_marks_and_labels_a_missing_spawn() {
+        let result = CmdResult::from_output(Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "No such file or directory (os error 2)",
+        )));
+        assert_eq!(result.code, 127);
+        assert!(!result.ok);
+        // The raw OS string is gone, replaced by the stable sentinel.
+        assert_eq!(result.stderr, ENGINE_MISSING);
+        assert_eq!(result.kind.as_deref(), Some(ENGINE_MISSING));
     }
 }

@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::config;
 use crate::profiles;
-use crate::process::{Cmd, CmdResult};
+use crate::process::{io_message, Cmd, CmdResult};
 use crate::state::AppState;
 use crate::theme::{self, Palette};
 use crate::zip;
@@ -239,7 +239,7 @@ pub fn open_settings_pane(pane: String) -> Result<(), String> {
 pub async fn macos_permissions(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["macos-permissions", "--json"]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -267,7 +267,7 @@ pub async fn macos_request_permission(
     }
     let cmd = state.assistant(&["macos-permissions", "--json", "--request", name.as_str()]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -554,7 +554,7 @@ pub fn set_runner_plugins(
 pub async fn status(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["status", "--json"]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -568,7 +568,7 @@ pub async fn doctor(state: State<'_, AppState>, timeout: Option<f64>) -> Result<
     let timeout = timeout.unwrap_or(10.0).clamp(1.0, 60.0);
     let cmd = state.assistant(&["doctor", "--json", "--timeout", &format!("{timeout}")]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -581,7 +581,7 @@ pub async fn doctor(state: State<'_, AppState>, timeout: Option<f64>) -> Result<
 pub async fn recommend(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["recommend", "--json"]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -594,7 +594,7 @@ pub async fn recommend(state: State<'_, AppState>) -> Result<Value, String> {
 pub async fn models_list(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["models", "list", "--json"]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -607,7 +607,7 @@ pub async fn models_list(state: State<'_, AppState>) -> Result<Value, String> {
 pub async fn models_show(state: State<'_, AppState>, name: String) -> Result<Value, String> {
     let cmd = state.assistant(&["models", "show", &name, "--json"]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -638,7 +638,7 @@ pub fn start_models_pull(
     tag: String,
 ) -> Result<(), String> {
     let cmd = state.assistant(&["models", "pull", &source, "--tag", &tag, "--json"]);
-    let mut child = cmd.spawn_piped().map_err(|error| error.to_string())?;
+    let mut child = cmd.spawn_piped().map_err(|error| io_message(&error))?;
     let stdout = child.stdout.take().ok_or_else(|| err("no stdout pipe"))?;
     let stderr = child.stderr.take();
     let children = state.children.clone();
@@ -919,7 +919,7 @@ fn user_profiles_dir(state: &AppState) -> PathBuf {
 
 fn profile_python(state: &AppState, script: &str) -> Cmd {
     let repo = state.repo();
-    Cmd::new(state.python())
+    Cmd::new(state.interpreter())
         .args(["-c", script])
         .cwd(&repo)
         .env("PYTHONPATH", repo.to_string_lossy().into_owned())
@@ -931,7 +931,7 @@ pub async fn app_profiles_list(state: State<'_, AppState>) -> Result<Value, Stri
     let dir = user_profiles_dir(&state).to_string_lossy().into_owned();
     let cmd = profile_python(&state, profiles::LIST_SCRIPT).arg(dir);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         let stdout = String::from_utf8_lossy(&out.stdout);
         if !out.status.success() {
             return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
@@ -952,7 +952,7 @@ pub async fn app_profiles_list(state: State<'_, AppState>) -> Result<Value, Stri
 pub async fn apps_list(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["apps", "list", "--json"]);
     blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
+        let out = cmd.output().map_err(|error| io_message(&error))?;
         Ok(parse_json_lossy(
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
@@ -1379,25 +1379,6 @@ fn timestamp() -> String {
     )
 }
 
-/// Pick the interpreter the support bundle should shell out with.
-///
-/// On a fresh install the GUI's `python` setting can be empty; `Cmd::new("")`
-/// then fails to spawn and doctor/status were written as `(failed: ...)`.
-/// Fall back to the repo's venv interpreters, then to `python3` on `PATH`.
-fn resolve_python(configured: &str, repo: &Path) -> String {
-    let configured = configured.trim();
-    if !configured.is_empty() && Path::new(configured).exists() {
-        return configured.to_string();
-    }
-    for candidate in [".venv-agent/bin/python", ".venv/bin/python"] {
-        let path = repo.join(candidate);
-        if path.exists() {
-            return path.to_string_lossy().into_owned();
-        }
-    }
-    "python3".to_string()
-}
-
 fn default_bundle_path() -> PathBuf {
     let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("."));
     let downloads = home.join("Downloads");
@@ -1417,7 +1398,7 @@ pub async fn export_bundle(
     dest: Option<String>,
 ) -> Result<BundleResult, String> {
     let repo = state.repo();
-    let python = resolve_python(&state.python(), &repo);
+    let python = state.interpreter();
     let config_text = config::read_text(&state);
     let target = dest
         .filter(|value| !value.trim().is_empty())

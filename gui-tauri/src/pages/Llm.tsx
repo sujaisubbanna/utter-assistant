@@ -10,6 +10,7 @@ import { useToast } from "../components/ui/Toast";
 import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { humanizeError } from "../lib/errors";
 import { linkFor } from "../lib/links";
 import { usePlatform } from "../lib/platform";
 import { LLM_PROVIDERS, optionLabel } from "../lib/services";
@@ -44,11 +45,11 @@ export function LlmPage() {
       const good = out.ok && code.startsWith("2");
       const text = good
         ? t("llm.provider.ok", { code })
-        : t("llm.provider.failed", { detail: code || out.stderr.trim() });
+        : t("llm.provider.failed", { detail: humanizeError(code || out.stderr.trim(), t) });
       setResult({ ok: good, text });
       toast(text, good ? "ok" : "error");
     } catch (error) {
-      const text = t("llm.provider.failed", { detail: String(error) });
+      const text = t("llm.provider.failed", { detail: humanizeError(error, t) });
       setResult({ ok: false, text });
       toast(text, "error");
     } finally {

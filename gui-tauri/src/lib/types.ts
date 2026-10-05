@@ -79,6 +79,8 @@ export interface CmdResult {
   stdout: string;
   stderr: string;
   ok: boolean;
+  /** Set only for a recognizable failure (`"engine_missing"` today). */
+  kind?: string;
 }
 
 export interface AudioSource {

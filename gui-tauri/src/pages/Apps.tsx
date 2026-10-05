@@ -15,6 +15,7 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { KIND_ICON, kindLabelKey } from "../lib/appKinds";
+import { humanizeError } from "../lib/errors";
 import { splitList, titleCase } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { AppProfile, ProfileList, ProfileOverride } from "../lib/types";
@@ -86,10 +87,10 @@ function ProfileEditor({
         onSaved();
         onClose();
       } else {
-        toast(t("apps.editor.saveFailed", { detail: (result.stderr || result.stdout).trim().slice(0, 160) }), "error");
+        toast(t("apps.editor.saveFailed", { detail: humanizeError((result.stderr || result.stdout).trim().slice(0, 160), t) }), "error");
       }
     } catch (error) {
-      toast(t("apps.editor.saveFailed", { detail: String(error) }), "error");
+      toast(t("apps.editor.saveFailed", { detail: humanizeError(error, t) }), "error");
     } finally {
       setSaving(false);
     }
@@ -102,7 +103,7 @@ function ProfileEditor({
       onSaved();
       onClose();
     } catch (error) {
-      toast(t("apps.editor.saveFailed", { detail: String(error) }), "error");
+      toast(t("apps.editor.saveFailed", { detail: humanizeError(error, t) }), "error");
     }
   };
 
@@ -257,9 +258,9 @@ export function AppsPage() {
       setData(await api.appProfilesList());
       setError(null);
     } catch (err) {
-      setError(String(err));
+      setError(humanizeError(err, t));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();

@@ -255,6 +255,7 @@ export const pt: Messages = {
       eyebrow: "Get the engine",
       title: "Install the Utter engine",
       body: "This app is only the settings shell. Install the engine to hear you, decide and act. Copy the command below, or open it in a terminal for me.",
+      short: "Utter's engine isn't installed yet — install it below.",
       openTerminal: "Open installer in terminal",
       opened: "Opening your terminal…",
       copyFailed: "Couldn't copy the command",

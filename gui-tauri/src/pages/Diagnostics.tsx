@@ -13,6 +13,7 @@ import { Switch } from "../components/ui/Switch";
 import { useToast } from "../components/ui/Toast";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
+import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
 import { SERVICES } from "../lib/services";
 import { cn } from "../lib/utils";
@@ -74,7 +75,9 @@ export function DiagnosticsPage() {
     setLines([]);
     api
       .startLogTail(unit, id)
-      .catch((error) => toast(t("diagnostics.logs.tailFailed", { error: String(error) }), "error"));
+      .catch((error) =>
+        toast(t("diagnostics.logs.tailFailed", { error: humanizeError(error, t) }), "error"),
+      );
   }, [stopTail, toast, unit, t]);
 
   useEffect(() => {
@@ -107,11 +110,11 @@ export function DiagnosticsPage() {
     try {
       setReport(await api.doctor());
     } catch (error) {
-      setReport({ ok: false, connected: false, error: String(error), plugins: [] });
+      setReport({ ok: false, connected: false, error: humanizeError(error, t), plugins: [] });
     } finally {
       setDoctorLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void runDoctor();
@@ -123,7 +126,7 @@ export function DiagnosticsPage() {
       const result = await api.exportBundle();
       toast(t("diagnostics.bundle.done", { path: result.path }), "ok");
     } catch (error) {
-      toast(t("diagnostics.bundle.failed", { error: String(error) }), "error");
+      toast(t("diagnostics.bundle.failed", { error: humanizeError(error, t) }), "error");
     } finally {
       setExporting(false);
     }

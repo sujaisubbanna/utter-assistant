@@ -11,6 +11,7 @@ import { useToast } from "../components/ui/Toast";
 import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { humanizeError } from "../lib/errors";
 import { linkFor } from "../lib/links";
 import { usePlatform } from "../lib/platform";
 import { optionLabel, TTS_ENGINES } from "../lib/services";
@@ -70,11 +71,11 @@ function TtsLinuxPage() {
       toast(
         result.ok
           ? t("tts.test.spoken")
-          : t("tts.test.failed", { name: engineName, detail: (result.stderr || result.stdout).trim().slice(0, 120) }),
+          : t("tts.test.failed", { name: engineName, detail: humanizeError((result.stderr || result.stdout).trim().slice(0, 120), t) }),
         result.ok ? "ok" : "error",
       );
     } catch (error) {
-      toast(t("tts.test.couldNotRun", { name: engineName, detail: String(error) }), "error");
+      toast(t("tts.test.couldNotRun", { name: engineName, detail: humanizeError(error, t) }), "error");
     } finally {
       setTesting(false);
     }

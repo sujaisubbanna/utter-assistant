@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { api } from "./api";
+import { humanizeError } from "./errors";
 import type { Config } from "./types";
 import { useToast } from "../components/ui/Toast";
 import { useT } from "../i18n";
@@ -47,11 +48,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       setConfig(loaded ?? {});
       setError(null);
     } catch (err) {
-      setError(String(err));
+      setError(humanizeError(err, t));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void reload();
@@ -69,7 +70,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         await api.setConfig(section, key, value);
       } catch (error) {
         setConfig(previous);
-        toast(t("common.saveFailed", { what: `${section}.${key}`, error: String(error) }), "error");
+        toast(t("common.saveFailed", { what: `${section}.${key}`, error: humanizeError(error, t) }), "error");
       }
     },
     [config, toast, t],
@@ -86,7 +87,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         await api.setConfigMany(section, values);
       } catch (error) {
         setConfig(previous);
-        toast(t("common.saveFailed", { what: section, error: String(error) }), "error");
+        toast(t("common.saveFailed", { what: section, error: humanizeError(error, t) }), "error");
       }
     },
     [config, toast, t],
