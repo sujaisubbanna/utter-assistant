@@ -187,7 +187,7 @@ function SttLanguageMismatch() {
   const t = useT();
   const { get, setMany } = useConfig();
   const language = String(get("stt", "language", "auto")).trim().toLowerCase();
-  const model = String(get("stt", "model", "distil-small.en"));
+  const model = String(get("stt", "model", "ggml-small.en.bin"));
   const effective = language === "auto" || language === "" ? systemLanguageCode() : language;
   if (!effective || effective.startsWith("en") || !isEnglishOnlyModel(model)) return null;
   return (
@@ -326,7 +326,7 @@ function VoiceLinuxPage() {
             k="model"
             title={t("voice.stt.model")}
             description={t("voice.stt.modelHint")}
-            placeholder="distil-small.en"
+            placeholder="ggml-small.en.bin"
             monospace
             width="w-56"
           />

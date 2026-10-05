@@ -2527,12 +2527,16 @@ MODEL_TIER_SIZES=()
 # Curated default model sources, sized for the 24 GB reference machine (RTX
 # 3090 Ti; the shipped pair was measured on a 24 GB card):
 #   stt      ggml-small.en.bin (~466 MB) — English, runs on CPU or GPU
-#   vision   UI-TARS-2B-SFT (~4.5 GB bf16) — leaves room for the 4B AWQ planner
-# The 4-bit AWQ planner has no documented single Hugging Face source, so the
-# `decision` tier still needs UTTER_MODEL_DECISION (see docs/guides/models.md).
+# The vision tier (UI-TARS) is deliberately left without a store source: those
+# repos are sharded safetensors (model-0000N-of-0000M.safetensors + an index),
+# so a single-file `models pull` cannot fetch them. Provision vision with
+# scripts/install_inference.sh, which downloads the full repo directory, then
+# serve it with scripts/serve_vision.sh. Likewise the 4-bit AWQ planner has no
+# documented single Hugging Face source, so `decision` still needs
+# UTTER_MODEL_DECISION (see docs/guides/models.md).
 # Installs without a 24 GB NVIDIA GPU keep zero-model mode and pull nothing.
 DEFAULT_MODEL_STT="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
-DEFAULT_MODEL_VISION="hf:ByteDance-Seed/UI-TARS-2B-SFT"
+DEFAULT_MODEL_VISION=""
 
 # --------------------------------------------------------------------------- #
 # section: language (spoken STT/TTS; English ships inline)

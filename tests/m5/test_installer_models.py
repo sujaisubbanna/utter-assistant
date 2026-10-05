@@ -28,7 +28,9 @@ DEFAULT_TOML = REPO / "config.default.toml"
 FAKE_ASSISTANT = "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$FAKE_LOG\"\nexit 0\n"
 
 STT_DEFAULT = "hf:ggerganov/whisper.cpp:ggml-small.en.bin"
-VISION_DEFAULT = "hf:ByteDance-Seed/UI-TARS-2B-SFT"
+# UI-TARS vision repos are sharded safetensors, so the installer no longer
+# advertises a store pull for the vision tier (provision with install_inference.sh).
+STT_TIERS = ("stt", "decision", "vision")
 
 
 def _pinned_version() -> str:
@@ -124,8 +126,10 @@ def main() -> int:
         rep.check("models step exits 0", rc == 0, f"rc={rc}; {out[-300:]}")
         rep.check("default STT source is pulled",
                   f"models pull {STT_DEFAULT}" in log, log)
-        rep.check("default vision source is pulled",
-                  f"models pull {VISION_DEFAULT}" in log, log)
+        rep.check("vision tier is not given an impossible store pull",
+                  "UI-TARS" not in log, log)
+        rep.check("vision tier explains no source is configured",
+                  "no source configured for the vision tier" in out, out[-400:])
         rep.check("decision tier is not given an invented source",
                   "models pull decision" not in log, log)
         rep.check("decision tier explains no source is configured",

@@ -128,7 +128,7 @@ defaults are:
 | Tier | Default source | Notes |
 |---|---|---|
 | STT | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | ~466 MB; runs on CPU or GPU |
-| Vision | `hf:ByteDance-Seed/UI-TARS-2B-SFT` | ~4.5 GB bf16; fits beside the 4-bit AWQ planner |
+| Vision | — | UI-TARS repos are sharded safetensors (no single-file pull); provision with `scripts/install_inference.sh` |
 | Decision / planner | — | no documented single Hugging Face source; set `UTTER_MODEL_DECISION` |
 
 `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults. Nothing
