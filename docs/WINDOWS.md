@@ -78,6 +78,10 @@ What it does, in order:
    no installer exists it warns and continues.
 
 `-DryRun` prints every download, extraction and command and changes nothing.
+It is **fully side-effect-free**: it resolves `<latest>` without a network call,
+creates no prefix/scratch/model/config paths, registers no tasks and runs no
+installer. The mandatory STT/model step is still printed, so the plan always
+shows the `assistant models pull …ggml-small.en.bin` command.
 `-Uninstall` deletes the two Scheduled Tasks and the core tree, and keeps the
 config.
 
@@ -233,12 +237,23 @@ the same behaviour as `python -m assistant`.
 
 `.github/workflows/windows.yml` runs on a real Windows runner (independent of the
 Linux `verify` job) whenever `runner/**`, `assistant/**`, `tests/platform/**`,
-`pyproject.toml` or the workflow change. It installs `.[windows]` (falling back
-to the explicit wheel list), then asserts Windows detection + path/dependency
-seams, the loopback-TCP runner transport, a core import smoke test, and
-`python -m assistant --version`. `python -m runner._selftest` does **not** run
-there: its non-e2e suite uses Unix-only primitives (`os.memfd_create`,
-`os.getuid`, `socketpair`+`SCM_RIGHTS`, `AF_UNIX`).
+`pyproject.toml`, `install.ps1` or the workflow change. It installs `.[windows]`
+(falling back to the explicit wheel list), then asserts Windows detection +
+path/dependency seams, the loopback-TCP runner transport, a core import smoke
+test, and `python -m assistant --version`.
+
+The installer itself is exercised on Windows too: the workflow parses
+`install.ps1` with `[System.Management.Automation.Language.Parser]::ParseFile`
+(failing on any parse error), then runs
+`pwsh -NoProfile -File install.ps1 -DryRun -SkipGui` under a short timeout and
+asserts exit code 0, that nothing was created (prefix / model store / config),
+and that the plan names the mandatory whisper.cpp STT model step and its
+`assistant models pull …ggml-small.en.bin` command. The run is hermetic — the
+`-DryRun` path makes no network call.
+
+`python -m runner._selftest` does **not** run there: its non-e2e suite uses
+Unix-only primitives (`os.memfd_create`, `os.getuid`, `socketpair`+`SCM_RIGHTS`,
+`AF_UNIX`).
 
 ## Phases
 

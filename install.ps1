@@ -324,7 +324,9 @@ function Get-TarExe {
 # --------------------------------------------------------------------------- #
 function Install-Core {
     Write-Section "install core (runner + CLI)"
-    New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
+    if (-not $DryRun) {
+        New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
+    }
     $tarballName = "utter-core-$($Script:VerNum).tar.gz"
     $sumsName = 'sha256sums.txt'
     $tarball = Join-Path $Script:Tmp $tarballName
@@ -719,7 +721,11 @@ function Main {
         return
     }
 
-    New-Item -ItemType Directory -Force -Path $Script:Tmp | Out-Null
+    # DryRun is fully side-effect-free: nothing below may touch the filesystem
+    # or the network. The scratch dir would be created (and removed) otherwise.
+    if (-not $DryRun) {
+        New-Item -ItemType Directory -Force -Path $Script:Tmp | Out-Null
+    }
     Resolve-Release
     Write-Banner
     Write-Info "  release: $($Script:Ver)"
