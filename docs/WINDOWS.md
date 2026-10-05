@@ -1,0 +1,75 @@
+# Native Windows support — plan
+
+Status: **not yet supported** (Linux + macOS today). This documents the
+grounded plan and the first landed groundwork. Windows is an explicit non-goal
+in `README.md` and `docs/TRUST.md`; this file tracks the path to change that.
+
+## Shape
+
+The **protocol/policy brain is already portable** (framing, `runner/rpc.py`,
+streams, handles, policy + provenance, `utter/router/**`, `utter/executor.py`,
+the model store). The hard work is the **"plant"**: the platform integrations.
+Mirror the macOS pattern — a `utter/win32/**` tree behind `utter/platform.py`,
+plus a native runner transport and an NSIS/MSI installer.
+
+## What already landed (P0 groundwork)
+
+- `utter/platform.py`: `WINDOWS` + `is_windows()`, `sys.platform`/`UTTER_PLATFORM`
+  aliases. (PR #51)
+- `assistant/deps.py`: no longer hard-crashes on Windows (`import grp` guarded);
+  Windows branch reports `powershell`/`nvidia-smi`/`ollama` and marks native
+  backends advisory.
+- `assistant/util.py`: `%LOCALAPPDATA%\utter` / `%APPDATA%\utter` paths.
+- `assistant/doctor.py`: platform-specific runner start hint.
+- `tests/platform/test_windows_detection.py`.
+
+## Runner transport & trust (the key decision)
+
+`runner` uses AF_UNIX + `SO_PEERCRED` (+ `/proc/<pid>/exe`) for peer identity.
+On Windows that does **not** port as-is:
+
+- Python 3.12/3.14 on Windows do **not** expose `socket.AF_UNIX`, and `asyncio`
+  has no `create_unix_server()` (CPython gh-77589).
+- No `SO_PEERCRED` on native Win32 (only `SIO_AF_UNIX_GETPEERPID` for a peer PID).
+
+**P0 choice:** **localhost TCP + mandatory token** (or **named pipes**) in an
+ACL'd per-user location, with `fd.pass` disabled (`-32005`), plugins on stdio,
+and permissions reported **advisory** (no sandbox). Named pipes
+(`GetNamedPipeClientProcessId` + token SID) are the P2 hardening path for real
+peer identity. Do **not** weaken `docs/TRUST.md` invariant #5.
+
+## Dependencies (wheels)
+
+A **CPU-only** Windows path is shippable from wheels alone on 3.12/3.14:
+`pywhispercpp` (CPU wheel) or `faster-whisper`+`ctranslate2` (CPU),
+`sounddevice` (PortAudio DLLs bundled), `numpy`, `uiautomation`+`comtypes`
+(a11y), `mss` (capture), `pywin32` (clipboard), `comtypes` (SAPI TTS). GPU STT
+is **not** wheels-only (`ctranslate2` needs system CUDA 12 + cuDNN;
+`pywhispercpp` GPU needs a source build).
+
+## Phases
+
+- **P0** — voice→action, no GUI: platform plumbing (landed), the transport
+  above, `utter/win32/{desktop,clipboard,launch,inject,pointer,hotkey}.py`,
+  STT/TTS/screenshot branches, a `windows` extra, tests.
+- **P1** — GUI + service + installer: `%LOCALAPPDATA%`/`%APPDATA%` everywhere,
+  **per-user Scheduled Task** (Session 0 services cannot do UIA/input/hotkeys),
+  GUI WASAPI/PowerShell ports, PowerShell/NSIS installer, CI `windows-latest`,
+  microphone-consent UX.
+- **P2** — depth + hardening: full UI Automation, DPI-aware capture, named-pipe
+  transport, optional Windows Speech backend, toasts/media integration.
+
+## Spikes to run first
+
+1. Transport: localhost TCP + token vs named pipes (decides P0).
+2. Wheel installability on a real Win11 VM (esp. `ctranslate2`/`sounddevice`).
+3. `WH_KEYBOARD_LL` PTT without admin.
+4. UI Automation tree quality without elevation.
+5. Tauri NSIS/MSI + per-user Scheduled Task + a relocatable Python runtime.
+
+## Risks
+
+- Weaker trust boundary (no peer identity without named pipes); no sandbox.
+- UIPI blocks input into **elevated** windows unless Utter is elevated (avoid).
+- Per-monitor DPI makes screenshot↔pointer coordinates error-prone.
+- Packaging a Python runtime plus CUDA deps into an MSI is heavy.
