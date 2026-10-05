@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Regression: macOS runner/daemon wiring.
 
-* The launchd runner agent must point at the production ``config.m3.toml``
+* The launchd runner agent must point at the production ``config.runner.toml``
   (real ``plugins/utter_py``), not ``runner/config.example.toml`` (echo stubs).
+* The agent must export ``UTTER_DRY_RUN=0`` so it performs real desktop actions.
 * ``run_macos`` must idle-sleep and wake the sleeper on push-to-talk, like
   ``run_hotkey``; historically it never called ``idle.start()`` /
   ``idle.begin()`` / ``sleeper.wake()``.
@@ -27,8 +28,13 @@ from utter.daemon import Utter
 class TestRunnerPlistConfig(unittest.TestCase):
     def test_runner_agent_uses_production_config(self):
         plist = (ROOT / "macos" / "com.utter.runner.plist").read_text()
-        self.assertIn("@REPO@/config.m3.toml", plist)
+        self.assertIn("@REPO@/config.runner.toml", plist)
         self.assertNotIn("config.example.toml", plist)
+
+    def test_runner_agent_enables_real_actions(self):
+        plist = (ROOT / "macos" / "com.utter.runner.plist").read_text()
+        self.assertIn("<key>UTTER_DRY_RUN</key>", plist)
+        self.assertIn("<string>0</string>", plist)
 
 
 class _FakeStream:

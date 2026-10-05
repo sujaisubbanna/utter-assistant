@@ -19,6 +19,8 @@ Type=simple
 # @REPO@ is replaced with the checkout path by install/install.sh.
 Environment=UTTER_REPO=@REPO@
 Environment=PYTHONUNBUFFERED=1
+# Production: real desktop actions (the plugin defaults dry-run ON).
+Environment=UTTER_DRY_RUN=0
 ExecStart=@REPO@/scripts/utter-wayland-ready.sh
 Restart=on-failure
 RestartSec=2

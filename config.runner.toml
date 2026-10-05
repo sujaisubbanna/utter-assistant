@@ -1,0 +1,51 @@
+# Production runner config: drive the real utter/ assistant through the runner.
+#
+#   python -m runner --config config.runner.toml
+#
+# The plugin is the existing assistant wrapped as a bundle plugin. It runs with
+# cwd=plugins/utter_py (so `python3 -m plugin` resolves) and the runner
+# prepends the repo root to PYTHONPATH (so `import utter` works).
+#
+# Dry-run is OFF in production: install/utter-runner.service and the macOS
+# launchd agent export UTTER_DRY_RUN=0. Set UTTER_DRY_RUN=1 to exercise the
+# runner without touching the desktop (the test suites use config.m3.toml).
+#
+# The installer repoints the `entrypoint` below at its interpreter venv, the
+# same way it rewrites config.m3.toml (fix_plugin_python in install.sh).
+
+[runner]
+rpc_timeout_ms = 30000        # the decision head HTTPs to :8001 (up to ~6s)
+confirm_timeout_ms = 30000
+
+[socket]
+# Local, single-user desktop app: the settings GUI (same uid) is the only
+# client, so allow same-uid peers (SO_PEERCRED). Processes from other users are
+# still rejected, and action.terminal/action.input stay off below. To harden
+# further, drop this and allow-list the GUI binary or set a token.
+allow_same_uid = true
+
+[policy]
+# action.terminal / action.input stay OFF by default (TRUST.md §4).
+enabled_ops = []
+disabled_ops = []
+
+[[plugin]]
+id = "utter"
+kind = "bundle"
+runtime = "subprocess"
+transport = "stdio"
+cwd = "plugins/utter_py"
+entrypoint = ["python3", "-m", "plugin"]
+enabled = true
+permissions = ["input-injection", "process-spawn", "screenshot", "accessibility"]
+provides = [
+    "router.plan@1",
+    "action.open_url@1",
+    "action.terminal@1",
+    "action.niri@1",
+    "action.input@1",
+    "context.live@1",
+    "perception.screenshot@1",
+    "perception.a11y@1",
+]
+requires = ["fs.tmp@1"]

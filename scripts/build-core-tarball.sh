@@ -95,6 +95,7 @@ mkdir -p "$ROOT/install"
     cp -a "$REPO/install/utter-runner.service" "$ROOT/install/"
 # configs + top-level docs
 copy_path config.default.toml
+copy_path config.runner.toml
 copy_path config.m3.toml
 copy_path AGENTS.md
 copy_path README.md

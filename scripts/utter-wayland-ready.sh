@@ -8,8 +8,9 @@
 #
 # Config resolution (first match wins):
 #   1. $UTTER_CONFIG
-#   2. <repo>/config.m3.toml
-#   3. <repo>/runner/config.example.toml
+#   2. <repo>/config.runner.toml        (production)
+#   3. <repo>/config.m3.toml            (M3 verification / tests)
+#   4. <repo>/runner/config.example.toml
 #
 # Environment overrides:
 #   UTTER_REPO      repo root (default: parent of this script's dir)
@@ -38,6 +39,8 @@ fi
 # --- config ---------------------------------------------------------------- #
 if [[ -n "${UTTER_CONFIG:-}" ]]; then
     CONFIG="$UTTER_CONFIG"
+elif [[ -f "$REPO/config.runner.toml" ]]; then
+    CONFIG="$REPO/config.runner.toml"
 elif [[ -f "$REPO/config.m3.toml" ]]; then
     CONFIG="$REPO/config.m3.toml"
 elif [[ -f "$REPO/runner/config.example.toml" ]]; then

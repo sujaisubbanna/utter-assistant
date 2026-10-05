@@ -76,7 +76,12 @@ retry loop, validates the runner socket dir, then `exec`s
 `python -m runner --config <config>`.
 
 Config resolution (first match wins): `$UTTER_CONFIG` →
-`<repo>/config.m3.toml` → `<repo>/runner/config.example.toml`.
+`<repo>/config.runner.toml` (production) → `<repo>/config.m3.toml` (tests) →
+`<repo>/runner/config.example.toml`.
+
+The runner unit exports `UTTER_DRY_RUN=0`, so the installed service performs real
+desktop actions. Set `UTTER_DRY_RUN=1` (or use `config.m3.toml`) to keep it in
+dry-run.
 
 Environment overrides: `UTTER_REPO`, `UTTER_PYTHON`,
 `UTTER_CONFIG`, `UTTER_READY_TIMEOUT` (default 30s).

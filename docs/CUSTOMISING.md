@@ -40,9 +40,12 @@ sections map onto dataclasses in `utter/config.py`. Unknown keys are ignored by
 `_merge` (`config.py`).
 
 Separately, the **modular runner** has its own TOML config
-(`runner/config.example.toml`, `config.m3.toml`) with `[[plugin]]` entries and
-`[runner]` / `[socket]` / `[security]` / `[policy]` sections. See
-[`docs/PLUGINS.md`](PLUGINS.md) and the comments in `runner/config.example.toml`.
+(`config.runner.toml` in production, `config.m3.toml` for the M3 verification,
+and `runner/config.example.toml` as a template) with `[[plugin]]` entries and
+`[runner]` / `[socket]` / `[security]` / `[policy]` sections. The session wrapper
+resolves `$UTTER_CONFIG` → `config.runner.toml` → `config.m3.toml` →
+`runner/config.example.toml`. See [`docs/PLUGINS.md`](PLUGINS.md) and the
+comments in `config.runner.toml`.
 
 ---
 
@@ -538,12 +541,15 @@ Read [`docs/TRUST.md`](TRUST.md) in full. For customisation the relevant points:
   # disabled_ops = []
   ```
 
-  See `runner/config.example.toml:30-35` and `config.m3.toml:21-24`.
+  The production config (`config.runner.toml`) keeps both off; the GUI Safety
+  page writes the allow-list to the file the runner actually loads.
 - **Never weaken policy** by letting screen/a11y/OCR/clipboard content author action
   args — that is the `-32006` invariant enforced by the runner.
 - The legacy assistant's dry-run is controlled by `UTTER_DRY_RUN`: the
   `utter_py` plugin defaults it **on**, so only `UTTER_DRY_RUN=0` touches the
-  desktop (`_dry_run`, `plugins/utter_py/plugin.py`). Route-only testing without the
+  desktop (`_dry_run`, `plugins/utter_py/plugin.py`). The shipped runner unit and
+  the macOS launchd agent both export `UTTER_DRY_RUN=0` for real actions; the M3
+  tests set `UTTER_DRY_RUN=1`/use `config.m3.toml`. Route-only testing without the
   plugin: `python -m utter.daemon --text "<cmd>" --dry-run`.
 
 ---

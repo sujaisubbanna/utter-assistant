@@ -23,7 +23,7 @@
     <string>-m</string>
     <string>runner</string>
     <string>--config</string>
-    <string>@REPO@/config.m3.toml</string>
+    <string>@REPO@/config.runner.toml</string>
   </array>
   <key>WorkingDirectory</key>
   <string>@REPO@</string>
@@ -33,6 +33,9 @@
     <string>@REPO@</string>
     <key>PYTHONUNBUFFERED</key>
     <string>1</string>
+    <!-- Production: real desktop actions (the plugin defaults dry-run ON). -->
+    <key>UTTER_DRY_RUN</key>
+    <string>0</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
