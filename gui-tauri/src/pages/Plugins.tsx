@@ -14,6 +14,7 @@ import { Switch } from "../components/ui/Switch";
 import { useToast } from "../components/ui/Toast";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
+import { humanizeError } from "../lib/errors";
 import { titleCase } from "../lib/format";
 import { DEP_HELP } from "../lib/links";
 import { cn } from "../lib/utils";
@@ -188,11 +189,11 @@ export function PluginsPage() {
     try {
       setReport(await api.doctor());
     } catch (error) {
-      setReport({ ok: false, connected: false, error: String(error), plugins: [] });
+      setReport({ ok: false, connected: false, error: humanizeError(error, t), plugins: [] });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void run();
@@ -212,7 +213,7 @@ export function PluginsPage() {
       // The backend restarts the runner so the change applies.
       window.setTimeout(() => void run(), 800);
     } catch (error) {
-      toast(t("common.saveFailed", { what: `plugins.disabled`, error: String(error) }), "error");
+      toast(t("common.saveFailed", { what: `plugins.disabled`, error: humanizeError(error, t) }), "error");
     }
   };
 
@@ -221,7 +222,7 @@ export function PluginsPage() {
     try {
       const result = await api.systemctl("restart", "utter-runner");
       toast(
-        result.ok ? t("plugins.restarted") : t("plugins.restartFailed", { detail: (result.stderr || "").slice(0, 120) }),
+        result.ok ? t("plugins.restarted") : t("plugins.restartFailed", { detail: humanizeError((result.stderr || "").slice(0, 120), t) }),
         result.ok ? "ok" : "error",
       );
       window.setTimeout(() => void run(), 800);

@@ -14,6 +14,7 @@ import { LANG_NAMES, detectLang, useI18n, type LangPref } from "../../i18n";
 import { api } from "../../lib/api";
 import { kindLabelKey } from "../../lib/appKinds";
 import { useConfig } from "../../lib/config";
+import { humanizeError } from "../../lib/errors";
 import { useTauriEvent } from "../../lib/events";
 import { humanBytes, parseJsonLine } from "../../lib/format";
 import { usePoll } from "../../lib/hooks";
@@ -265,10 +266,10 @@ function PermissionsStepMac({
         setReport(next);
         setError(null);
       } else {
-        setError(String(next?.error ?? t("common.somethingWrong")));
+        setError(next?.error ? humanizeError(next.error, t) : t("common.somethingWrong"));
       }
     } catch (err) {
-      setError(String(err));
+      setError(humanizeError(err, t));
     }
   }, [t]);
 
@@ -291,7 +292,7 @@ function PermissionsStepMac({
         for (const delay of [400, 1200, 2500]) window.setTimeout(() => void refresh(), delay);
       }
     } catch (err) {
-      toast(t("setup.actions.requestFailed", { error: String(err) }), "error");
+      toast(t("setup.actions.requestFailed", { error: humanizeError(err, t) }), "error");
     } finally {
       setRequesting(null);
     }
@@ -615,10 +616,10 @@ export function AppsStep({ data, commit }: StepProps) {
       setDetected(false);
       setEntries(list);
     } catch (err) {
-      setError(String(err));
+      setError(humanizeError(err, t));
       setEntries([]);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -951,10 +952,10 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
         await api.startModelsPull(pullId, tier.vision.source, "latest");
       } catch (err) {
         setPhase("error");
-        setError(String(err));
+        setError(humanizeError(err, t));
       }
     },
-    [],
+    [t],
   );
 
   const onContinue = () => {
@@ -982,7 +983,7 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
       setFraction(1);
     } else if (event.event === "error") {
       setPhase("error");
-      setError(String(event.error));
+      setError(humanizeError(event.error, t));
     }
   });
 

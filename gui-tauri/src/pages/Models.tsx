@@ -14,6 +14,7 @@ import { useToast } from "../components/ui/Toast";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
 import { humanBytes, parseJsonLine } from "../lib/format";
 import { HF_MODELS, LINKS, PULL_SOURCES } from "../lib/links";
@@ -71,11 +72,11 @@ export function ModelsPage() {
       setStoreRoot(data?.store?.root ?? null);
       setError(null);
     } catch (err) {
-      setError(String((err as Error)?.message ?? err));
+      setError(humanizeError(err, t));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadRecommendation = useCallback(async () => {
     setRecommendation(null);
@@ -121,7 +122,7 @@ export function ModelsPage() {
         downloaded: Number(event.bytes ?? prev.downloaded),
       }));
     } else if (kind === "error") {
-      setPull((prev) => ({ ...prev, phase: "error", error: String(event.error), indeterminate: false }));
+      setPull((prev) => ({ ...prev, phase: "error", error: humanizeError(event.error, t), indeterminate: false }));
     }
   });
 
@@ -150,8 +151,8 @@ export function ModelsPage() {
       await api.startModelsPull(id, source.trim(), tag.trim() || "latest");
       setSource("");
     } catch (err) {
-      setPull({ ...IDLE_PULL, phase: "error", error: String(err) });
-      toast(t("models.pull.failed", { error: String(err) }), "error");
+      setPull({ ...IDLE_PULL, phase: "error", error: humanizeError(err, t) });
+      toast(t("models.pull.failed", { error: humanizeError(err, t) }), "error");
     }
   };
 
@@ -176,11 +177,11 @@ export function ModelsPage() {
       toast(
         result.ok
           ? t("models.installed.removed", { name })
-          : t("models.installed.removeFailed", { detail: (result.stderr || "").slice(0, 120) }),
+          : t("models.installed.removeFailed", { detail: humanizeError((result.stderr || "").slice(0, 120), t) }),
         result.ok ? "ok" : "error",
       );
     } catch (err) {
-      toast(t("models.installed.removeFailed", { detail: String(err) }), "error");
+      toast(t("models.installed.removeFailed", { detail: humanizeError(err, t) }), "error");
     } finally {
       setRemoving(null);
       void loadModels();

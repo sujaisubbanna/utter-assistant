@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useI18n } from "../i18n";
+import { humanizeError } from "./errors";
+
 interface AsyncState<T> {
   loading: boolean;
   error?: string;
@@ -12,6 +15,7 @@ export function useAsync<T>(
   deps: unknown[],
   immediate = true,
 ): AsyncState<T> & { reload: () => Promise<void> } {
+  const { t } = useI18n();
   const [state, setState] = useState<AsyncState<T>>({ loading: immediate });
   const fnRef = useRef(fn);
   fnRef.current = fn;
@@ -22,9 +26,9 @@ export function useAsync<T>(
       const data = await fnRef.current();
       setState({ loading: false, data });
     } catch (error) {
-      setState({ loading: false, error: String((error as Error)?.message ?? error) });
+      setState({ loading: false, error: humanizeError(error, t) });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (immediate) void reload();

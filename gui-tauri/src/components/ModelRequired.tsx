@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useTauriEvent } from "../lib/events";
+import { humanizeError } from "../lib/errors";
 import { humanBytes, parseJsonLine } from "../lib/format";
 import { useModelStatus, type ModelKind, type ModelNeed } from "../lib/models";
 import { Icon } from "./icons";
@@ -88,7 +89,7 @@ export function ModelRequiredDialog({
       } else if (kind === "error") {
         setPhase("error");
         setIndeterminate(false);
-        setError(String(event.error ?? ""));
+        setError(humanizeError(event.error ?? "", t));
       }
     },
     open,

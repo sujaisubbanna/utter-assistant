@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Sidebar } from "./components/Sidebar";
+import { EngineInstallBanner } from "./components/EngineInstall";
 import { Titlebar } from "./components/Titlebar";
 import { ToastProvider } from "./components/ui/Toast";
 import { I18nProvider, useT } from "./i18n";
@@ -133,6 +134,10 @@ function Shell() {
             shadow-panel on the scroller itself repainted the whole panel every
             frame, which is what made scrolling feel laggy under WebKitGTK. */}
         <div className="mb-2 mr-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-panel shadow-panel">
+          {/* App-wide honesty: when the engine is missing, say so on every page,
+              not only on Set up. Set up already shows the full card, so skip it
+              there to avoid saying the same thing twice. */}
+          {route !== "setup" && <EngineInstallBanner className="m-3 mb-0" />}
           <main
             ref={mainRef}
             className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"

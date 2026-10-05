@@ -10,6 +10,7 @@ import { useToast } from "../components/ui/Toast";
 import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "../lib/config";
+import { humanizeError } from "../lib/errors";
 import { MAC_TTS_BACKENDS, optionLabel } from "../lib/services";
 
 /** Spoken replies on macOS: the system `say` voices or AVSpeechSynthesizer. */
@@ -31,11 +32,11 @@ export function TtsMacPage() {
       // voice means the system default.
       const result = await api.ttsTest("say", voice || "en", phrase.trim() || t("tts.test.defaultPhrase"));
       toast(
-        result.ok ? t("tts.test.spoken") : t("tts.test.failed", { name: "say", detail: (result.stderr || result.stdout).trim().slice(0, 120) }),
+        result.ok ? t("tts.test.spoken") : t("tts.test.failed", { name: "say", detail: humanizeError((result.stderr || result.stdout).trim().slice(0, 120), t) }),
         result.ok ? "ok" : "error",
       );
     } catch (error) {
-      toast(t("tts.test.couldNotRun", { name: "say", detail: String(error) }), "error");
+      toast(t("tts.test.couldNotRun", { name: "say", detail: humanizeError(error, t) }), "error");
     } finally {
       setTesting(false);
     }
