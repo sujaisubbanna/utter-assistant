@@ -78,11 +78,20 @@ def _ensure(name: str) -> Path | None:
     return path if path.exists() else None
 
 
-def _player() -> list[str] | None:
+def _player(sink: str | None = None) -> list[str] | None:
+    """The player command, targeting ``sink`` when one is configured.
+
+    ``sink`` falls back to ``UTTER_SOUND_SINK``. Empty = the system default
+    output, exactly as before. ``afplay`` (macOS) ignores the sink.
+    """
+    if sink is None:
+        sink = os.environ.get("UTTER_SOUND_SINK", "")
     if shutil.which("pw-play"):
-        return ["pw-play", "--volume=0.35"]
+        base = ["pw-play", "--volume=0.35"]
+        return [*base, "--target", sink] if sink else base
     if shutil.which("paplay"):
-        return ["paplay", "--volume=11500"]
+        base = ["paplay", "--volume=11500"]
+        return [*base, "--device", sink] if sink else base
     if shutil.which("afplay"):  # macOS
         return ["afplay", "-v", "0.35"]
     return None

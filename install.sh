@@ -3631,11 +3631,11 @@ else
         say "  1. Open Utter from your application menu"
         say "     (the first-run wizard starts the assistant service)"
         say_f "     or from a terminal: {1}" "$GUI_BIN"
-        say "  2. If the service is not running: systemctl --user enable --now utter-runner.service"
+        say "  2. If the services are not running: systemctl --user enable --now utter-runner.service utter.service"
         say_f "  3. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
         say "  4. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
     else
-        say "  1. Start the runner:   systemctl --user enable --now utter-runner.service"
+        say "  1. Start the services: systemctl --user enable --now utter-runner.service utter.service"
         say_f "  2. Check the install:  {1} doctor --json" "$ASSISTANT_BIN"
         say "  3. Uninstall:          curl -fsSL <install.sh-url> | bash -s -- --uninstall"
     fi
