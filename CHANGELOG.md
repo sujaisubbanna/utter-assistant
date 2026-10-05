@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-10-05
+
+### Fixed
+- **Fresh installs no longer fail on GitHub's API rate limit.** The installer
+  resolved the newest release only through the unauthenticated GitHub API, which
+  can return `403` on shared IPs and aborted the install. It now prefers the API
+  (authenticating with `GITHUB_TOKEN`/`GH_TOKEN` when present) and falls back to
+  the `releases/latest` redirect, which has no API quota.
+
 ## [0.4.7] - 2026-10-05
 
 ### Added
