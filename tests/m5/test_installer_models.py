@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""The installer's models step must pull a curated default source per tier.
+"""The installer's models step must pull the curated speech model.
+
+Voice needs a model, so the STT tier is the only store source and is accepted
+by default (``--yes`` and the wizard's recommended answer). The decision and
+vision tiers have no store source and must never be pulled: UI-TARS is sharded
+safetensors (``scripts/install_inference.sh``) and the AWQ planner needs
+``UTTER_MODEL_DECISION``.
 
 Hermetic: a throwaway ``PREFIX``/``XDG_*`` tree, a fake ``assistant`` that only
 logs its arguments, a pseudo-terminal to drive the wizard, and no network.
@@ -10,6 +16,7 @@ from __future__ import annotations
 
 import os
 import pty
+import re
 import select
 import subprocess
 import sys
@@ -28,9 +35,6 @@ DEFAULT_TOML = REPO / "config.default.toml"
 FAKE_ASSISTANT = "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$FAKE_LOG\"\nexit 0\n"
 
 STT_DEFAULT = "hf:ggerganov/whisper.cpp:ggml-small.en.bin"
-# UI-TARS vision repos are sharded safetensors, so the installer no longer
-# advertises a store pull for the vision tier (provision with install_inference.sh).
-STT_TIERS = ("stt", "decision", "vision")
 
 
 def _pinned_version() -> str:
@@ -117,7 +121,7 @@ def main() -> int:
     rep = Report()
     print("installer models-step defaults")
 
-    # 1) accepting the tiers pulls the curated stt + vision defaults ---------- #
+    # 1) interactive: STT is recommended and pulled; decision/vision are notes - #
     with tempfile.TemporaryDirectory(prefix="lav-inst-models-") as d:
         tmp = Path(d)
         _fake_core(tmp)
@@ -126,16 +130,42 @@ def main() -> int:
         rep.check("models step exits 0", rc == 0, f"rc={rc}; {out[-300:]}")
         rep.check("default STT source is pulled",
                   f"models pull {STT_DEFAULT}" in log, log)
+        rep.check("STT tier is offered as whisper.cpp / ggml-small.en.bin",
+                  "whisper.cpp / ggml-small.en.bin" in out, out[-500:])
+        rep.check("STT prompt defaults to yes",
+                  "Download the whisper.cpp / ggml-small.en.bin model" in out
+                  and "[Y/n]" in out, out[-500:])
         rep.check("vision tier is not given an impossible store pull",
                   "UI-TARS" not in log, log)
-        rep.check("vision tier explains no source is configured",
-                  "no source configured for the vision tier" in out, out[-400:])
+        rep.check("vision note points at install_inference.sh",
+                  "install_inference.sh" in out, out[-500:])
         rep.check("decision tier is not given an invented source",
                   "models pull decision" not in log, log)
-        rep.check("decision tier explains no source is configured",
-                  "no source configured for the decision tier" in out, out[-400:])
+        rep.check("decision note points at UTTER_MODEL_DECISION",
+                  "UTTER_MODEL_DECISION" in out, out[-500:])
+        rep.check("models component is recorded",
+                  "record component models" in out or "ok Models" in out, out[-500:])
 
-    # 2) env overrides still win --------------------------------------------- #
+    # 2) --yes pulls the speech model without any prompt ---------------------- #
+    with tempfile.TemporaryDirectory(prefix="lav-inst-models-yes-") as d:
+        tmp = Path(d)
+        _fake_core(tmp)
+        r = subprocess.run(
+            ["bash", str(INSTALL), "--only", "models", "--yes"],
+            cwd=str(REPO), env=_sandbox(tmp),
+            capture_output=True, text=True, timeout=120,
+        )
+        out = (r.stderr or "") + r.stdout
+        log = _log(tmp)
+        rep.check("--yes models step exits 0", r.returncode == 0, out[-300:])
+        rep.check("--yes pulls the default STT model",
+                  f"models pull {STT_DEFAULT}" in log, log)
+        rep.check("--yes does not pull the decision/vision tiers",
+                  "models pull decision" not in log and "UI-TARS" not in log, log)
+        rep.check("--yes records the models component",
+                  "ok Models" in out, out[-400:])
+
+    # 3) env overrides still win --------------------------------------------- #
     with tempfile.TemporaryDirectory(prefix="lav-inst-models-env-") as d:
         tmp = Path(d)
         _fake_core(tmp)
@@ -146,7 +176,7 @@ def main() -> int:
         rep.check("env override is pulled", "models pull hf:example/custom:stt.bin" in log, log)
         rep.check("env override replaces the default", STT_DEFAULT not in log, log)
 
-    # 3) --dry-run prints the pull, changes nothing --------------------------- #
+    # 4) --dry-run prints the pull, changes nothing --------------------------- #
     with tempfile.TemporaryDirectory(prefix="lav-inst-models-dry-") as d:
         tmp = Path(d)
         _fake_core(tmp)

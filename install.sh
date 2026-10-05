@@ -1716,10 +1716,10 @@ COMP_WHAT=(
     "Wayland/input/audio tools and libs (wtype, ydotool, grim, wl-clipboard, pipewire, webkit2gtk-4.1, libsoup-3.0)"
     "protocol + reference runner + assistant CLI + bundled plugins"
     "spoken language (STT/TTS) and optional per-language downloads"
-    "utter-runner.service user unit (+ optional enable & start)"
-    "recommended STT / decision-head / vision models (always the user's choice)"
+    "utter-runner.service + utter.service (voice daemon) user units (+ optional enable & start)"
+    "curated speech model (whisper.cpp) so voice works after install"
     "Tauri settings window (AppImage to \$PREFIX/bin, .desktop entry)"
-    "speech-to-text backend (faster-whisper or a whisper.cpp build)"
+    "speech-to-text: pywhispercpp bundled; whisper.cpp default (faster-whisper optional)"
     "vision grounding server deps (UI-TARS via vLLM / transformers)"
     "optional bar widget, attention panel and OSD for the Noctalia shell"
     "~/.config/utter/config.toml from the shipped default"
@@ -1729,7 +1729,7 @@ COMP_SIZE=(
     "~6 MB download"
     "English ships inline; downloads opt-in"
     "<10 KB"
-    "several GB per accepted tier"
+    "~466 MB (the speech model)"
     "release AppImage (tens of MB)"
     "varies (existing install or your own)"
     "varies (vLLM/transformers stack)"
@@ -2425,7 +2425,7 @@ compute_recommendations() {
     REC_BY_ID[core]=y
     REC_BY_ID[lang]=y
     REC_BY_ID[units]=y
-    REC_BY_ID[models]=n
+    REC_BY_ID[models]=y
     (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
     REC_BY_ID[stt]=n
     REC_BY_ID[perception]=n
@@ -2476,48 +2476,29 @@ present_step() {
 }
 
 recommend_tiers() {
-    # echo lines: key|title|size|reason
-    local json=""
+    # echo one line: key|title|size|reason
+    #
+    # Only tiers with a store source are offered as downloads. Today that is
+    # just `stt`; the model is the curated whisper.cpp default (not necessarily
+    # the backend `assistant recommend` suggests), so the title/size reflect
+    # exactly what `exec_models` pulls. decision/vision have no store source and
+    # are announced as notes by the wizard instead.
+    local reason=""
     if [[ -x "$ASSISTANT_BIN" ]]; then
-        json="$("$ASSISTANT_BIN" recommend --json 2>/dev/null || true)"
+        reason="$("$ASSISTANT_BIN" recommend --json 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("suggestions",{}).get("stt",{}).get("reason",""))' 2>/dev/null || true)"
     elif [[ -d "$SHARE_DIR/assistant" ]] && command -v python3 >/dev/null 2>&1; then
-        json="$(cd "$SHARE_DIR" && python3 -m assistant recommend --json 2>/dev/null || true)"
+        reason="$(cd "$SHARE_DIR" && python3 -m assistant recommend --json 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("suggestions",{}).get("stt",{}).get("reason",""))' 2>/dev/null || true)"
     else
         local here; here="$(cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || echo "")"
         if [[ -n "$here" && -d "$here/assistant" ]] && command -v python3 >/dev/null 2>&1; then
-            json="$(cd "$here" && python3 -m assistant recommend --json 2>/dev/null || true)"
+            reason="$(cd "$here" && python3 -m assistant recommend --json 2>/dev/null \
+                | python3 -c 'import json,sys; print(json.load(sys.stdin).get("suggestions",{}).get("stt",{}).get("reason",""))' 2>/dev/null || true)"
         fi
     fi
-    if [[ -n "$json" ]] && command -v python3 >/dev/null 2>&1; then
-        if printf '%s' "$json" | python3 -c '
-import json, sys
-r = json.load(sys.stdin)
-s = r.get("suggestions", {})
-
-def size(d):
-    if d.get("est_vram_gb"):
-        return "~%d GB VRAM" % round(d["est_vram_gb"])
-    if d.get("est_ram_gb"):
-        return "~%d GB RAM" % round(d["est_ram_gb"])
-    return "size varies"
-
-stt = s.get("stt", {})
-stt_title = "%s / %s (%s)" % (stt.get("backend", "?"), stt.get("model", "?"), stt.get("device", "?"))
-print("stt", stt_title, size(stt), stt.get("reason", ""), sep="|")
-llm = s.get("decision_llm", {})
-llm_title = "%s %s" % (llm.get("model", "?"), llm.get("quant", ""))
-print("decision", llm_title, size(llm), llm.get("reason", ""), sep="|")
-vis = s.get("vision", {})
-print("vision", vis.get("model", "?"), size(vis), vis.get("reason", ""), sep="|")
-' 2>/dev/null; then
-            return 0
-        fi
-    fi
-    # Static fallback: core not installed yet, so describe the planned tiers.
-    printf '%s\n' \
-        "stt|STT|recommended whisper model (size varies)|see: assistant recommend" \
-        "decision|Decision head|7-8B (q4/awq), ~6 GB|follows your GPU" \
-        "vision|Vision|UI-TARS grounding, ~8 GB|follows your GPU"
+    [[ -n "$reason" ]] || reason="recommended for this machine"
+    printf 'stt|whisper.cpp / ggml-small.en.bin|~466 MB|%s\n' "$reason"
 }
 
 MODEL_TIER_KEYS=()
@@ -2812,11 +2793,13 @@ wizard() {
             continue
         fi
 
-        # Models are handled per tier.
+        # Models: voice needs a speech model, so the STT tier is accepted by
+        # default. decision/vision have no store source and are never pulled.
         if [[ "$id" == "models" ]]; then
             if (( ASSUME_YES )); then
-                say "  default: no (recommended) — models are opt-in"
-                DECISION[i]="skip"
+                MODELS_YES="stt"
+                announce_default "y"
+                DECISION[i]="yes"
                 continue
             fi
             ui_rule
@@ -2833,12 +2816,15 @@ wizard() {
             done < <(recommend_tiers)
             local accepted=0 idx
             for idx in "${!MODEL_TIER_KEYS[@]}"; do
-                if ask_yn_f "n" "  Download the {1} model ({2})?" "${MODEL_TIER_TITLES[idx]}" "${MODEL_TIER_SIZES[idx]}"; then
+                if ask_yn_f "y" "  Download the {1} model ({2})?" "${MODEL_TIER_TITLES[idx]}" "${MODEL_TIER_SIZES[idx]}"; then
                     accepted=1
                     MODELS_YES="${MODELS_YES:+$MODELS_YES,}${MODEL_TIER_KEYS[idx]}"
                 fi
                 (( QUIT )) && return 1
             done
+            # Not store pulls; provisioned out of band. Inform, don't prompt.
+            note "decision head: no documented store source — set UTTER_MODEL_DECISION to a source you trust."
+            note "vision (UI-TARS): sharded safetensors, not store-pullable — provision with scripts/install_inference.sh."
             if (( accepted )); then DECISION[i]="yes"; else DECISION[i]="skip"; fi
             continue
         fi
@@ -3319,9 +3305,10 @@ DESKTOP
 exec_stt() {
     section "STT backend"
     found_stt
-    say "  To enable voice, install one of:"
-    say "    - python3 -m pip install --user faster-whisper (local whisper)"
-    say "    - a whisper.cpp build (whisper-cli) and set stt.backend = \"whisper_cpp\""
+    say "  Voice uses whisper.cpp by default; the installer bundles pywhispercpp and"
+    say "  the curated store model ggml-small.en.bin, so transcription works as-is."
+    say "  faster-whisper is an optional alternative: pip install it and set"
+    say "  stt.backend = \"faster_whisper\"."
     reset_record
     record_component stt "STT backend" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
 }
