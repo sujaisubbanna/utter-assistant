@@ -101,6 +101,24 @@ export interface WindowInfo {
   focused: boolean;
 }
 
+/**
+ * A dictation that couldn't be delivered because no text field was focused
+ * (`assistant dictation --pending --json`). `reason` is the backend's short
+ * code for why; `ts` identifies the record so the UI can ignore one it has
+ * already resolved.
+ */
+export interface PendingDictation {
+  text: string;
+  reason: string;
+  ts: number;
+}
+
+/** Outcome of `assistant dictation --deliver` (`{ok, detail}`). */
+export interface DictationResult {
+  ok: boolean;
+  detail: string;
+}
+
 export interface PluginPermission {
   name?: string;
   enforced?: boolean;

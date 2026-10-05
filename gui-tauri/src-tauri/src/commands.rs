@@ -654,6 +654,116 @@ pub async fn context_windows(state: State<'_, AppState>) -> Result<Vec<WindowInf
     .await
 }
 
+// --------------------------------------------------------------------------- //
+// dictation target picker
+// --------------------------------------------------------------------------- //
+
+/// A dictation that couldn't be delivered because no text field was focused,
+/// as `assistant dictation --pending --json` reports it. Absent = `null`.
+#[derive(Serialize)]
+pub struct PendingDictation {
+    pub text: String,
+    pub reason: String,
+    pub ts: i64,
+}
+
+fn parse_pending(value: &Value) -> Option<PendingDictation> {
+    let text = value.get("text").and_then(Value::as_str)?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(PendingDictation {
+        text: text.to_string(),
+        reason: value
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        ts: value.get("ts").and_then(Value::as_i64).unwrap_or(0),
+    })
+}
+
+/// The pending dictation, or `null` when there is nothing waiting. Polling this
+/// is cheap and safe on every page.
+#[tauri::command]
+pub async fn dictation_pending(
+    state: State<'_, AppState>,
+) -> Result<Option<PendingDictation>, String> {
+    let cmd = state.assistant(&["dictation", "--pending", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| io_message(&error))?;
+        let value = parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        );
+        Ok(parse_pending(&value))
+    })
+    .await
+}
+
+/// Outcome of `assistant dictation --deliver`, which prints `{ok, detail}`.
+#[derive(Serialize)]
+pub struct DictationResult {
+    pub ok: bool,
+    pub detail: String,
+}
+
+fn parse_dictation_result(value: &Value) -> DictationResult {
+    DictationResult {
+        ok: value.get("ok").and_then(Value::as_bool).unwrap_or(false),
+        detail: value
+            .get("detail")
+            .and_then(Value::as_str)
+            .or_else(|| value.get("error").and_then(Value::as_str))
+            .unwrap_or_default()
+            .to_string(),
+    }
+}
+
+/// Type `text` into the window named by `target` (`<window-id>` | `pid:<n>` |
+/// `app_id:<s>`). The result is always returned, even on a failed delivery, so
+/// the UI can report it without surfacing a raw error.
+#[tauri::command]
+pub async fn dictation_deliver(
+    state: State<'_, AppState>,
+    text: String,
+    target: String,
+) -> Result<DictationResult, String> {
+    let cmd = state.assistant(&[
+        "dictation",
+        "--deliver",
+        "--text",
+        text.as_str(),
+        "--target",
+        target.as_str(),
+        "--json",
+    ]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| io_message(&error))?;
+        let value = parse_json_lossy(
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        );
+        Ok(parse_dictation_result(&value))
+    })
+    .await
+}
+
+/// Clear the pending dictation record. Best-effort: a failure here still lets
+/// the UI close the picker.
+#[tauri::command]
+pub async fn dictation_dismiss(state: State<'_, AppState>) -> Result<(), String> {
+    let cmd = state.assistant(&["dictation", "--dismiss", "--json"]);
+    blocking(move || {
+        let out = cmd.output().map_err(|error| io_message(&error))?;
+        if out.status.success() {
+            return Ok(());
+        }
+        Err("could not clear the pending dictation".to_string())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn models_list(state: State<'_, AppState>) -> Result<Value, String> {
     let cmd = state.assistant(&["models", "list", "--json"]);

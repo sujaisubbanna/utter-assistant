@@ -520,6 +520,22 @@ export const de: Messages = {
     },
   },
 
+  dictation: {
+    title: "Where should this go?",
+    description: "No text field was selected, so your dictation wasn't typed anywhere.",
+    transcriptLabel: "You said",
+    windowsLabel: "Send to a window",
+    focused: "Focused",
+    unknownApp: "Unknown app",
+    noWindows: "No open windows were found. You can copy the text instead.",
+    windowsError: "Couldn't list open windows.",
+    typeSelected: "Type into selected",
+    dismiss: "Dismiss",
+    typeFailed: "Couldn't type into that window. It may have closed — try another.",
+    copyFailed: "Couldn't copy to the clipboard",
+    typed: "Typed into the selected window",
+  },
+
   setup: {
     title: "Richten Sie Ihren Mac ein",
     description: "Utter benötigt einige Berechtigungen, bevor es zuhören, tippen und handeln kann. Gewähre ihnen einmal; Diese Seite prüft sie live.",

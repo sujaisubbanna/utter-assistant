@@ -9,10 +9,12 @@ import type {
   CmdResult,
   Config,
   DoctorReport,
+  DictationResult,
   ModelEntry,
   ModelStoreInfo,
   Palette,
   InstallStatus,
+  PendingDictation,
   PermissionReport,
   PlatformInfo,
   ProfileList,
@@ -53,8 +55,15 @@ export const api = {
   doctor: (timeout?: number) => invoke<DoctorReport>("doctor", { timeout }),
   recommend: () => invoke<Recommendation>("recommend"),
 
-  // Open windows for the Voice page's dictation-target picker.
+  // Open windows for the global dictation-target picker.
   contextWindows: () => invoke<WindowInfo[]>("context_windows"),
+
+  // A dictation that couldn't be delivered (no focused text field). The picker
+  // polls `dictationPending`, then delivers to a chosen window or dismisses it.
+  dictationPending: () => invoke<PendingDictation | null>("dictation_pending"),
+  dictationDeliver: (text: string, target: string) =>
+    invoke<DictationResult>("dictation_deliver", { text, target }),
+  dictationDismiss: () => invoke<void>("dictation_dismiss"),
 
   modelsList: () =>
     invoke<{ models?: ModelEntry[]; store?: ModelStoreInfo }>("models_list"),

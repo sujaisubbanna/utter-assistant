@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DictationPicker } from "./components/DictationPicker";
 import { Sidebar } from "./components/Sidebar";
 import { EngineInstallBanner } from "./components/EngineInstall";
 import { Titlebar } from "./components/Titlebar";
@@ -128,6 +129,9 @@ function Shell() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-chrome">
       <Titlebar route={route} />
+      {/* A dictation with nowhere to go can arrive on any page, so the target
+          picker lives here rather than inside the Voice screen. */}
+      <DictationPicker />
       <div className="flex min-h-0 flex-1">
         <Sidebar active={route} onNavigate={navigate} version={version} />
         {/* Shadow and rounding live on this non-scrolling wrapper. Putting
