@@ -74,6 +74,22 @@ A **CPU-only** Windows path is shippable from wheels alone on 3.12/3.14:
 is **not** wheels-only (`ctranslate2` needs system CUDA 12 + cuDNN;
 `pywhispercpp` GPU needs a source build).
 
+The **`windows` extra** (`pip install -e ".[windows]"`) pins the CPU-first
+runtime set — `numpy`, `sounddevice`, `pywin32`, `uiautomation`, `comtypes`,
+`mss`. Optional STT (`pywhispercpp`) is intentionally left out until a
+`win_amd64`/cp312 wheel is confirmed, so the extra always installs cleanly.
+
+## CI (`windows-latest`)
+
+`.github/workflows/windows.yml` runs on a real Windows runner (independent of the
+Linux `verify` job) whenever `runner/**`, `assistant/**`, `tests/platform/**`,
+`pyproject.toml` or the workflow change. It installs `.[windows]` (falling back
+to the explicit wheel list), then asserts Windows detection + path/dependency
+seams, the loopback-TCP runner transport, a core import smoke test, and
+`python -m assistant --version`. `python -m runner._selftest` does **not** run
+there: its non-e2e suite uses Unix-only primitives (`os.memfd_create`,
+`os.getuid`, `socketpair`+`SCM_RIGHTS`, `AF_UNIX`).
+
 ## Phases
 
 - **P0** — voice→action, no GUI: platform plumbing (landed), the transport
