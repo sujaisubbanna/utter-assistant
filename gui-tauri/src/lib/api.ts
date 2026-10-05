@@ -86,6 +86,11 @@ export const api = {
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   whichMany: (names: string[]) => invoke<Record<string, boolean>>("which_many", { names }),
 
+  // Installer affordance: is the engine runnable, and open the installer in a
+  // terminal (the user sees and confirms it; we never run it silently).
+  enginePresent: () => invoke<boolean>("engine_present"),
+  openInstallerTerminal: () => invoke<void>("open_installer_terminal"),
+
   startMic: () => invoke<void>("start_mic"),
   stopMic: () => invoke<void>("stop_mic"),
 

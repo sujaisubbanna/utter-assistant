@@ -244,6 +244,18 @@ export const es: Messages = {
     system: "Igual que el sistema ({name})",
   },
 
+  engine: {
+    missing: {
+      eyebrow: "Get the engine",
+      title: "Install the Utter engine",
+      body: "This app is only the settings shell. Install the engine to hear you, decide and act. Copy the command below, or open it in a terminal for me.",
+      openTerminal: "Open installer in terminal",
+      opened: "Opening your terminal…",
+      copyFailed: "Couldn't copy the command",
+      openFailed: "Couldn't open a terminal: {error}",
+    },
+  },
+
   status: {
     checking: "Comprobando…",
     online: "Asistente activo",

@@ -104,8 +104,8 @@ Required fields (`plugin.schema.json` `required`): `name`, `version`, `kind`,
 
 > Note: `utter-plugin.toml` is the documented canonical form, but the runner
 > itself is configured from a *runner* TOML (`[[plugin]]` entries) — see
-> `runner/config.example.toml` and `config.m3.toml`. The manifest is what a plugin
-> package ships.
+> `runner/config.example.toml` (template), `config.runner.toml` (production) and
+> `config.m3.toml` (verification). The manifest is what a plugin package ships.
 
 ---
 
@@ -329,7 +329,7 @@ requires = ["fs.tmp@1"]
 If `entrypoint` is a relative path it is resolved relative to the runner's CWD; the
 runner always prepends the repo root to `PYTHONPATH` so plugins can `import utter`
 (`runner/plugin.py`). Use `cwd` for a plugin that needs its own directory as
-the working directory (`config.m3.toml` does this for `utter_py`).
+the working directory (`config.runner.toml` / `config.m3.toml` do this for `utter_py`).
 
 Validate a config without starting the runner:
 

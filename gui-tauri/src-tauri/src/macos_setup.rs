@@ -493,25 +493,26 @@ pub fn supervise_python(mode: &str, repo: &Path, python: &str) -> i32 {
                 .ok()
                 .filter(|value| !value.is_empty())
                 .or_else(|| {
-                    // Prefer the production M3 config (real `plugins/utter_py`),
-                    // not the echo test plugins in runner/config.example.toml.
-                    // Fall back to the example only if the M3 config is absent,
-                    // matching scripts/utter-wayland-ready.sh.
-                    let m3 = repo.join("config.m3.toml");
-                    if m3.is_file() {
-                        return Some(m3.to_string_lossy().into_owned());
+                    // Prefer the production runner config (real `plugins/utter_py`),
+                    // then the older M3 name, and fall back to the echo test plugins
+                    // in runner/config.example.toml only as a last resort — matching
+                    // scripts/utter-wayland-ready.sh.
+                    for name in ["config.runner.toml", "config.m3.toml"] {
+                        let candidate = repo.join(name);
+                        if candidate.is_file() {
+                            return Some(candidate.to_string_lossy().into_owned());
+                        }
                     }
                     let example = repo.join("runner/config.example.toml");
                     if example.is_file() {
                         eprintln!(
-                            "utter: {} not found; falling back to example runner config",
-                            m3.display()
+                            "utter: no config.runner.toml or config.m3.toml; falling back to example runner config"
                         );
                         return Some(example.to_string_lossy().into_owned());
                     }
                     None
                 })
-                .unwrap_or_else(|| repo.join("config.m3.toml").to_string_lossy().into_owned());
+                .unwrap_or_else(|| repo.join("config.runner.toml").to_string_lossy().into_owned());
             vec!["-m".into(), "runner".into(), "--config".into(), config]
         }
         other => {

@@ -22,6 +22,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 UNIT = ROOT / "install" / "utter-runner.service"
 CONFIG_M3 = ROOT / "config.m3.toml"
+CONFIG_RUNNER = ROOT / "config.runner.toml"
+WRAPPER = ROOT / "scripts" / "utter-wayland-ready.sh"
+PLIST = ROOT / "macos" / "com.utter.runner.plist"
 INSTALL = ROOT / "install.sh"
 
 
@@ -40,6 +43,45 @@ class TestInstallerContract(unittest.TestCase):
         self.assertTrue(plugins, "config.m3.toml has no [[plugin]] entries")
         interpreters = [p.get("entrypoint", [None])[0] for p in plugins]
         self.assertEqual(interpreters, ["python3"], interpreters)
+
+    def test_runner_unit_enables_real_actions(self):
+        src = UNIT.read_text(encoding="utf-8")
+        self.assertIn("Environment=UTTER_DRY_RUN=0", src,
+                      "the production unit must turn the plugin dry-run off")
+
+    def test_macos_plist_enables_real_actions(self):
+        src = PLIST.read_text(encoding="utf-8")
+        self.assertIn("<key>UTTER_DRY_RUN</key>", src)
+        self.assertIn("<string>0</string>", src)
+        self.assertIn("@REPO@/config.runner.toml", src)
+        self.assertNotIn("config.m3.toml", src)
+
+    def test_production_config_exists_and_is_safe(self):
+        self.assertTrue(CONFIG_RUNNER.is_file(), "config.runner.toml is missing")
+        data = tomllib.loads(CONFIG_RUNNER.read_text(encoding="utf-8"))
+        plugins = data.get("plugin", [])
+        self.assertTrue(plugins, "config.runner.toml has no [[plugin]] entries")
+        matches = [p for p in plugins if p.get("id") == "utter"]
+        self.assertTrue(matches, "config.runner.toml does not enable the utter plugin")
+        utter = matches[0]
+        self.assertTrue(utter.get("enabled", True), "the utter plugin must be enabled")
+        # No machine-specific entrypoint: mirror what fix_plugin_python rewrites.
+        entrypoint = utter.get("entrypoint", [])
+        self.assertEqual(entrypoint, ["python3", "-m", "plugin"], entrypoint)
+        # Dangerous ops stay off (TRUST.md §4).
+        enabled = (data.get("policy", {}) or {}).get("enabled_ops", []) or []
+        self.assertNotIn("action.terminal", enabled)
+        self.assertNotIn("action.input", enabled)
+
+    def test_wrapper_prefers_production_config(self):
+        src = WRAPPER.read_text(encoding="utf-8")
+        runner = src.index('elif [[ -f "$REPO/config.runner.toml" ]]')
+        m3 = src.index('elif [[ -f "$REPO/config.m3.toml" ]]')
+        self.assertLess(runner, m3,
+                        "config.runner.toml must resolve before config.m3.toml")
+        # $UTTER_CONFIG stays highest, so tests can still select config.m3.toml.
+        self.assertLess(src.index("UTTER_CONFIG"), runner)
+        self.assertTrue(CONFIG_M3.is_file())
 
     def test_agent_venv_uses_system_site_packages(self):
         script = INSTALL.read_text(encoding="utf-8")

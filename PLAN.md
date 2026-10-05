@@ -291,6 +291,28 @@ profiling**, not upfront.
 
 Cut from v1: WASM/Extism, OCI, MCP adapter, deep GTK features, default latency benchmarking.
 
+**Post-M8 hardening (v0.4.3 → v0.4.9)** — install/voice reliability, all shipped:
+- Model pulls verify against the true HF content hash (`X-Linked-ETag`), not the CDN Xet ETag.
+- The installer installs and starts the voice daemon (`utter.service`) with the Linux
+  voice runtime and defaults STT to whisper.cpp + the store `ggml-small.en.bin`.
+- The daemon negotiates a device-supported capture rate and resamples to 16 kHz, so
+  48 kHz-only inputs work; a bad device can no longer wedge or crash the service.
+- The OSD no longer launches a second Whisper model; live windowed partials are off by
+  default (waveform + final text remain).
+- Production runner config (`config.runner.toml`, `UTTER_DRY_RUN=0`); `config.m3.toml`
+  stays for tests.
+- Accessibility detection on remote installs (venv `--system-site-packages` from a
+  gi-capable interpreter) + distro `python-gobject`/`at-spi2-core`.
+- Vision + decision/planner models are provisioned by `scripts/install_inference.sh`
+  (sharded repos the store cannot pull); the installer's perception step is opt-in.
+- UI sounds can target a device (`[sounds] sink` / `UTTER_SOUND_SINK`).
+- Installer survives the GitHub API rate limit (falls back to the `releases/latest`
+  redirect); Homebrew formula installs the macOS extra and runs `python -m utter.daemon`.
+- Settings-UI scroll jank fixed; support bundles record a real Python interpreter.
+- Install paths validated in local/CI Docker containers (ubuntu/fedora/arch).
+- GUI-only packages can bootstrap the engine: an "Install the engine" card offers the
+  official one-liner with Copy and opens it in the user's terminal.
+
 ---
 
 ## 12. Open items
@@ -326,9 +348,9 @@ real target.
   per-component install-state, `--uninstall` menu; `--yes` for `curl | bash`, no-TTY without
   `--yes` prints the plan and changes nothing. `scripts/build-core-tarball.sh` builds the core
   tarball (now including `widgets/`). Docs: `docs/RELEASING.md`, `docs/INSTALL-FROM-WEB.md`.
-  Remaining gaps: STT/perception steps are advisory (no distributable artifact); model tiers
-  need an explicit `UTTER_MODEL_*` source; aarch64 + code signing deferred; Pages must be
-  enabled once and the repo owner placeholder set.
+  Remaining gaps: aarch64 + macOS code signing deferred; GitHub Pages must be enabled once
+  and the repo owner placeholder set. Model tiers are provisioned: STT from the store,
+  vision + decision/planner via `scripts/install_inference.sh` (sharded repos).
 - **Noctalia widget is optional**: package at `widgets/noctalia/` (moved from
   `plugins/ui/noctalia/`), installed only via `install.sh --with-noctalia` or
   `widgets/noctalia/install.sh`; never installed by default.

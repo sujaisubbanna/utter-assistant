@@ -99,7 +99,7 @@ PY="$RT/python/bin/python3"
 # --------------------------------------------------------------------------- #
 CORE="$RT/core"
 mkdir -p "$CORE"
-for rel in protocol runner assistant plugins utter macos config.default.toml config.m3.toml \
+for rel in protocol runner assistant plugins utter macos config.default.toml config.runner.toml config.m3.toml \
            pyproject.toml README.md LICENSE; do
     if [[ -e "$REPO/$rel" ]]; then
         cp -a "$REPO/$rel" "$CORE/$rel"

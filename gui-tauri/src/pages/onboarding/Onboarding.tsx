@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 
 import { Titlebar } from "../../components/Titlebar";
+import { EngineInstallCard } from "../../components/EngineInstall";
 import { Button } from "../../components/ui/Button";
 import { useI18n } from "../../i18n";
 import {
@@ -141,6 +142,8 @@ export function Onboarding({
           }}
         />
         <div className="relative mx-auto flex h-full w-full max-w-[820px] flex-col px-6">
+          {/* A GUI-only install has no engine: offer the installer before the steps. */}
+          <EngineInstallCard className="mt-5" />
           <ProgressRail index={index} total={ONBOARDING_STEPS.length} onSelect={goTo} />
           <div
             ref={regionRef}

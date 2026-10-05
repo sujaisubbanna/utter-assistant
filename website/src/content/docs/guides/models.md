@@ -46,8 +46,11 @@ first time it is used. See
 | 8 to 24 GB | 4 B parameters | AWQ | about 3 GB VRAM |
 | 8 GB or less | 1.5 to 3 B parameters on CPU, or an existing endpoint | q4 | about 3 GB RAM |
 
-The shipped default serving script uses a 4-bit AWQ build of Qwen3-4B-Instruct under the served
-name `qwen3-4b`.
+The shipped default serving script uses a 4-bit AWQ build of Qwen3-4B-Instruct
+(`cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`) under the served name `qwen3-4b`.
+`scripts/install_inference.sh` downloads that repo in full; the model store
+cannot fetch it, because the store pulls a single file and this repo is not
+single-file.
 
 ### Screen vision
 
@@ -58,18 +61,19 @@ name `qwen3-4b`.
 | Less than 6 GB | none; accessibility only | |
 
 On the Models page, **Get it** pre-fills a ready-to-pull source for a recommendation when one is
-known. The UI-TARS vision repos ship sharded safetensors (`model-0000N-of-0000M.safetensors` plus
-an index), so a single-file store pull cannot fetch them and `assistant recommend` omits `source`
-for the vision tier. Provision vision with `scripts/install_inference.sh` (it downloads the full
-repo directory) and serve it with `scripts/serve_vision.sh`. Applying a recommendation still
-updates the matching config keys; for the decision model, match the name to what your server
-actually serves.
+known. The vision and decision/planner tiers have no such source: the UI-TARS vision repos and the
+4-bit AWQ planner ship multi-file (sharded safetensors), so a single-file store pull cannot fetch
+them and `assistant recommend` omits `source` for them (it carries a `provision` field pointing at
+`scripts/install_inference.sh`, plus `hf_repo` where one is documented). Provision both tiers with
+`scripts/install_inference.sh` (it downloads the full repo directories) and serve them with
+`scripts/serve_vision.sh` / `scripts/serve_planner.sh`. Applying a recommendation still updates the
+matching config keys; for the decision model, match the name to what your server actually serves.
 
 The installer offers the same tiers and, for each one you accept, pulls a **curated default
 source** — STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin` on the 24 GB reference machine.
-`UTTER_MODEL_STT`, `UTTER_MODEL_VISION` and `UTTER_MODEL_DECISION` override them; the vision tier
-is sharded (use `scripts/install_inference.sh`) and the decision tier has no documented source and
-must be set explicitly.
+`UTTER_MODEL_STT`, `UTTER_MODEL_VISION` and `UTTER_MODEL_DECISION` override them; the vision and
+decision/planner tiers are multi-file (use `scripts/install_inference.sh`), and `UTTER_MODEL_DECISION`
+can still name any store source you trust.
 
 :::note[Smaller GPUs]
 Running well on 8 GB cards and CPU-only machines (smaller defaults, quantised builds, one GPU
@@ -145,10 +149,11 @@ model = "uitars"
 
 `scripts/serve_planner.sh` and `scripts/serve_vision.sh` start vLLM with sensible defaults. Each
 resolves its model in order: `UTTER_PLANNER_MODEL_PATH` / `UTTER_VISION_MODEL_PATH`, then the
-store, then a `models/<name>` checkout, then — for vision — the Hugging Face repo id, which vLLM
+store, then a `models/<name>` checkout, then the Hugging Face repo id (vision
+`ByteDance-Seed/UI-TARS-2B-SFT`, planner `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`), which vLLM
 downloads itself. A store entry holds one content-addressed file, not the multi-file directory
-vLLM needs, so the scripts report that and fall through; keep a full checkout (for example via
-`scripts/install_inference.sh`) for the planner. See
+vLLM needs, so the scripts report that and fall through; keep a full checkout (pre-fetched by
+`scripts/install_inference.sh`) for both. See
 [Configuration](/guides/configuration/#the-decision-head-and-the-planner). If you point either
 endpoint at another machine, the settings app marks it in amber: that is the one case where
 your data leaves the computer.

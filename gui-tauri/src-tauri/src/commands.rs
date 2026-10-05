@@ -396,8 +396,8 @@ pub fn set_config_many(state: State<AppState>, section: String, values: Value) -
 // --------------------------------------------------------------------------- //
 
 /// Path of the config the **runner** loads, mirroring
-/// `scripts/utter-wayland-ready.sh`: `$UTTER_CONFIG`, else `<repo>/config.m3.toml`,
-/// else `<repo>/runner/config.example.toml`.
+/// `scripts/utter-wayland-ready.sh`: `$UTTER_CONFIG`, else `<repo>/config.runner.toml`,
+/// else the older `<repo>/config.m3.toml`, else `<repo>/runner/config.example.toml`.
 fn runner_config_path(state: &AppState) -> PathBuf {
     if let Ok(value) = std::env::var("UTTER_CONFIG") {
         if !value.is_empty() {
@@ -405,9 +405,11 @@ fn runner_config_path(state: &AppState) -> PathBuf {
         }
     }
     let repo = state.repo();
-    let candidate = repo.join("config.m3.toml");
-    if candidate.is_file() {
-        return candidate;
+    for name in ["config.runner.toml", "config.m3.toml"] {
+        let candidate = repo.join(name);
+        if candidate.is_file() {
+            return candidate;
+        }
     }
     repo.join("runner/config.example.toml")
 }
@@ -1044,6 +1046,131 @@ pub fn open_url(url: String) -> Result<(), String> {
             });
         })
         .map_err(|error| error.to_string())
+}
+
+/// The official installer the project publishes, as a single fixed string.
+///
+/// This is the *only* shell text the GUI ever hands to a shell. It is a
+/// compile-time constant — never assembled from the UI, config or any other
+/// input — so it cannot become a shell-injection vector.
+const INSTALL_COMMAND: &str =
+    "curl -fsSL https://utter.sujaisubbanna.com/install.sh | bash";
+
+/// Terminal emulators we know how to drive, in the order the project prefers
+/// them. Each entry is `(program, args-before-the-command)`; the shell command
+/// is appended as `sh -lc <INSTALL_COMMAND>`.
+#[cfg(not(target_os = "macos"))]
+fn terminal_candidates() -> Vec<(String, Vec<String>)> {
+    let mut candidates: Vec<(String, Vec<String>)> = Vec::new();
+    // $TERMINAL is the user's own choice, so it goes first.
+    if let Ok(value) = std::env::var("TERMINAL") {
+        let value = value.trim();
+        if !value.is_empty() {
+            let mut parts = value.split_whitespace();
+            if let Some(program) = parts.next() {
+                let mut prefix: Vec<String> = parts.map(str::to_string).collect();
+                prefix.push("-e".to_string());
+                candidates.push((program.to_string(), prefix));
+            }
+        }
+    }
+    // `xdg-terminal-exec` takes the command directly, with no `-e`.
+    candidates.push(("xdg-terminal-exec".to_string(), Vec::new()));
+    for (program, prefix) in [
+        ("foot", "-e"),
+        ("kitty", ""), // kitty runs the trailing command itself
+        ("alacritty", "-e"),
+        ("wezterm", "start --"),
+        ("konsole", "-e"),
+        ("gnome-terminal", "--"),
+        ("xterm", "-e"),
+    ] {
+        let args = if prefix.is_empty() {
+            Vec::new()
+        } else {
+            prefix.split_whitespace().map(str::to_string).collect()
+        };
+        candidates.push((program.to_string(), args));
+    }
+    candidates
+}
+
+/// Launch the installer in the user's terminal so they can watch and confirm it.
+///
+/// We deliberately never download and run the installer ourselves: the user
+/// sees the command and its output.
+#[cfg(not(target_os = "macos"))]
+fn launch_installer_terminal() -> Result<(), String> {
+    for (program, prefix) in terminal_candidates() {
+        if !binary_exists(&program) {
+            continue;
+        }
+        let mut args = prefix;
+        args.push("sh".to_string());
+        args.push("-lc".to_string());
+        args.push(INSTALL_COMMAND.to_string());
+        if let Ok(mut child) = std::process::Command::new(&program)
+            .args(&args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            // Reap it so it never lingers as a zombie once the terminal exits.
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            return Ok(());
+        }
+    }
+    Err("no terminal emulator found".to_string())
+}
+
+/// macOS: write the fixed installer command to a temporary script and open it
+/// with Terminal (`open -a Terminal <script>`), so the user sees and confirms it.
+#[cfg(target_os = "macos")]
+fn launch_installer_terminal() -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = std::env::temp_dir().join(format!("utter-install-{}.command", std::process::id()));
+    let script = format!(
+        "#!/bin/sh\nset -e\n{INSTALL_COMMAND}\nprintf '\\nInstaller finished. You can close this window.\\n'\n"
+    );
+    let mut file = std::fs::File::create(&path).map_err(|error| error.to_string())?;
+    file.write_all(script.as_bytes()).map_err(|error| error.to_string())?;
+    drop(file);
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+        .map_err(|error| error.to_string())?;
+
+    std::process::Command::new("open")
+        .arg("-a")
+        .arg("Terminal")
+        .arg(&path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|mut child| {
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        })
+        .map_err(|error| format!("could not open Terminal: {error}"))
+}
+
+/// True when the `assistant` engine can actually run. A GUI-only AppImage/deb/
+/// rpm ships no Python core, so this is how the UI knows to offer the installer.
+#[tauri::command]
+pub async fn engine_present(state: State<'_, AppState>) -> Result<bool, String> {
+    let cmd = state.assistant(&["--version"]);
+    blocking(move || Ok(cmd.output().map(|out| out.status.success()).unwrap_or(false))).await
+}
+
+/// Open the official installer in the user's terminal (never run it silently).
+#[tauri::command]
+pub async fn open_installer_terminal() -> Result<(), String> {
+    blocking(launch_installer_terminal).await
 }
 
 /// Probe the planner endpoint — `GET <base>/models`.
