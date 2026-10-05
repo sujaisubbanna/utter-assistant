@@ -3265,7 +3265,12 @@ exec_units() {
         fi
         if (( ${#names[@]} )); then
             if (( ENABLE_UNITS )); then
-                run "enable + start the units" systemctl --user enable --now "${names[@]}"
+                # `enable --now` does not restart an already-running unit, so an
+                # upgrade would keep the old wrapper/config until a manual
+                # restart. `restart` starts a stopped unit and reloads a running
+                # one, so upgrades pick up the replaced core immediately.
+                run "enable the units" systemctl --user enable "${names[@]}"
+                run "start/restart the units" systemctl --user restart "${names[@]}"
             else
                 note "enable later with: systemctl --user enable --now ${names[*]}"
             fi

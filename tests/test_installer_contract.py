@@ -134,5 +134,16 @@ class TestInstallerContract(unittest.TestCase):
             self.assertEqual(out.stdout.strip(), "v9.9.9", out.stderr)
 
 
+    def test_installer_restarts_units_on_upgrade(self):
+        # `enable --now` leaves an already-running unit on the old core, so an
+        # upgrade must restart the units for the new wrapper/config to apply.
+        root = INSTALL.read_text(encoding="utf-8")
+        minimal = (ROOT / "install" / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("systemctl --user restart", root)
+        self.assertIn("systemctl --user restart", minimal)
+        self.assertNotIn('enable --now "${names[@]}"', root)
+        self.assertNotIn("enable --now utter-runner.service utter.service", minimal)
+
+
 if __name__ == "__main__":
     unittest.main()
