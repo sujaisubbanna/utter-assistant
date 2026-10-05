@@ -6,7 +6,7 @@ class Utter < Formula
 
   desc "Local, offline, context-aware voice to desktop-action assistant"
   homepage "https://github.com/sujaisubbanna/utter-assistant"
-  url "https://github.com/sujaisubbanna/utter-assistant/archive/refs/tags/v0.4.3.tar.gz"
+  url "https://github.com/sujaisubbanna/utter-assistant/archive/refs/tags/v0.4.4.tar.gz"
   license "Apache-2.0"
   head "https://github.com/sujaisubbanna/utter-assistant.git", branch: "main"
 
