@@ -24,7 +24,8 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from utter import platform, runtime
-from utter.config import Config, MacosConfig, MacosRuntimeConfig, load_config
+from utter.config import (Config, MacosConfig, MacosRuntimeConfig, RouterConfig,
+                          VisionConfig, load_config)
 
 
 @contextlib.contextmanager
@@ -161,6 +162,17 @@ class TestMacosRuntime(unittest.TestCase):
             self.assertEqual(v_mac.base_url, "http://127.0.0.1:11434/v1")
             self.assertEqual(v_mac.model, "llama3.2-vision:11b")
             self.assertEqual(v_mac.cuda_visible_devices, "")
+
+    def test_resolve_router_accepts_a_router_config(self):
+        # The planner passes cfg.router; the resolver must return it as-is on
+        # every platform. Regression: Linux read ``cfg.router`` on a RouterConfig
+        # and raised AttributeError, which crashed the voice daemon.
+        rc = RouterConfig()
+        self.assertIs(runtime.resolve_router(rc, platform_name="linux"), rc)
+
+    def test_resolve_vision_accepts_a_vision_config(self):
+        vc = VisionConfig()
+        self.assertIs(runtime.resolve_vision(vc, platform_name="linux"), vc)
 
     def test_config_macos_runtime_toml_merging(self):
         with tempfile.TemporaryDirectory() as tmp:

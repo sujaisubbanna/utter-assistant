@@ -320,13 +320,15 @@ def resolve_router(cfg=None, platform_name: Optional[str] = None):
             from utter.config import Config
             cfg = Config()
 
-    if plat != platform.MACOS:
-        return cfg.router
-
-    # Already a RouterConfig (e.g. planner passes cfg.router): nothing to resolve.
+    # Accept a RouterConfig directly (e.g. the planner passes cfg.router): there
+    # is nothing to resolve then. This must run before the Linux branch, which
+    # otherwise reads ``cfg.router`` on a RouterConfig and raises.
     from utter.config import RouterConfig
     if isinstance(cfg, RouterConfig):
         return cfg
+
+    if plat != platform.MACOS:
+        return cfg.router
 
     # Build a resolved RouterConfig for macOS
     mac_rt = getattr(cfg.macos, "runtime", None)
@@ -357,10 +359,13 @@ def resolve_vision(cfg=None, platform_name: Optional[str] = None):
             from utter.config import Config
             cfg = Config()
 
+    from utter.config import VisionConfig
+    if isinstance(cfg, VisionConfig):
+        return cfg
+
     if plat != platform.MACOS:
         return cfg.vision
 
-    from utter.config import VisionConfig
     mac_rt = getattr(cfg.macos, "runtime", None)
     base_url = getattr(mac_rt, "vision_base_url", getattr(cfg.macos, "vision_base_url", DEFAULT_MACOS_VISION_URL))
     model = getattr(mac_rt, "vision_model", getattr(cfg.macos, "vision_model", DEFAULT_MACOS_VISION_MODEL))
