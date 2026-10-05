@@ -8,8 +8,10 @@ mod config;
 mod macos_setup;
 mod process;
 mod profiles;
+mod service;
 mod state;
 mod theme;
+mod windows_setup;
 mod zip;
 
 use std::path::{Path, PathBuf};
@@ -133,6 +135,14 @@ fn home_dir() -> PathBuf {
 }
 
 fn config_path() -> PathBuf {
+    if cfg!(target_os = "windows") {
+        if let Ok(value) = std::env::var("APPDATA") {
+            if !value.is_empty() {
+                return PathBuf::from(value).join("utter/config.toml");
+            }
+        }
+        return home_dir().join("AppData/Roaming/utter/config.toml");
+    }
     if let Ok(value) = std::env::var("XDG_CONFIG_HOME") {
         if !value.is_empty() {
             return PathBuf::from(value).join("utter/config.toml");
@@ -141,7 +151,18 @@ fn config_path() -> PathBuf {
     home_dir().join(".config/utter/config.toml")
 }
 
-fn data_home() -> PathBuf {
+/// Per-user data root. Windows uses `%LOCALAPPDATA%` (so `models`, `runtime`
+/// and `state` live under `%LOCALAPPDATA%\utter`); elsewhere the freedesktop
+/// `$XDG_DATA_HOME` is unchanged.
+pub(crate) fn data_home() -> PathBuf {
+    if cfg!(target_os = "windows") {
+        if let Ok(value) = std::env::var("LOCALAPPDATA") {
+            if !value.is_empty() {
+                return PathBuf::from(value);
+            }
+        }
+        return home_dir().join("AppData/Local");
+    }
     if let Ok(value) = std::env::var("XDG_DATA_HOME") {
         if !value.is_empty() {
             return PathBuf::from(value);
@@ -254,6 +275,8 @@ pub fn run() {
             commands::cancel_models_pull,
             commands::systemctl_show,
             commands::systemctl,
+            commands::service_show,
+            commands::service_control,
             commands::pactl_sources,
             commands::tts_test,
             commands::test_endpoint,
@@ -280,6 +303,9 @@ pub fn run() {
             macos_setup::macos_install,
             macos_setup::macos_reinstall_agents,
             macos_setup::macos_restart_agents,
+            windows_setup::windows_install_status,
+            windows_setup::windows_install_service,
+            windows_setup::windows_uninstall_service,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

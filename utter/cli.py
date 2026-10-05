@@ -77,8 +77,8 @@ def _gpu_info():
 def _config_path(args):
     if getattr(args, "config", None):
         return Path(args.config).expanduser()
-    base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return base / "utter" / "config.toml"
+    from .config import _xdg_config_dir
+    return _xdg_config_dir() / "config.toml"
 
 
 def _public_path(path: Path) -> str:
