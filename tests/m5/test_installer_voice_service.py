@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""Regression: a fresh Linux install wires a working voice daemon.
+"""Regression: a fresh Linux install wires a working voice daemon + a11y.
 
-Three defects are guarded here:
+Four defects are guarded here:
 
 * ``install.sh`` only installed/enabled the runner unit, never ``utter.service``
   (``python -m utter.daemon``), so fresh installs had no voice;
 * ``systemd/utter.service`` ran the venv python directly, without the session-env
   discovery that ``scripts/utter-daemon-ready.sh`` gives it;
 * ``config.default.toml`` defaulted to ``faster_whisper``/``distil-small.en``,
-  but the installer pulls the whisper.cpp model ``ggml-small.en.bin``.
+  but the installer pulls the whisper.cpp model ``ggml-small.en.bin``;
+* the agent venv was created with Homebrew's ``python3`` and no
+  ``--system-site-packages``, so the distro ``gi``/Atspi bindings were invisible
+  and accessibility/context detection silently degraded on remote installs.
 
 The content checks are hermetic contract checks on the files and the real
-installer text. The functional check runs the real ``install.sh --only units``
-against a throwaway ``PREFIX``/``XDG_*`` tree and a fake core, requiring both
-units to land with ``@REPO@`` substituted. A ``systemctl`` stub keeps the host
-untouched.
+installer text (including ``--dry-run`` output). The functional check runs the
+real ``install.sh --only units`` against a throwaway ``PREFIX``/``XDG_*`` tree
+and a fake core, requiring both units to land with ``@REPO@`` substituted. A
+``systemctl`` stub keeps the host untouched.
 
 Usage::
 
@@ -102,6 +105,28 @@ def _toml_value(text: str, section: str, key: str) -> str:
     return km.group(1) if km else ""
 
 
+def _dry_run_core(tmp: Path) -> str:
+    """Run the core step in --dry-run against the fake tree; return stdout."""
+    r = subprocess.run(
+        ["bash", str(INSTALL), "--only", "core", "--dry-run"],
+        cwd=str(REPO), env=_sandbox_env(tmp),
+        capture_output=True, text=True, timeout=120,
+    )
+    return (r.stdout or "") + (r.stderr or "")
+
+
+def _make_isolated_venv(share: Path) -> None:
+    """Write a minimal isolated venv (pyvenv.cfg only) to be recreated."""
+    venv = share / ".venv-agent"
+    (venv / "bin").mkdir(parents=True, exist_ok=True)
+    (venv / "bin" / "python").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (venv / "bin" / "python").chmod(0o755)
+    (venv / "pyvenv.cfg").write_text(
+        "home = /usr/bin\ninclude-system-site-packages = false\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     rep = Report()
     print("installer voice-service regression (daemon unit + wrapper + STT default)")
@@ -162,7 +187,47 @@ def main() -> int:
               "device =" in toml and "compute_type =" in toml,
               "device/compute_type keys missing")
 
-    # 4) functional: --only units installs both, @REPO@ substituted ----------- #
+    # 4) the agent venv is gi-capable (system site-packages + distro python) ---- #
+    rep.check("ensure_python_deps prefers a gi-capable interpreter",
+              "choose_base_python" in script and "py_has_gi" in script,
+              "no gi-aware interpreter selection")
+    rep.check("candidate order includes /usr/bin/python3 before PATH python3",
+              script.index('"/usr/bin/python3"') < script.index('command -v python3 2>/dev/null'),
+              "path python3 chosen before /usr/bin/python3")
+    rep.check("venv is created with --system-site-packages",
+              "--system-site-packages" in script,
+              "venv not created with system site-packages")
+    rep.check("an isolated venv is detected and recreated",
+              "venv_is_isolated" in script and "--clear" in script,
+              "no isolated-venv recreation path")
+    rep.check("gi import is verified after install",
+              'gi.require_version("Atspi", "2.0")' in script,
+              "no Atspi import verification")
+    rep.check("a11y packages are mapped for every distro",
+              "python-gobject" in script and "at-spi2-core" in script
+              and "python3-gi" in script and "python3-gobject" in script,
+              "distro a11y package mappings missing")
+
+    with tempfile.TemporaryDirectory(prefix="lav-inst-a11y-") as d:
+        tmp = Path(d)
+        share = _fake_core(tmp)
+        out = _dry_run_core(tmp)
+        rep.check("dry-run prints the --system-site-packages venv creation",
+                  "--system-site-packages" in out
+                  and "system site-packages" in out, out[-600:])
+        rep.check("dry-run names a base python",
+                  "base python:" in out, out[-600:])
+
+    with tempfile.TemporaryDirectory(prefix="lav-inst-a11y-iso-") as d:
+        tmp = Path(d)
+        share = _fake_core(tmp)
+        _make_isolated_venv(share)
+        out = _dry_run_core(tmp)
+        rep.check("dry-run recreates an isolated venv (--clear)",
+                  "recreate" in out and "--system-site-packages --clear" in out,
+                  out[-600:])
+
+    # 5) functional: --only units installs both, @REPO@ substituted ----------- #
     with tempfile.TemporaryDirectory(prefix="lav-inst-voice-") as d:
         tmp = Path(d)
         _fake_core(tmp)
