@@ -161,13 +161,13 @@ def _run_linux(*, press=(), dispatch=None, target=None, text="hello world",
     ]
     if real_type:
         patches += [
-            patch("utter.daemon._still_focused", return_value=still_focused),
-            patch("utter.daemon._refocus",
+            patch("utter.dictation._still_focused", return_value=still_focused),
+            patch("utter.dictation._refocus",
                   side_effect=lambda tgt: calls["refocus"].append(tgt) or True),
             patch("utter.actions.keyboard.type_text", side_effect=fake_type),
         ]
     else:
-        patches.append(patch("utter.daemon._type_dictation", type_dict))
+        patches.append(patch("utter.dictation._type_dictation", type_dict))
 
     for p in patches:
         p.start()

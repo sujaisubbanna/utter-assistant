@@ -88,6 +88,37 @@ export interface AudioSource {
   description: string;
 }
 
+/**
+ * One open window from `assistant windows --json`, used by the dictation
+ * target picker. `id` can be a number or a string, so callers turn it into a
+ * pin spec with `String(id)` before storing it in `[dictation] target`.
+ */
+export interface WindowInfo {
+  id: number | string;
+  pid: number;
+  app_id: string;
+  title: string;
+  focused: boolean;
+}
+
+/**
+ * A dictation that couldn't be delivered because no text field was focused
+ * (`assistant dictation --pending --json`). `reason` is the backend's short
+ * code for why; `ts` identifies the record so the UI can ignore one it has
+ * already resolved.
+ */
+export interface PendingDictation {
+  text: string;
+  reason: string;
+  ts: number;
+}
+
+/** Outcome of `assistant dictation --deliver` (`{ok, detail}`). */
+export interface DictationResult {
+  ok: boolean;
+  detail: string;
+}
+
 export interface PluginPermission {
   name?: string;
   enforced?: boolean;

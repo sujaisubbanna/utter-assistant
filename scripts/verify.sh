@@ -68,6 +68,9 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/actions/test_open_url_browser.py || rc=1
 "$PY" tests/actions/test_profile_layers.py || rc=1
 
+echo "== dictation: pending record + target picker =="
+"$PY" tests/test_dictation_pending.py || rc=1
+
 echo "== context: platform-neutral text-field detection =="
 "$PY" tests/context/test_textfields.py || rc=1
 

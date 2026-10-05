@@ -519,6 +519,22 @@ export const ko: Messages = {
     },
   },
 
+  dictation: {
+    title: "Where should this go?",
+    description: "No text field was selected, so your dictation wasn't typed anywhere.",
+    transcriptLabel: "You said",
+    windowsLabel: "Send to a window",
+    focused: "Focused",
+    unknownApp: "Unknown app",
+    noWindows: "No open windows were found. You can copy the text instead.",
+    windowsError: "Couldn't list open windows.",
+    typeSelected: "Type into selected",
+    dismiss: "Dismiss",
+    typeFailed: "Couldn't type into that window. It may have closed — try another.",
+    copyFailed: "Couldn't copy to the clipboard",
+    typed: "Typed into the selected window",
+  },
+
   setup: {
     title: "Mac 설정",
     description: "Utter이(가) 듣고, 입력하고, 작동하려면 몇 가지 권한이 필요합니다. 한 번만 부여하십시오. 이 페이지에서는 실시간으로 확인합니다.",

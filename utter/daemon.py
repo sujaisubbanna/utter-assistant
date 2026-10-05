@@ -19,6 +19,17 @@ import time
 from typing import Optional
 
 from .config import Config, load_config
+from .dictation import (
+    _DICTATION_FALLBACK,
+    _DICTATION_FALLBACK_NOCLIP,
+    _capture_dictation_target,
+    _copy_to_clipboard,
+    _deliver_dictation,
+    _refocus,
+    _still_focused,
+    _type_dictation,
+    write_pending,
+)
 from .executor import Executor
 from .types import Action, ActionResult, Context, FocusedWindow, Plan, Step, Tier
 
@@ -167,113 +178,6 @@ def _model_service_reachable(cfg) -> bool:
         with urllib.request.urlopen(request, timeout=0.6):
             return True
     except Exception:  # noqa: BLE001 - unavailable is a normal, non-fatal state
-        return False
-
-
-# --- dictation target pinning ----------------------------------------------
-# Dictation is typed into the window that was focused when the key went *down*,
-# not whatever happens to be focused by the time the key is released.
-_DICTATION_FALLBACK = "Couldn't find the input — text copied, paste it"
-_DICTATION_FALLBACK_NOCLIP = "Couldn't type the text — copy it manually"
-
-
-def _capture_dictation_target() -> Optional[FocusedWindow]:
-    """Snapshot the focused window at key-down (None when unavailable).
-
-    Only the window is captured: neither platform exposes a cheap, generic
-    "focused element" probe (macOS AX tree is unwired, AT-SPI has no focused
-    node), so element capture is deliberately deferred to a follow-up.
-    """
-    from .context import desktop
-    try:
-        return desktop.focused_window()
-    except Exception:  # noqa: BLE001 - capture must never break listening
-        log.debug("dictation target capture failed", exc_info=True)
-        return None
-
-
-def _still_focused(target) -> bool:
-    """Best-effort: is ``target`` the window that is focused right now?"""
-    from .context import desktop
-    try:
-        current = desktop.focused_window()
-    except Exception:  # noqa: BLE001
-        return False
-    if current is None:
-        return False
-    wid = int(getattr(target, "window_id", 0) or 0)
-    cwid = int(getattr(current, "window_id", 0) or 0)
-    if wid and cwid:
-        return wid == cwid
-    pid = int(getattr(target, "pid", 0) or 0)
-    cpid = int(getattr(current, "pid", 0) or 0)
-    if pid and cpid:
-        return pid == cpid
-    return (bool(getattr(current, "app_id", ""))
-            and current.app_id == getattr(target, "app_id", ""))
-
-
-def _refocus(target) -> bool:
-    """Re-focus the pinned window before typing (Linux best effort)."""
-    from .context import desktop
-    wid = int(getattr(target, "window_id", 0) or 0)
-    if not wid:
-        return False
-    try:
-        return bool(desktop.focus_window_on_workspace(wid))
-    except Exception:  # noqa: BLE001
-        log.debug("dictation re-focus failed", exc_info=True)
-        return False
-
-
-def _type_dictation(text: str, target) -> ActionResult:
-    """Type ``text`` into the key-down target. Never raises.
-
-    macOS posts to the captured pid, so the user's current focus is untouched.
-    Linux has no per-window text injection on Wayland: type as-is when the
-    target is still focused, otherwise re-focus it first (best effort). Any
-    failure is returned as ``ok=False`` for the caller's clipboard fallback.
-    """
-    from .actions import keyboard
-    from . import platform
-    try:
-        if target is None:
-            return ActionResult(False, Action.TYPE_TEXT, Tier.KEYBOARD,
-                                "no dictation target")
-        if platform.is_macos():
-            pid = int(getattr(target, "pid", 0) or 0)
-            return keyboard.type_text(text, pid=pid or None)
-        if not _still_focused(target):
-            _refocus(target)
-        return keyboard.type_text(text)
-    except Exception as exc:  # noqa: BLE001 - degrade to the clipboard fallback
-        return ActionResult(False, Action.TYPE_TEXT, Tier.KEYBOARD,
-                            f"type_text failed: {exc}")
-
-
-def _deliver_dictation(text: str, target, cfg) -> ActionResult:
-    """The one dictation seam both platforms call (Linux ``run_hotkey`` and
-    macOS ``run_macos``): optionally reformat the transcript, then type it.
-
-    Kept in a single place so the transform is never duplicated per platform,
-    and so the assistant lane (which never calls this) stays untouched.
-    ``format_transcript`` is offline-safe and returns the raw text on failure.
-    """
-    from .voice.formatting import format_transcript
-    return _type_dictation(format_transcript(text, cfg), target)
-
-
-def _copy_to_clipboard(text: str) -> bool:
-    """Copy ``text`` for the fallback (macOS ``pbcopy`` / Linux ``wl-copy``)."""
-    try:
-        from . import platform
-        if platform.is_macos():
-            from .macos import clipboard
-        else:
-            from .context import clipboard
-        return bool(clipboard.set_clipboard(text))
-    except Exception:  # noqa: BLE001 - a missing tool must not break the loop
-        log.debug("dictation clipboard fallback failed", exc_info=True)
         return False
 
 
@@ -787,9 +691,14 @@ class Utter:
                         _play("typed")
                         osd.final(text, True)
                     else:
-                        # Never fail silently: park the transcript on the
-                        # clipboard and say so (OSD + notification).
+                        # Never fail silently: keep the clipboard copy as a
+                        # safety net (text survives a closed GUI), park the
+                        # transcript so the user can pick a target, and say so.
                         copied = _copy_to_clipboard(text)
+                        try:
+                            write_pending(text, res.detail)
+                        except Exception:  # noqa: BLE001 - pending must not break voice
+                            log.debug("dictation pending write failed", exc_info=True)
                         _play("not_detected")
                         message = _DICTATION_FALLBACK if copied else _DICTATION_FALLBACK_NOCLIP
                         log.warning("dictation not delivered (%s); clipboard=%s",
@@ -1007,9 +916,14 @@ class Utter:
                         osd.final(text, True)
                         native.final(text, True, dismiss_ms, lane=mode)
                     else:
-                        # Never fail silently: park the transcript on the
-                        # clipboard and say so (OSD + native notification).
+                        # Never fail silently: keep the clipboard copy as a
+                        # safety net (text survives a closed GUI), park the
+                        # transcript so the user can pick a target, and say so.
                         copied = _copy_to_clipboard(text)
+                        try:
+                            write_pending(text, res.detail)
+                        except Exception:  # noqa: BLE001 - pending must not break voice
+                            log.debug("dictation pending write failed", exc_info=True)
                         _play("not_detected")
                         message = _DICTATION_FALLBACK if copied else _DICTATION_FALLBACK_NOCLIP
                         log.warning("dictation not delivered (%s); clipboard=%s",

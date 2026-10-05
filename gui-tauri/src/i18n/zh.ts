@@ -518,6 +518,22 @@ export const zh: Messages = {
     },
   },
 
+  dictation: {
+    title: "Where should this go?",
+    description: "No text field was selected, so your dictation wasn't typed anywhere.",
+    transcriptLabel: "You said",
+    windowsLabel: "Send to a window",
+    focused: "Focused",
+    unknownApp: "Unknown app",
+    noWindows: "No open windows were found. You can copy the text instead.",
+    windowsError: "Couldn't list open windows.",
+    typeSelected: "Type into selected",
+    dismiss: "Dismiss",
+    typeFailed: "Couldn't type into that window. It may have closed — try another.",
+    copyFailed: "Couldn't copy to the clipboard",
+    typed: "Typed into the selected window",
+  },
+
   setup: {
     title: "设置您的 Mac",
     description: "Utter 需要一些权限才能侦听、键入和执行操作。授予它们一次；此页面实时查看它们。",
