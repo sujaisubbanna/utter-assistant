@@ -36,6 +36,20 @@ macos = [
     "pyobjc-framework-ApplicationServices>=10.0; sys_platform == 'darwin'",
     "pywhispercpp>=1.2",
 ]
+# Native Windows CPU runtime (see docs/WINDOWS.md). Installed by the
+# `windows` CI job to prove wheel availability + importability on a real
+# Windows host. Deliberately wheels-only and CPU-first; optional STT
+# (`pywhispercpp`) is left out because its win_amd64/cp312 wheel is not
+# guaranteed, and the extra must install cleanly. Add it separately if a
+# CPU wheel is available.
+windows = [
+    "numpy>=1.26",
+    "sounddevice>=0.4",
+    "pywin32>=306",
+    "uiautomation>=2.0",
+    "comtypes>=1.2",
+    "mss>=9.0",
+]
 
 [project.scripts]
 utter = "utter.cli:main"

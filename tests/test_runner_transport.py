@@ -26,6 +26,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# Exercise the Windows transport (loopback TCP + token) everywhere. On Windows
+# this is already the platform default; on Linux it makes the same code path the
+# CI job hits the one the local suite runs. Individual cases also pass
+# ``transport="tcp"`` explicitly, so Linux behaviour is unchanged either way.
+os.environ.setdefault("UTTER_RUNNER_TRANSPORT", "tcp")
+
 ok = True
 
 
@@ -88,6 +94,8 @@ async def test_authorize_tcp() -> None:
     allowed, _, why = creds._authorize_tcp(("127.0.0.1", 1234))
     check("tcp: same-uid/binaries never grant without a token", allowed is False, why)
 
+    # Transport-level properties only (no socket is bound), so they hold on
+    # Windows too; nothing here needs AF_UNIX/SCM_RIGHTS.
     check("tcp: supports_fd_pass is False",
           rsock.SocketServer("/tmp/x.endpoint", handler, transport="tcp").supports_fd_pass is False)
     check("unix: supports_fd_pass is True",

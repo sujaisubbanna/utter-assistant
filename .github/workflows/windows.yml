@@ -1,0 +1,73 @@
+name: windows
+
+# Independent of `verify` (Linux): proves on a *real* Windows host that (a) the
+# `windows` wheel set installs and (b) the Python core imports and the runner's
+# loopback-TCP transport works. This covers the two biggest Windows risks —
+# Unix-only imports and wheel availability (see docs/WINDOWS.md).
+on:
+  push:
+    paths:
+      - "runner/**"
+      - "assistant/**"
+      - "tests/platform/**"
+      - "pyproject.toml"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "runner/**"
+      - "assistant/**"
+      - "tests/platform/**"
+      - "pyproject.toml"
+      - ".github/workflows/windows.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies (windows extra)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[windows]" || {
+            echo "::warning::'.[windows]' extra failed to install; falling back to the explicit wheel list"
+            python -m pip install -e . numpy sounddevice pywin32 uiautomation comtypes mss
+          }
+
+      - name: Platform detection + path/dependency seams
+        continue-on-error: false
+        run: python tests/platform/test_windows_detection.py
+
+      - name: Runner transport (loopback TCP + token auth)
+        continue-on-error: false
+        run: python tests/test_runner_transport.py
+
+      - name: Core import smoke test
+        continue-on-error: false
+        run: python -c "import assistant.deps, assistant.util, runner.platform; print('imports ok')"
+
+      - name: Assistant CLI loads
+        continue-on-error: false
+        run: python -m assistant --version
+
+      # NOTE: `python -m runner._selftest` is intentionally *not* run here. Its
+      # non-e2e suite is bound to Unix runtime primitives that do not exist on
+      # Windows: `os.memfd_create`, `os.getuid`, `socket.socketpair()` +
+      # SCM_RIGHTS fd passing, and AF_UNIX servers (`asyncio.start_unix_server`).
+      # The Windows-relevant transport behaviour is covered by
+      # tests/test_runner_transport.py above. See docs/WINDOWS.md.
