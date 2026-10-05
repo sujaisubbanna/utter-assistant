@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.12] - 2026-10-05
+
+### Fixed
+- **The GUI can reach the engine from the AppImage.** The linuxdeploy AppRun
+  exports `PYTHONHOME`/`LD_LIBRARY_PATH`, which the spawned venv Python inherited
+  and died on (`Failed to import encodings`). The subprocess builder strips them.
+- **The AppImage now uses the host WebKitGTK**, not its bundled copy — bundling
+  WebKitGTK is a known source of scroll/render jank on Wayland/NVIDIA hosts.
+
+### Added
+- **Windows groundwork** (`docs/WINDOWS.md`): Windows is a first-class platform
+  value, the core imports safely, and the path/dependency seams are in place.
+
 ## [0.4.11] - 2026-10-05
 
 ### Fixed
