@@ -99,18 +99,77 @@ def _sha_from_etag(etag: Optional[str]) -> Optional[str]:
     return None
 
 
-def head(url: str, timeout: float = 15.0) -> tuple[Optional[int], Optional[str], Optional[str]]:
-    """Return (size, sha256, etag) for ``url`` (None values when unknown)."""
-    req = urllib.request.Request(url, method="HEAD")
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Stop after the first response instead of chasing the redirect.
+
+    huggingface.co answers ``/resolve/main/<file>`` with a 302 whose
+    ``X-Linked-ETag`` is the file's true content sha256 and ``X-Linked-Size``
+    its true length. The CDN it points at only sends the Xet dedup ``ETag``
+    (a *different* hash) and no ``X-Linked-*``. Following the redirect silently
+    swaps in the wrong hash, so every Xet-backed ``hf:`` pull verifies bytes
+    that are actually intact against the Xet hash and rejects them.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: N802
+        return None
+
+
+def _content_meta(headers) -> tuple[Optional[int], Optional[str], Optional[str]]:
+    """Metadata from a final (non-redirect) response."""
+    size_hdr = headers.get("X-Linked-Size") or headers.get("Content-Length")
+    etag = headers.get("X-Linked-ETag") or headers.get("ETag")
+    sha = headers.get("X-Linked-Sha256") or _sha_from_etag(etag)
+    size = int(size_hdr) if size_hdr and size_hdr.isdigit() else None
+    return size, sha, etag
+
+
+def _linked_meta(headers) -> tuple[Optional[int], Optional[str], Optional[str]]:
+    """Metadata from HF's ``/resolve`` redirect: only X-Linked-* are content facts.
+
+    ``Content-Length`` there describes the tiny redirect body, so it is ignored.
+    """
+    size_hdr = headers.get("X-Linked-Size")
+    etag = headers.get("X-Linked-ETag")
+    size = int(size_hdr) if size_hdr and size_hdr.isdigit() else None
+    return size, _sha_from_etag(etag), etag
+
+
+def _head_followed(url: str, timeout: float) -> tuple[Optional[int], Optional[str], Optional[str]]:
     try:
+        req = urllib.request.Request(url, method="HEAD")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            size_hdr = resp.headers.get("Content-Length")
-            etag = resp.headers.get("ETag") or resp.headers.get("x-linked-etag")
-            sha = resp.headers.get("x-linked-sha256") or _sha_from_etag(etag)
-            size = int(size_hdr) if size_hdr and size_hdr.isdigit() else None
-            return size, sha, etag
+            return _content_meta(resp.headers)
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
         return None, None, None
+
+
+def head(url: str, timeout: float = 15.0) -> tuple[Optional[int], Optional[str], Optional[str]]:
+    """Return (size, sha256, etag) for ``url`` (None values when unknown)."""
+    # First hop only: keep HF's X-Linked-* headers, which the CDN omits.
+    try:
+        opener = urllib.request.build_opener(_NoRedirect())
+        req = urllib.request.Request(url, method="HEAD")
+        with opener.open(req, timeout=timeout) as resp:
+            return _content_meta(resp.headers)
+    except urllib.error.HTTPError as exc:
+        try:
+            headers = getattr(exc, "headers", None)
+            if headers is not None:
+                size, sha, etag = _linked_meta(headers)
+                if size is not None or sha:
+                    if size is None:  # got the hash but not the size
+                        followed = _head_followed(url, timeout)
+                        return followed[0], sha or followed[1], etag or followed[2]
+                    return size, sha, etag
+        finally:
+            try:
+                exc.close()
+            except OSError:
+                pass
+    except (urllib.error.URLError, OSError, ValueError):
+        pass
+    # Generic servers (or no X-Linked-*): follow redirects as before.
+    return _head_followed(url, timeout)
 
 
 def _sha256_file(path: Path) -> str:
@@ -217,6 +276,8 @@ def _attempt_curl(url: str, partial: Path, total: Optional[int], progress: Progr
         rc = proc.wait()
     finally:
         _ACTIVE_CHILD = None
+        if proc.stderr is not None:
+            proc.stderr.close()
     if rc == 0:
         return True
     raise _AttemptFailed(url)
