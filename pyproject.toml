@@ -37,11 +37,11 @@ macos = [
     "pywhispercpp>=1.2",
 ]
 # Native Windows CPU runtime (see docs/WINDOWS.md). Installed by the
-# `windows` CI job to prove wheel availability + importability on a real
-# Windows host. Deliberately wheels-only and CPU-first; optional STT
-# (`pywhispercpp`) is left out because its win_amd64/cp312 wheel is not
-# guaranteed, and the extra must install cleanly. Add it separately if a
-# CPU wheel is available.
+# `windows`-extra install in install.ps1 and the `windows` CI job to prove
+# wheel availability + importability on a real Windows host. CPU-first:
+# `pywhispercpp` ships self-contained win_amd64 wheels for cp312/cp313/cp314
+# (it bundles the whisper/ggml DLLs), so no build tools are needed. STT is
+# mandatory on Windows; GPU/CUDA stays opt-in and is never wheels-only.
 windows = [
     "numpy>=1.26",
     "sounddevice>=0.4",
@@ -49,6 +49,7 @@ windows = [
     "uiautomation>=2.0",
     "comtypes>=1.2",
     "mss>=9.0",
+    "pywhispercpp>=1.5",
 ]
 
 [project.scripts]

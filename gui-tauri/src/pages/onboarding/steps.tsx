@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "../../components/icons";
+import { InferenceInstallDialog } from "../../components/InferenceInstall";
 import { LogoTile } from "../../components/Logo";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -9,6 +10,7 @@ import { Progress } from "../../components/ui/Progress";
 import { Row, Tile } from "../../components/ui/Row";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { EmptyState, ErrorState } from "../../components/ui/States";
+import { Switch } from "../../components/ui/Switch";
 import { useToast } from "../../components/ui/Toast";
 import { LANG_NAMES, detectLang, useI18n, type LangPref } from "../../i18n";
 import { api } from "../../lib/api";
@@ -18,6 +20,12 @@ import { humanizeError } from "../../lib/errors";
 import { useTauriEvent } from "../../lib/events";
 import { humanBytes, parseJsonLine } from "../../lib/format";
 import { usePoll } from "../../lib/hooks";
+import {
+  REQUIRED_SPEECH_SOURCE,
+  inferenceReady,
+  speechInstalled,
+  useInferenceStatus,
+} from "../../lib/inference";
 import { displayMacKey, displayName } from "../../lib/keys";
 import { PULL_SOURCES } from "../../lib/links";
 import type { ModelChoice, OnboardingData } from "../../lib/onboarding";
@@ -803,6 +811,9 @@ interface Tier {
   vision?: { model: string; source: string } | null;
 }
 
+/** The speech checkpoint Utter requires; the config uses the short name. */
+const REQUIRED_STT_MODEL = "small.en";
+
 const STT_SIZES: Record<string, number> = {
   "tiny.en": 75e6,
   "base.en": 145e6,
@@ -821,14 +832,20 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [recError, setRecError] = useState(false);
   const [models, setModels] = useState<ModelEntry[] | null>(null);
-  const [choice, setChoice] = useState<ModelChoice>(data.modelChoice ?? "recommended");
+  const [choice, setChoice] = useState<ModelChoice>(
+    data.modelChoice && data.modelChoice !== "skip" ? data.modelChoice : "recommended",
+  );
   const [phase, setPhase] = useState<"idle" | "downloading" | "error">("idle");
   const [error, setError] = useState("");
   const [transferred, setTransferred] = useState(0);
   const [total, setTotal] = useState<number | null>(null);
   const [fraction, setFraction] = useState(0);
   const pullIdRef = useRef("");
-  const pendingRef = useRef<Tier | null>(null);
+  const pendingFinish = useRef<(() => void) | null>(null);
+  const retryRef = useRef<(() => void) | null>(null);
+  const engineDoneRef = useRef(false);
+  const [engineOpen, setEngineOpen] = useState(false);
+  const { status: engine, refresh: refreshEngine } = useInferenceStatus();
 
   useEffect(() => {
     api.recommend().then(setRecommendation).catch(() => setRecError(true));
@@ -840,6 +857,9 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
   const gpu = Boolean(isMac || (hw?.gpus && hw.gpus.length > 0));
   const recModel = String(sugg?.stt?.model || "ggml-small.en.bin");
   const recBackend = normalizeSttBackend(String(sugg?.stt?.backend || "faster_whisper"));
+  // Whisper.cpp reads the required checkpoint from the store, so its config
+  // model must match the file we install; other backends fetch their own.
+  const recSttModel = recBackend === "whisper_cpp" ? REQUIRED_STT_MODEL : recModel;
   const visionModel = String(sugg?.vision?.model || "");
   const visionSource = visionModel && visionModel !== "none" ? PULL_SOURCES[visionModel] : undefined;
   const includeVision = !isMac && gpu && Boolean(visionSource);
@@ -850,25 +870,19 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
           id: "recommended",
           title: t("onboarding.models.recommendedTitle"),
           body: t("onboarding.models.recommendedBody"),
-          size: 0,
-          details: [t("voice.mac.appleSpeech")],
+          size: STT_SIZES[REQUIRED_STT_MODEL],
+          details: [t("voice.mac.appleSpeech"), t("onboarding.models.stt", { model: REQUIRED_STT_MODEL })],
           macBackend: "apple_speech",
+          sttModel: REQUIRED_STT_MODEL,
         },
         {
           id: "minimal",
           title: t("onboarding.models.minimalTitle"),
           body: t("onboarding.models.minimalBody"),
-          size: STT_SIZES["small.en"],
-          details: [t("onboarding.models.stt", { model: "small.en" }), t("onboarding.models.willFetch")],
+          size: STT_SIZES[REQUIRED_STT_MODEL],
+          details: [t("onboarding.models.stt", { model: REQUIRED_STT_MODEL }), t("onboarding.models.willFetch")],
           macBackend: "whisper_cpp",
-          sttModel: "small.en",
-        },
-        {
-          id: "skip",
-          title: t("onboarding.models.skipTitle"),
-          body: t("onboarding.models.skipBody"),
-          size: 0,
-          details: [t("onboarding.models.rules")],
+          sttModel: REQUIRED_STT_MODEL,
         },
       ]
     : [
@@ -876,12 +890,12 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
           id: "recommended",
           title: t("onboarding.models.recommendedTitle"),
           body: t("onboarding.models.recommendedBody"),
-          size: (STT_SIZES[recModel] ?? 0) + (includeVision && visionSource ? PULL_SIZES[visionModel] ?? 0 : 0),
+          size: (STT_SIZES[recSttModel] ?? 0) + (includeVision && visionSource ? PULL_SIZES[visionModel] ?? 0 : 0),
           details: [
-            t("onboarding.models.stt", { model: recModel }),
+            t("onboarding.models.stt", { model: recSttModel }),
             ...(includeVision && visionSource ? [t("onboarding.models.vision", { model: visionModel })] : []),
           ],
-          sttModel: recModel,
+          sttModel: recSttModel,
           backend: recBackend,
           vision: includeVision && visionSource ? { model: visionModel, source: visionSource } : null,
         },
@@ -889,33 +903,24 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
           id: "minimal",
           title: t("onboarding.models.minimalTitle"),
           body: t("onboarding.models.minimalBody"),
-          size: STT_SIZES["tiny.en"],
-          details: [t("onboarding.models.stt", { model: "tiny.en" }), t("onboarding.models.willFetch")],
-          sttModel: "tiny.en",
-          backend: "faster_whisper",
-        },
-        {
-          id: "skip",
-          title: t("onboarding.models.skipTitle"),
-          body: t("onboarding.models.skipBody"),
-          size: 0,
-          details: [t("onboarding.models.rules")],
+          size: STT_SIZES[REQUIRED_STT_MODEL],
+          details: [t("onboarding.models.stt", { model: REQUIRED_STT_MODEL })],
+          sttModel: REQUIRED_STT_MODEL,
+          backend: "whisper_cpp",
         },
       ];
 
   const selectedTier = tiers.find((tier) => tier.id === choice) ?? tiers[0];
-  const installedNames = new Set((models ?? []).map((model) => String(model.name ?? "")));
-  const visionInstalled = Boolean(
-    selectedTier.vision && [...installedNames].some((name) => name.includes(selectedTier.vision!.model)),
-  );
-  const needsDownload = Boolean(selectedTier.vision && !visionInstalled && phase !== "downloading");
+  const sttInstalled = speechInstalled(models);
 
   const applyConfig = useCallback(
     async (tier: Tier) => {
-      if (tier.id === "skip") return;
       if (isMac) {
         if (tier.macBackend === "apple_speech") {
-          await setMany("macos", { stt_backend: "apple_speech" });
+          // Apple Speech is primary, but the required whisper.cpp model is the
+          // offline fallback, so point both at it.
+          await setMany("macos", { stt_backend: "apple_speech", stt_fallback: "whisper_cpp" });
+          await set("stt", "model", REQUIRED_STT_MODEL);
         } else if (tier.macBackend) {
           await setMany("macos", { stt_backend: tier.macBackend, stt_fallback: tier.macBackend });
           if (tier.sttModel) await set("stt", "model", tier.sttModel);
@@ -928,28 +933,32 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
     [isMac, set, setMany],
   );
 
-  const finish = useCallback(
-    async (tier: Tier) => {
+  // Advance the wizard. `installed` records whether the required speech model is
+  // in place; a deferred install persists `false` so setup stays incomplete.
+  const advance = useCallback(
+    async (tier: Tier, installed: boolean) => {
       await applyConfig(tier);
-      commit({ modelChoice: tier.id });
+      commit({ modelChoice: tier.id, sttInstalled: installed, installRuntime: true });
       nav.next();
     },
     [applyConfig, commit, nav],
   );
 
-  const startDownload = useCallback(
-    async (tier: Tier) => {
-      if (!tier.vision) return;
+  const startModelsPull = useCallback(
+    async (source: string, onDone: () => void) => {
       const pullId = `onboarding-${Date.now()}`;
       pullIdRef.current = pullId;
-      pendingRef.current = tier;
+      pendingFinish.current = onDone;
+      retryRef.current = () => {
+        void startModelsPull(source, onDone);
+      };
       setPhase("downloading");
       setError("");
       setFraction(0);
       setTransferred(0);
       setTotal(null);
       try {
-        await api.startModelsPull(pullId, tier.vision.source, "latest");
+        await api.startModelsPull(pullId, source, "latest");
       } catch (err) {
         setPhase("error");
         setError(humanizeError(err, t));
@@ -958,15 +967,46 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
     [t],
   );
 
+  // The required runtime: the vision + planner engine, then the whisper.cpp
+  // speech model. Both are mandatory; the toggle is display-only and there is
+  // no "skip models" path. "Install later" defers but leaves setup incomplete.
+  const engineMissing = engine !== null && !inferenceReady(engine);
+  const installNeeded = engineMissing || !sttInstalled;
+
+  const afterEngine = useCallback(() => {
+    void refreshEngine();
+    if (!sttInstalled) {
+      void startModelsPull(REQUIRED_SPEECH_SOURCE, () => void advance(selectedTier, true));
+    } else {
+      void advance(selectedTier, true);
+    }
+  }, [refreshEngine, sttInstalled, startModelsPull, advance, selectedTier]);
+
+  const closeEngine = useCallback(() => {
+    setEngineOpen(false);
+    if (engineDoneRef.current) {
+      engineDoneRef.current = false;
+      afterEngine();
+    }
+  }, [afterEngine]);
+
   const onContinue = () => {
     if (phase === "downloading") return;
     if (phase === "error") {
       // Never trap the user: a failed download can be skipped, retried separately.
-      void finish(selectedTier);
+      // Setup stays incomplete if the speech model still isn't there.
+      void advance(selectedTier, sttInstalled);
       return;
     }
-    if (needsDownload) void startDownload(selectedTier);
-    else void finish(selectedTier);
+    if (engineMissing) {
+      setEngineOpen(true);
+      return;
+    }
+    if (!sttInstalled) {
+      void startModelsPull(REQUIRED_SPEECH_SOURCE, () => void advance(selectedTier, true));
+      return;
+    }
+    void advance(selectedTier, true);
   };
 
   useTauriEvent<{ pullId: string; line: string }>("models://progress", (payload) => {
@@ -990,8 +1030,8 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
   useTauriEvent<{ pullId: string; code: number }>("models://done", (payload) => {
     if (payload.pullId !== pullIdRef.current) return;
     if (payload.code === 0) {
-      const tier = pendingRef.current;
-      if (tier) void finish(tier);
+      const done = pendingFinish.current;
+      if (done) done();
     } else {
       setPhase("error");
       setError((prev) => prev || t("models.pull.exitFailed", { code: payload.code }));
@@ -1005,6 +1045,26 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
         title={t("onboarding.models.title")}
         body={t("onboarding.models.body")}
       />
+
+      {/* Required runtime: always on. The switch is display-only. */}
+      <div className="mb-4 flex items-center gap-3 rounded-xl bg-card px-4 py-3.5 shadow-card">
+        <Tile icon="download" tone="accent" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+            {t("onboarding.models.runtimeTitle")}
+            <Badge tone="accent">{t("onboarding.models.required")}</Badge>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("onboarding.models.runtimeBody")}</p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">{t("onboarding.models.runtimeSize")}</p>
+        </div>
+        <Switch
+          checked
+          onCheckedChange={() => {}}
+          disabled
+          ariaLabel={t("onboarding.models.runtimeTitle")}
+        />
+      </div>
+
       <div role="radiogroup" aria-label={t("onboarding.models.title")} className="flex flex-col gap-3">
         {tiers.map((tier) => (
           <TierCard
@@ -1024,6 +1084,11 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
           />
         ))}
       </div>
+
+      <p className="mt-3 flex items-start gap-1.5 px-0.5 text-[11.5px] text-muted-foreground/85">
+        <Icon name="lock" size={13} className="mt-px shrink-0" />
+        {t("onboarding.models.sttRequiredNote")}
+      </p>
 
       {recError && (
         <p className="mt-3 flex items-start gap-1.5 px-0.5 text-[11.5px] text-muted-foreground/85">
@@ -1057,7 +1122,7 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
       <div className="mt-6 flex items-center gap-2.5">
         <Button
           variant="primary"
-          iconRight={needsDownload ? "download" : "chevron-right"}
+          iconRight={installNeeded ? "download" : "chevron-right"}
           loading={phase === "downloading"}
           disabled={phase === "downloading"}
           onClick={onContinue}
@@ -1066,22 +1131,42 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
             ? t("models.pull.downloading")
             : phase === "error"
               ? t("onboarding.permissions.continueAnyway")
-              : needsDownload
-                ? t("common.download")
+              : installNeeded
+                ? t("onboarding.models.installNow")
                 : t("onboarding.next")}
         </Button>
         {phase === "error" && (
-          <Button variant="ghost" icon="refresh" onClick={() => void startDownload(selectedTier)}>
+          <Button variant="ghost" icon="refresh" onClick={() => retryRef.current?.()}>
             {t("common.retry")}
           </Button>
         )}
+        {phase !== "downloading" && installNeeded && (
+          <Button variant="ghost" onClick={() => void advance(selectedTier, false)}>
+            {t("onboarding.models.installLater")}
+          </Button>
+        )}
       </div>
-      {phase === "idle" && selectedTier.vision && !needsDownload && (
+      {phase !== "downloading" && installNeeded && (
+        <p className="mt-3 flex items-start gap-1.5 px-0.5 text-[11.5px] text-muted-foreground/85">
+          <Icon name="info" size={13} className="mt-px shrink-0" />
+          {t("onboarding.models.installLaterHint")}
+        </p>
+      )}
+      {phase === "idle" && !installNeeded && (
         <p className="mt-3 flex items-center gap-1.5 px-0.5 text-[11.5px] text-muted-foreground/85">
           <Icon name="check" size={12} className="text-[color:var(--success)]" />
           {t("onboarding.models.installed")}
         </p>
       )}
+
+      <InferenceInstallDialog
+        open={engineOpen}
+        onClose={closeEngine}
+        onInstalled={() => {
+          engineDoneRef.current = true;
+          void refreshEngine();
+        }}
+      />
     </>
   );
 }

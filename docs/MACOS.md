@@ -111,7 +111,9 @@ vLLM:
     --model models/UI-TARS-2B-SFT --served-model-name uitars --port 8000
 ```
 
-`assistant inference install` is refused on Windows for now.
+On Windows the same provisioner installs `torch` + `transformers` + `accelerate`
+(CUDA when an NVIDIA GPU is present, else the CPU wheel) and serves vision with the
+same cross-platform script; see [WINDOWS.md](WINDOWS.md).
 
 ### Setup & Recommended Models
 
@@ -219,8 +221,8 @@ brew install --cask Casks/utter.rb
 ```bash
 git clone https://github.com/sujaisubbanna/utter-assistant.git
 cd utter-assistant
-macos/setup.sh              # .venv-macos + pip install -e '.[macos]' + launchd agents
-macos/setup.sh --no-agent   # just the virtualenv and ~/.config/utter/config.toml
+macos/setup.sh              # .venv-macos + pip install -e '.[macos]' + whisper model + launchd agents
+macos/setup.sh --no-agent   # virtualenv, whisper.cpp model and ~/.config/utter/config.toml
 
 .venv-macos/bin/python -m utter.daemon --text "open youtube" --dry-run
 .venv-macos/bin/python -m utter.daemon            # hold Right ⌘ and speak
@@ -381,6 +383,32 @@ The STT chain is `[stt_backend, stt_fallback]`; backends whose runtime is missin
 (for example Speech Recognition permission denied) hands over to the next one
 with a logged warning. whisper.cpp models are looked up exactly as on Linux
 (`$UTTER_WHISPER_MODEL`, `$UTTER_MODELS_DIR`, `models/whisper/`).
+
+### Whisper.cpp is installed even when Apple Speech is the backend
+
+Apple Speech (`apple_speech`) is the default primary STT backend on macOS: it is
+fast and uses no model file. **whisper.cpp and its model are still mandatory**,
+because they are the offline fallback and the only path that works without Apple
+frameworks or Speech Recognition permission. `macos/setup.sh` therefore downloads
+`ggml-small.en.bin` (~466 MB, `hf:ggerganov/whisper.cpp`) into the shared model
+store on every run, even for an Apple-Speech-first configuration. The step is
+idempotent — an already-present model is skipped — but it is **not** optional: if
+the download fails, setup prints an error and exits non-zero instead of finishing
+with a Mac that cannot fall back.
+
+To switch backends, set `[macos] stt_backend` in
+`~/.config/utter/config.toml` (or the Voice tab of the settings app):
+
+- `whisper_cpp` — local, fully offline; needs the `ggml-small.en.bin` model that
+  setup installs (this is the shipped `config.default.toml` default);
+- `apple_speech` — Apple's on-device recognizer, no model download; pair it with
+  `stt_fallback = "whisper_cpp"` so the offline model is used if Speech stalls;
+- `faster_whisper` — CTranslate2 backend, downloads its own model on first use;
+- `vocamac` — VocaMac's `--transcribe-file` CLI.
+
+`stt_fallback` selects what runs when the primary fails to load. Keep
+`whisper_cpp` in `[stt_backend, stt_fallback]` if you want a guaranteed offline
+fallback.
 
 For Apple Speech, a resolved `[stt] language` (see
 [CUSTOMISING §4](CUSTOMISING.md#spoken-language-stt--tts)) becomes the

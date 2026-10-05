@@ -92,6 +92,33 @@ fi
 echo "installing utter[macos] (PyObjC, sounddevice, numpy, pywhispercpp)"
 "$VENV/bin/python" -m pip install -e "$REPO[macos]"
 
+# Mandatory on every platform: whisper.cpp + its model. Apple Speech is the
+# default macOS STT backend, but whisper.cpp is the offline fallback and the
+# voice chain must be able to run without Apple. Download ggml-small.en.bin
+# into the shared model store (content hashing/resume are reused) and fail the
+# whole setup if it cannot be fetched. There is deliberately no skip flag.
+WHISPER_MODEL_SRC="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
+if "$VENV/bin/python" -c '
+import sys
+from assistant import models
+for entry in models.show("whisper.cpp:latest"):
+    if any(f.get("name") == "ggml-small.en.bin" for f in entry.get("files", [])):
+        sys.exit(0)
+sys.exit(1)' >/dev/null 2>&1; then
+    echo "whisper.cpp STT model already present: $WHISPER_MODEL_SRC"
+else
+    echo "downloading mandatory whisper.cpp STT model: $WHISPER_MODEL_SRC (~466 MB)"
+    if ! "$VENV/bin/python" -m assistant models pull "$WHISPER_MODEL_SRC"; then
+        cat >&2 <<EOF
+macos/setup.sh: could not download the mandatory whisper.cpp STT model
+  $WHISPER_MODEL_SRC
+Utter requires whisper.cpp + this model on every platform, even though Apple
+Speech is the default STT backend. Check your network and re-run macos/setup.sh.
+EOF
+        exit 1
+    fi
+fi
+
 # Let the packaged settings app (utter.app) find this checkout and its venv.
 # This symlink is a dev-only convenience: when the app manages a packaged
 # runtime we leave it alone so the app keeps using its own core + interpreter.

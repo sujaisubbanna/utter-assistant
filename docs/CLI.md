@@ -52,8 +52,12 @@ python -m assistant inference install [--json]   # download + prepare them
 output also names the platform's serve script (`scripts/serve_vision.sh` on
 Linux, `scripts/serve_vision_transformers.py` on macOS).
 
-`install` runs `scripts/install_inference.sh` and streams its output. With
-`--json` it emits one JSON object per line (NDJSON):
+`install` provisions the stack in Python (`assistant/inference.py`) and streams
+its output; `scripts/install_inference.sh` is a thin wrapper that runs the same
+code, so script users and the CLI share one implementation. It creates `.venv`
+(reusing `uv` when present, else `python -m venv`), installs the runtime, then
+downloads both repos with `huggingface_hub.snapshot_download`. With `--json` it
+emits one JSON object per line (NDJSON):
 
 ```
 {"event":"start"}
@@ -62,11 +66,17 @@ Linux, `scripts/serve_vision_transformers.py` on macOS).
 ```
 
 A failure emits `{"event":"error","error":"…"}` instead of `done`; the exit code
-is 0 on success and 1 on failure. On Windows `install` exits 1 with
-`not supported on Windows yet`. On macOS vLLM has no wheel, so the script
-installs `transformers` + `torch` (Metal/MPS) + `accelerate` and serves vision
-with `scripts/serve_vision_transformers.py`; Linux installs vLLM and serves with
-`scripts/serve_vision.sh` / `scripts/serve_planner.sh`.
+is 0 on success and 1 on failure. All three desktop platforms are supported:
+
+| Platform | Runtime | Vision serve |
+|---|---|---|
+| Linux | `vllm>=0.10` | `scripts/serve_vision.sh` / `scripts/serve_planner.sh` |
+| macOS | `transformers` + `torch` (Metal/MPS) + `accelerate` | `scripts/serve_vision_transformers.py` |
+| Windows | `torch` (CUDA when `nvidia-smi` is present, else the CPU wheel index) + `transformers` + `accelerate` | `scripts/serve_vision_transformers.py` |
+
+Every platform also installs `huggingface_hub[cli]`, `requests` and `Pillow`.
+The Windows CPU path uses `--index-url https://download.pytorch.org/whl/cpu`
+for torch; an NVIDIA machine gets the default (CUDA) PyPI wheel.
 
 ## Settings and custom commands
 

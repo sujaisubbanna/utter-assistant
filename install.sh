@@ -1697,11 +1697,32 @@ found_stt() {
     fi
 }
 
+# Minimum NVIDIA VRAM (MiB) for the vLLM vision + planner stack. The shipped
+# pair (UI-TARS-2B bf16 + Qwen3-4B AWQ) needs roughly 8 GB; below that, vLLM
+# cannot hold both servers, so we do not default the perception step on.
+PERCEPTION_MIN_VRAM_MB=8192
+
+# perception_gpu_ok — true when an NVIDIA GPU with enough VRAM is present.
+# nvidia-smi is the only NVIDIA probe available before install (no Python
+# deps), so we query the largest card's total memory directly.
+perception_gpu_ok() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 1
+    local mb
+    mb="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null \
+        | tr -d ' ' | sort -n | tail -1)"
+    [[ "$mb" =~ ^[0-9]+$ ]] || return 1
+    (( mb >= PERCEPTION_MIN_VRAM_MB ))
+}
+
 found_perception() {
     local parts=()
     command -v vulkaninfo >/dev/null 2>&1 && parts+=("vulkaninfo")
     [[ -e /dev/accel ]] && parts+=("accel devices")
-    command -v nvidia-smi >/dev/null 2>&1 && parts+=("nvidia-smi")
+    if perception_gpu_ok; then
+        parts+=("nvidia-smi (>= ${PERCEPTION_MIN_VRAM_MB} MiB)")
+    elif command -v nvidia-smi >/dev/null 2>&1; then
+        parts+=("nvidia-smi (insufficient VRAM)")
+    fi
     if command -v python3 >/dev/null 2>&1; then
         python3 -c 'import vllm' >/dev/null 2>&1 && parts+=("vllm (python)")
         python3 -c 'import transformers' >/dev/null 2>&1 && parts+=("transformers (python)")
@@ -1857,12 +1878,34 @@ if [[ -n "$SKIP_CSV" ]]; then
     done
 fi
 
+# Mandatory on Linux: the curated whisper.cpp speech model (pulled by the
+# `models` step) and the STT backend step. The owner ruled the speech model
+# cannot be skipped, so `--skip`, `--only` and the wizard's n/s answers cannot
+# drop these two. Everything else stays selectable (perception remains opt-out).
+is_mandatory() {
+    case "$1" in
+        models|stt) return 0 ;;
+        *)          return 1 ;;
+    esac
+}
+
+# flag_excluded <id> — true when --skip or --only asked to leave this component
+# out. Kept separate from allowed() so callers can tell "excluded by a flag"
+# from "not otherwise available" when deciding whether to print a note.
+flag_excluded() {
+    local id="$1"
+    [[ -n "${SKIP_MAP[$id]:-}" ]] && return 0
+    if (( ${#ONLY_MAP[@]} )); then
+        [[ -n "${ONLY_MAP[$id]:-}" ]] || return 0
+    fi
+    return 1
+}
+
 allowed() {
     local id="$1"
-    [[ -n "${SKIP_MAP[$id]:-}" ]] && return 1
-    if (( ${#ONLY_MAP[@]} )); then
-        [[ -n "${ONLY_MAP[$id]:-}" ]] || return 1
-    fi
+    # Mandatory components ignore --skip/--only; enforce_mandatory() records them.
+    is_mandatory "$id" && return 0
+    flag_excluded "$id" && return 1
     return 0
 }
 
@@ -2223,8 +2266,13 @@ print_plan() {
     print_component_preview
     say ""
     say "Recommended defaults: core, systemd units and GUI; the language step is"
-    say "English (inline, no downloads); models/STT/perception are opt-in."
-    say "Nothing is downloaded or changed until you confirm."
+    say "English (inline, no downloads). The curated speech model (STT) is required"
+    say "and is always installed — it cannot be skipped in the wizard or with"
+    say "--skip/--only. The vision+planner engine is installed when a supported"
+    say "NVIDIA GPU (>= 8 GB VRAM) is detected; without one the perception step is"
+    say "left off but stays selectable. Every other step can be unselected in the"
+    say "wizard or with --skip/--only. Nothing is downloaded or changed until you"
+    say "confirm."
 }
 
 # --------------------------------------------------------------------------- #
@@ -2485,13 +2533,39 @@ compute_recommendations() {
     REC_BY_ID[units]=y
     REC_BY_ID[models]=y
     (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
-    REC_BY_ID[stt]=n
-    REC_BY_ID[perception]=n
+    REC_BY_ID[stt]=y
+    # Vision + planner run under vLLM on an NVIDIA GPU; only default the
+    # perception step on when the hardware can actually hold them. It stays
+    # selectable either way (interactive toggle, --only perception).
+    if perception_gpu_ok; then REC_BY_ID[perception]=y; else REC_BY_ID[perception]=n; fi
     REC_BY_ID[noctalia]=n
     (( WITH_NOCTALIA )) && REC_BY_ID[noctalia]=y
     [[ -f "$CONFIG_FILE" ]] && REC_BY_ID[config]=n || REC_BY_ID[config]=y
 }
 compute_recommendations
+
+# enforce_mandatory — the speech model is required, so after the wizard has
+# walked (or skipped) every component, force the mandatory ones on. This covers
+# all three ways a skip can be requested: the wizard's "n"/"s" answers, and the
+# --skip/--only flags. `models` must always pull the `stt` tier. A short note is
+# printed only when a real skip was overridden, so --yes stays quiet.
+enforce_mandatory() {
+    local i id overridden
+    for i in "${!COMP_IDS[@]}"; do
+        id="${COMP_IDS[i]}"
+        is_mandatory "$id" || continue
+        overridden=0
+        [[ "$(decision_of "$id")" != "yes" ]] && overridden=1
+        flag_excluded "$id" && overridden=1
+        (( overridden )) && note_f "required: {1} is mandatory and cannot be skipped" "${COMP_LABELS[i]}"
+        DECISION[i]="yes"
+    done
+    # The curated whisper.cpp model (DEFAULT_MODEL_STT) must always be pulled.
+    case ",${MODELS_YES}," in
+        *,stt,*) : ;;
+        *) MODELS_YES="${MODELS_YES:+$MODELS_YES,}stt" ;;
+    esac
+}
 
 # --------------------------------------------------------------------------- #
 # section: non-interactive gate (curl | bash with no --yes): plan only
@@ -2534,7 +2608,11 @@ present_step() {
     # Perception provisions the non-pullable vLLM stack; say so up front so the
     # user knows what accepting the step downloads and how to point at it.
     if [[ "$id" == "perception" ]]; then
-        note "opt-in: runs scripts/install_inference.sh (vLLM + UI-TARS vision + planner, several GB)"
+        if perception_gpu_ok; then
+            note "default on this machine (NVIDIA GPU): runs scripts/install_inference.sh (vLLM + UI-TARS vision + planner, several GB)"
+        else
+            note "selectable: runs scripts/install_inference.sh (vLLM + UI-TARS vision + planner, several GB); needs a >= 8 GB NVIDIA GPU"
+        fi
         note "without it, vision stays off and context uses accessibility only"
         note "override the planner with UTTER_MODEL_DECISION / vision with UTTER_MODEL_VISION"
     fi
@@ -2917,6 +2995,9 @@ if ! wizard; then
     say "Quit before making any changes."
     exit 0
 fi
+
+# The speech model is required: override any wizard --skip/--only or n/s skip.
+enforce_mandatory
 
 # sub-questions (asked once, after the walk)
 if [[ "$(decision_of units)" == "yes" ]] && (( ! ASSUME_YES )); then
@@ -3333,7 +3414,9 @@ exec_lang() {
 
 exec_models() {
     section "models"
-    if [[ ! -x "$ASSISTANT_BIN" ]] && [[ ! -d "$SHARE_DIR/assistant" ]]; then
+    # Pulling goes through the installed `assistant` CLI; without the core step
+    # there is nothing to run, so skip rather than shell-error on a missing path.
+    if [[ ! -x "$ASSISTANT_BIN" ]]; then
         warn "core/CLI is not installed; cannot pull models. Run with the core step enabled."
         return 0
     fi

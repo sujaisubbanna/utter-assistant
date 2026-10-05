@@ -58,16 +58,20 @@ What it does, in order:
    (`$env:UTTER_PREFIX` overrides; `-Prefix` also works). The merge keeps the
    runner endpoint/token files that live beside the core.
 3. **Agent venv** — `<core>\.venv-agent` from `py -3.12` (else `py -3`, else
-   `python`), then CPU-first runtime deps: `PyYAML requests numpy sounddevice
-   pywin32 uiautomation comtypes mss`. `pywhispercpp` / `faster-whisper` are
-   optional; GPU STT additionally needs CUDA 12 + cuDNN.
-4. **Scheduled Tasks** — per-user `utter-runner` and `utter.service`, created
+   `python`), then the CPU-first `windows` extra from the extracted core
+   (`pip install "<core>[windows]"`): `numpy sounddevice pywin32 uiautomation
+   comtypes mss pywhispercpp`. This is mandatory — a failure aborts the install
+   rather than degrading.
+4. **Mandatory whisper.cpp model** — pull `ggml-small.en.bin` into the model
+   store and verify it (see [Mandatory STT model](#mandatory-stt-model-whispercpp)).
+   There is no flag that skips this.
+5. **Scheduled Tasks** — per-user `utter-runner` and `utter.service`, created
    `ONLOGON` with `schtasks /Create ... /F` and enabled with `/Change /ENABLE`
    (see below).
-5. **Config** — `%APPDATA%\utter\config.toml` from the shipped
+6. **Config** — `%APPDATA%\utter\config.toml` from the shipped
    `config.default.toml`, only when absent (default STT `whisper_cpp` /
    `ggml-small.en.bin`).
-6. **Settings GUI** — the release's Tauri Windows installer, matched flexibly
+7. **Settings GUI** — the release's Tauri Windows installer, matched flexibly
    from the release assets (`*-setup.exe` or `*.msi`; product name `utter`):
    NSIS runs with `/S`, MSI with `msiexec /i <file> /qn /norestart`. Verified
    against `sha256sums-windows-x64.txt` when present. `-SkipGui` skips it; when
@@ -76,6 +80,37 @@ What it does, in order:
 `-DryRun` prints every download, extraction and command and changes nothing.
 `-Uninstall` deletes the two Scheduled Tasks and the core tree, and keeps the
 config.
+
+### Mandatory STT model (whisper.cpp)
+
+Native Windows voice is **whisper.cpp, CPU by default**, and it is
+**mandatory**: `pywhispercpp` (pinned `>=1.5`) plus its `ggml-small.en.bin`
+model are installed on every run. `install.ps1` fails loudly if either cannot be
+installed or verified, and there is **no flag that skips the model** — a Windows
+install without it cannot transcribe.
+
+| Item | Value |
+| --- | --- |
+| Python package | `pywhispercpp>=1.5` (part of the `windows` extra) |
+| Wheels | self-contained `win_amd64` for cp312/cp313/cp314; bundles the whisper/ggml DLLs, no build tools, CPU-only |
+| Model | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` |
+| Size | `487,614,201` bytes (~465 MiB) |
+| sha256 | `c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d` |
+| Store | `%LOCALAPPDATA%\utter\models` (override `UTTER_MODELS`); content-addressed blob `blobs\sha256-<hash>` + a manifest under `manifests\huggingface.co\ggerganov\whisper.cpp\latest.json` |
+| Fallback | `whisper-bin-x64.zip`, tag [`b5130`](https://github.com/ggerganov/whisper.cpp/releases/tag/b5130) → `whisper-cli.exe` |
+
+The pull goes through the model store (`assistant models pull`) so it inherits
+resumable downloads, retry/backoff and sha256 verification, and already-present
+models are re-verified (size + content hash) and skipped — the step is
+idempotent. `install.ps1` also re-checks the pinned sha256 after the pull and
+aborts on any mismatch.
+
+**CUDA is opt-in only.** The wheels above are CPU; GPU STT needs a source build
+of `pywhispercpp`, so it is never part of the default install. If the
+`pywhispercpp` wheel is unavailable for a given interpreter, the documented
+fallback is the pinned **`whisper-bin-x64.zip` (`b5130`)** release: unpack
+`whisper-cli.exe` (with its `ggml*.dll`) and point `[stt] model` at the same
+`ggml-small.en.bin` blob in the store.
 
 ### Scheduled Tasks
 
@@ -165,22 +200,34 @@ invariant #5.
 ## Dependencies (wheels)
 
 A **CPU-only** Windows path is shippable from wheels alone on 3.12/3.14:
-`pywhispercpp` (CPU wheel) or `faster-whisper`+`ctranslate2` (CPU),
+`pywhispercpp` (self-contained CPU wheel, cp312/cp313/cp314),
 `sounddevice` (PortAudio DLLs bundled), `numpy`, `uiautomation`+`comtypes`
 (a11y), `mss` (capture), `pywin32` (clipboard), `comtypes` (SAPI TTS). GPU STT
 is **not** wheels-only (`ctranslate2` needs system CUDA 12 + cuDNN;
 `pywhispercpp` GPU needs a source build).
 
-The **`windows` extra** (`pip install -e ".[windows]"`) pins the CPU-first
-runtime set — `numpy`, `sounddevice`, `pywin32`, `uiautomation`, `comtypes`,
-`mss`. Optional STT (`pywhispercpp`) is intentionally left out until a
-`win_amd64`/cp312 wheel is confirmed, so the extra always installs cleanly.
+The **`windows` extra** (`pip install "<core>[windows]"`) is the single source
+of truth for the CPU-first runtime set — `numpy`, `sounddevice`, `pywin32`,
+`uiautomation`, `comtypes`, `mss`, **`pywhispercpp`**. STT is mandatory here,
+so `pywhispercpp` is part of the extra; the pinned model is then pulled and
+verified by `install.ps1` (see
+[Mandatory STT model](#mandatory-stt-model-whispercpp)).
 
-The vision/planner inference provisioner (`scripts/install_inference.sh`,
-`python -m assistant inference install`) is **not supported on Windows yet**:
-the CLI exits 1 with `not supported on Windows yet`, so the settings UI can show
-a clear message instead of a failed download. `assistant inference status`
-still reports whether the model directories are complete.
+The vision/planner inference provisioner is **supported on Windows**:
+`python -m assistant inference install [--json]` (and the
+`scripts/install_inference.sh` wrapper) selects a Windows plan and installs
+`torch` + `transformers` + `accelerate` into `.venv` — CUDA when `nvidia-smi`
+is present, otherwise the CPU wheel from `https://download.pytorch.org/whl/cpu`
+— then downloads both repos with `huggingface_hub.snapshot_download`. vLLM is
+**not** installed on Windows (no native wheel). Vision is served by the
+cross-platform `scripts/serve_vision_transformers.py`; the AWQ planner still
+expects a vLLM endpoint, so use one locally (WSL/NVIDIA) or an existing server.
+`assistant inference status` reports whether the model directories are complete.
+
+The implementation lives in `assistant/inference.py` (stdlib + the venv it
+creates); `scripts/install_inference.sh` is a thin wrapper that calls
+`python -m assistant inference install`, so Windows Git Bash / MSYS users get
+the same behaviour as `python -m assistant`.
 
 ## CI (`windows-latest`)
 

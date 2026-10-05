@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon, type IconName } from "../components/icons";
 import { EngineInstallCard } from "../components/EngineInstall";
+import { InferenceInstallCard } from "../components/InferenceInstall";
 import { PageBody, PageHeader, PageNote } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -441,6 +442,9 @@ export function SetupPage() {
         <PageBody>
           {/* A GUI-only install has no engine: offer the installer first. */}
           <EngineInstallCard />
+          {/* The vision + planner models are provisioned separately; offer them
+              here too so a missing runtime is always actionable from Settings. */}
+          <InferenceInstallCard />
           {/* status hero */}
           <section className="relative overflow-hidden rounded-lg bg-card p-5 shadow-card" aria-live="polite">
             <div className="flex items-center gap-4">
@@ -524,6 +528,9 @@ export function SetupPage() {
       <PageBody>
         {/* A GUI-only install has no engine: offer the installer first. */}
         <EngineInstallCard />
+        {/* The vision + planner models are provisioned separately; offer them
+            here too so a missing runtime is always actionable from Settings. */}
+        <InferenceInstallCard />
         {/* progress hero */}
         <section className="relative overflow-hidden rounded-lg bg-card p-5 shadow-card" aria-live="polite">
           <div className="flex items-center gap-4">
