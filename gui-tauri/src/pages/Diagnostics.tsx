@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { Icon } from "../components/icons";
 import { PageBody, PageHeader } from "../components/PageHeader";
@@ -19,6 +19,17 @@ import { cn } from "../lib/utils";
 import type { DoctorReport } from "../lib/types";
 
 const MAX_LINES = 2000;
+// Let the buffer overshoot, then trim back in one step. Rebuilding the whole
+// list on every line once it is full is what made a followed tail feel heavy.
+const TRIM_CHUNK = 500;
+
+/**
+ * One log line. Memoised so appending a tail line only renders the new node
+ * instead of re-reconciling the whole (up to 2000-line) buffer.
+ */
+const LogLine = memo(function LogLine({ text }: { text: string }) {
+  return <div>{text}</div>;
+});
 
 /** Capability names reported by `doctor` -> `compositor.capabilities` (see utter/context/compositor.py). */
 const CAP_KEYS = {
@@ -78,7 +89,7 @@ export function DiagnosticsPage() {
       if (payload.tailId !== tailId.current) return;
       setLines((current) => {
         const next = [...current, payload.line];
-        return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next;
+        return next.length > MAX_LINES + TRIM_CHUNK ? next.slice(next.length - MAX_LINES) : next;
       });
     },
     follow,
@@ -376,7 +387,7 @@ export function DiagnosticsPage() {
             ) : (
               <pre className="whitespace-pre font-mono text-[11px] leading-[1.7] text-foreground/85">
                 {lines.map((line, index) => (
-                  <div key={index}>{line}</div>
+                  <LogLine key={index} text={line} />
                 ))}
               </pre>
             )}

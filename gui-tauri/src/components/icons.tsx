@@ -1,4 +1,4 @@
-import type { ReactNode, SVGProps } from "react";
+import { memo, type ReactNode, type SVGProps } from "react";
 
 /**
  * One hand-drawn set on a 24-unit grid: 1.6 stroke, round caps and joins,
@@ -271,7 +271,7 @@ const PATHS: Record<IconName, ReactNode> = {
   wave: <path d="M3 12h1.5M7 8.5v7M10.5 5v14M14 8v8M17.5 10v4M21 12h-.5" />,
 };
 
-export function Icon({
+export const Icon = memo(function Icon({
   name,
   size = 18,
   className,
@@ -296,4 +296,4 @@ export function Icon({
       {PATHS[name]}
     </svg>
   );
-}
+});

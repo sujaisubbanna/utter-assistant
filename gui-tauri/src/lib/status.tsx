@@ -11,6 +11,7 @@ import {
 import { api } from "./api";
 import { usePoll } from "./hooks";
 import type { StatusReport } from "./types";
+import { sameJson } from "./utils";
 
 interface StatusApi {
   status: StatusReport | null;
@@ -34,7 +35,9 @@ export function RunnerStatusProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     try {
       const next = await api.status();
-      setStatus(next);
+      // Keep the previous object when the report is unchanged so an idle poll
+      // does not re-render every status consumer (titlebar, General hero).
+      setStatus((prev) => (sameJson(prev, next) ? prev : next));
     } catch (error) {
       setStatus({ ok: false, connected: false, error: String(error) });
     } finally {

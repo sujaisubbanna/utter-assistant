@@ -378,7 +378,6 @@ export function AppsPage() {
                 <Row
                   key={profile.id}
                   as="button"
-                  className="cv-row"
                   onClick={() => setEditing(profile)}
                   leading={<Tile icon={KIND_ICON[profile.kind] ?? "window"} tone={profile.curated ? "accent" : "muted"} />}
                   title={
