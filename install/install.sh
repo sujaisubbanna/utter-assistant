@@ -239,12 +239,13 @@ if (( DO_SERVICE )); then
     run "install utter-runner.service (repo: $REPO)" install_unit
     run "install utter.service (voice daemon)" install_daemon_unit
     run "reload systemd user manager" systemctl --user daemon-reload
-    if (( DRY_RUN )); then
-        run "enable + start the runner and daemon" \
-            systemctl --user enable --now utter-runner.service utter.service
-    elif (( ASSUME_YES )); then
-        run "enable + start the runner and daemon" \
-            systemctl --user enable --now utter-runner.service utter.service
+    if (( DRY_RUN )) || (( ASSUME_YES )); then
+        # enable, then start-or-restart: `enable --now` leaves an already-running
+        # unit on the old core, so an upgrade must restart it.
+        run "enable the runner and daemon" \
+            systemctl --user enable utter-runner.service utter.service
+        run "start or restart the runner and daemon" \
+            systemctl --user restart utter-runner.service utter.service
     else
         note "not enabling (pass --yes to apply)"
     fi
