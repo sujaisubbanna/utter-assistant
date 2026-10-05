@@ -50,7 +50,9 @@ def _grab_to(path: Path, monitor: dict) -> None:
 
     with mss.mss() as sct:
         shot = sct.grab(monitor)
-        mss.tools.to_png(shot.rgb, shot.size, str(path))
+        # mss >=10 makes ``output`` keyword-only (older versions accept it
+        # positionally too, so the keyword form is portable).
+        mss.tools.to_png(shot.rgb, shot.size, output=str(path))
 
 
 def capture_output(monitor_index: int) -> tuple[str, Rect]:
