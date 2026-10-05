@@ -139,6 +139,10 @@ def move_to(x: int, y: int) -> ActionResult:
         from utter.macos import pointer
 
         return pointer.move_to(x, y)
+    if platform.is_windows():
+        from utter.win32 import pointer
+
+        return pointer.move_to(x, y)
     t0 = time.perf_counter()
     px, py, factor = _abs_xy(x, y)
     ok, err = _run(["ydotool", "mousemove", "--absolute", "-x", str(px), "-y", str(py)])
@@ -152,6 +156,10 @@ def click_point(x: int, y: int, button: str = "left") -> ActionResult:
     """Move the pointer to logical (x, y) and click `button`."""
     if platform.is_macos():
         from utter.macos import pointer
+
+        return pointer.click_point(x, y, button)
+    if platform.is_windows():
+        from utter.win32 import pointer
 
         return pointer.click_point(x, y, button)
     t0 = time.perf_counter()
@@ -178,6 +186,10 @@ def scroll(direction: str, amount: int = 3) -> ActionResult:
     """Scroll the wheel: direction in up/down/left/right, `amount` steps."""
     if platform.is_macos():
         from utter.macos import pointer
+
+        return pointer.scroll(direction, amount)
+    if platform.is_windows():
+        from utter.win32 import pointer
 
         return pointer.scroll(direction, amount)
     t0 = time.perf_counter()

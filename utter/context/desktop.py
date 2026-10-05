@@ -7,6 +7,7 @@ Re-exports the provider for the host platform so the daemon, executor and the
     Linux / KWin   -> :mod:`utter.context.backends.kwin`   (KDE Plasma over D-Bus / kdotool)
     Linux / other  -> :mod:`utter.context.backends.fallback` (reports unsupported)
     macOS          -> :mod:`utter.macos.desktop`           (NSWorkspace + Accessibility + CGWindowList)
+    Windows        -> :mod:`utter.win32.desktop`           (ctypes user32/kernel32)
 
 Which Linux backend is used is decided by :mod:`utter.context.compositor`
 (``[general] compositor = "auto" | "niri" | "kwin"``, or ``UTTER_COMPOSITOR``).
@@ -26,6 +27,10 @@ def provider():
     On niri this is still the :mod:`utter.context.niri` module itself, so the
     original behaviour (and its tests) are untouched.
     """
+    if platform.is_windows():
+        from utter.win32 import desktop as _win
+
+        return _win
     if platform.is_macos():
         from utter.macos import desktop as _mac
 
@@ -42,6 +47,10 @@ def provider():
 
 def backend():
     """The full compositor backend module (provider surface + window actions)."""
+    if platform.is_windows():
+        from utter.win32 import desktop as _win
+
+        return _win
     if platform.is_macos():
         from utter.macos import desktop as _mac
 

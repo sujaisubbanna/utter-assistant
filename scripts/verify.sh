@@ -64,6 +64,7 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/voice/test_stt_store.py || rc=1
 "$PY" tests/voice/test_audio_samplerate.py || rc=1
 "$PY" tests/voice/test_sounds_sink.py || rc=1
+"$PY" tests/voice/test_windows_backends.py || rc=1
 "$PY" tests/voice/test_tts_linux.py || rc=1
 "$PY" tests/actions/test_open_url_browser.py || rc=1
 "$PY" tests/actions/test_profile_layers.py || rc=1
@@ -79,6 +80,8 @@ echo "== platform: macOS detection + backend selection (runs on Linux) =="
 "$PY" tests/platform/test_macos_runtime.py || rc=1
 "$PY" tests/platform/test_macos_wiring.py || rc=1
 "$PY" tests/platform/test_macos_background_input.py || rc=1
+"$PY" tests/platform/test_windows_backends_context.py || rc=1
+"$PY" tests/platform/test_windows_backends.py || rc=1
 
 echo "== platform: Windows detection + path/dependency seams (runs on Linux/macOS) =="
 "$PY" tests/platform/test_windows_detection.py || rc=1
