@@ -16,6 +16,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import platform as _platform
+
 # Permissions a supported wrapper can actually constrain.
 ENFORCEABLE = {
     "microphone": "DeviceAllow",
@@ -112,6 +114,10 @@ def _probe(argv: list[str]) -> bool:
 
 def detect_wrapper(which=shutil.which, probe=None) -> Wrapper:
     """Choose the best *working* hardening wrapper (testable via injection)."""
+    if _platform.is_windows():
+        # No systemd-run/bwrap on Windows: permissions are advisory, never imply
+        # enforcement (TRUST.md §6).
+        return Wrapper(None, "Windows: no hardening wrapper; permissions advisory")
     probe = probe or _probe
     if which("systemd-run") and probe(_SYSTEMD_RUN):
         return Wrapper(

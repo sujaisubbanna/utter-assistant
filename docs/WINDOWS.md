@@ -32,11 +32,38 @@ On Windows that does **not** port as-is:
   has no `create_unix_server()` (CPython gh-77589).
 - No `SO_PEERCRED` on native Win32 (only `SIO_AF_UNIX_GETPEERPID` for a peer PID).
 
-**P0 choice:** **localhost TCP + mandatory token** (or **named pipes**) in an
-ACL'd per-user location, with `fd.pass` disabled (`-32005`), plugins on stdio,
-and permissions reported **advisory** (no sandbox). Named pipes
-(`GetNamedPipeClientProcessId` + token SID) are the P2 hardening path for real
-peer identity. Do **not** weaken `docs/TRUST.md` invariant #5.
+**P0 choice (implemented):** **loopback TCP 127.0.0.1:<port> + mandatory token**
+(or **named pipes** later) in an ACL'd per-user location, with `fd.pass`
+disabled (`-32005`), plugins on stdio, and permissions reported **advisory** (no
+sandbox). Named pipes (`GetNamedPipeClientProcessId` + token SID) are the P2
+hardening path for real peer identity. Do **not** weaken `docs/TRUST.md`
+invariant #5.
+
+### P0 transport contract (landed)
+
+- **Selection** — `runner/platform.py`: `UTTER_RUNNER_TRANSPORT=unix|tcp` overrides
+  the platform default (`tcp` on Windows, `unix` otherwise); `runner.socket_transport`
+  in the TOML does the same. The override lets Linux tests exercise the TCP path.
+- **Endpoint** — the server binds `127.0.0.1:0` (kernel-assigned port) and writes
+  `%LOCALAPPDATA%\utter\runner.endpoint` = `{"host":"127.0.0.1","port":N}` atomically
+  (temp file + `os.replace`). This file *is* `default_socket_path()` on Windows, and
+  the assistant reads it (`assistant/util.py: runner_sock_path()`).
+- **Token** — `%LOCALAPPDATA%\utter\runner-token`, created with
+  `secrets.token_urlsafe(32)` via `O_CREAT|O_EXCL` (mode `0600` best-effort). The
+  actual protection is **NTFS ACL inheritance** from the per-user profile
+  directory; `chmod` on Windows only toggles the read-only bit and is advisory.
+  A config `[socket] token` wins and is persisted to the same file so clients
+  discover it; otherwise a fresh token is generated once and reused.
+- **Auth** — every TCP client is default-deny until it sends
+  `runner.auth {token}`. `allow_same_uid` / `allow_binaries` are **never** grants
+  over TCP (there is no `SO_PEERCRED`); config validation rejects them with a
+  clear error and requires a token.
+- **No `fd.pass`** — `SCM_RIGHTS` does not exist here; `fd.pass` returns
+  `-32005`, the runner does not advertise `host.fd.pass@1`, and plugins may only
+  use the **stdio** transport (config rejects `connect`/`listen`).
+- **Unix is byte-identical** — same AF_UNIX socket, `0600`, `SO_PEERCRED` /
+  `/proc/<pid>/exe`, `SCM_RIGHTS`; the TCP code paths are never taken when
+  `transport_kind() == "unix"`.
 
 ## Dependencies (wheels)
 

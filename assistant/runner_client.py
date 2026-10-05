@@ -1,7 +1,10 @@
-"""Tiny stdlib JSON-RPC 2.0 client for the runner unix socket.
+"""Tiny stdlib JSON-RPC 2.0 client for the runner transport.
 
-Independent of the conformance suite (which lives under ``tests/``); this is the
-client the ``assistant`` CLI ships with.
+Unix uses AF_UNIX at ``runner_sock_path()``; Windows (or
+``UTTER_RUNNER_TRANSPORT=tcp``) reads the endpoint JSON and authenticates with
+``runner.auth`` using the per-user token file. Independent of the conformance
+suite (which lives under ``tests/``); this is the client the ``assistant`` CLI
+ships with.
 """
 from __future__ import annotations
 
@@ -28,19 +31,44 @@ def encode_frame(obj: Any) -> bytes:
 
 
 class RunnerClient:
-    def __init__(self, path: str, timeout: float = 10.0):
+    def __init__(self, path: str, timeout: float = 10.0, token: str = ""):
         self.path = path
         self.timeout = timeout
+        self.token = token
         self._sock: Optional[socket.socket] = None
         self._buf = bytearray()
         self._next_id = 0
 
     # -- lifecycle -------------------------------------------------------- #
     def connect(self) -> "RunnerClient":
+        # Unix: AF_UNIX socket path (byte-identical to before). Windows/TCP:
+        # the path is an endpoint JSON file plus a per-user token (runner.auth).
+        from runner import platform as runner_platform
+
+        if runner_platform.transport_kind() == runner_platform.TCP:
+            return self._connect_tcp()
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
         sock.connect(self.path)
         self._sock = sock
+        return self
+
+    def _connect_tcp(self) -> "RunnerClient":
+        from runner import tokenstore
+
+        endpoint = tokenstore.read_endpoint(self.path)
+        if endpoint is None:
+            raise RunnerError(-32000, f"no runner endpoint at {self.path}")
+        token = self.token or tokenstore.read_token(tokenstore.default_token_path())
+        if not token:
+            raise RunnerError(-32003, "no runner token available (start the runner first)")
+        sock = socket.create_connection(
+            (endpoint["host"], endpoint["port"]), timeout=self.timeout
+        )
+        sock.settimeout(self.timeout)
+        self._sock = sock
+        # The TCP transport is default-deny until runner.auth succeeds.
+        self.call("runner.auth", {"token": token})
         return self
 
     def close(self) -> None:

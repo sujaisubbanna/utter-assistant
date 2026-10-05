@@ -140,3 +140,26 @@ migration are **planned, not implemented** (see `docs/COMPATIBILITY.md` §5).
 ## 14. New error code
 - `-32007` handle too large for inline fetch (use `fd.pass`).
 
+## 15. Cross-platform transport (additive; Windows P0)
+
+Framing, handshake and the default-deny invariant are unchanged. On platforms
+without `socket.AF_UNIX` / `asyncio.create_unix_server` (Windows) the runner
+listens on **loopback TCP** instead of a Unix socket:
+
+- **Listener** — `127.0.0.1:<kernel-assigned port>`. The port is published in an
+  atomic per-user endpoint JSON file (`{"host":"127.0.0.1","port":N}`), which
+  replaces the socket path for discovery. The Unix path is unaffected.
+- **Auth** — `runner.auth {token}` with a random per-user token stored in an
+  ACL-inherited per-user file. TCP is **default-deny** until auth succeeds;
+  `allow_same_uid` / `allow_binaries` never grant access there (no
+  `SO_PEERCRED`) and are rejected by config validation. Only the token satisfies
+  default-deny (`docs/TRUST.md` §5 is not weakened).
+- **No fd passing** — `SCM_RIGHTS` does not exist over TCP: `fd.pass` returns
+  `-32005`, `host.fd.pass@1` is not advertised, and plugins must use the `stdio`
+  transport (`connect`/`listen` are rejected).
+- **Permissions advisory** — no systemd-run/bwrap on Windows, so every plugin
+  permission is reported advisory (never enforced).
+- **Selection** — `UTTER_RUNNER_TRANSPORT=unix|tcp` (or `runner.socket_transport`)
+  overrides the platform default; the override exists so the TCP path is testable
+  on Linux.
+

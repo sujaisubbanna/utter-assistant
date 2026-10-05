@@ -181,9 +181,23 @@ def install_json_path() -> Path:
 
 
 def runner_sock_path() -> str:
-    return os.environ.get("UTTER_RUNNER_SOCK") or str(
-        xdg_runtime_dir() / "utter" / "runner.sock"
-    )
+    """Runner control endpoint: a Unix socket path, or the TCP endpoint JSON."""
+    override = os.environ.get("UTTER_RUNNER_SOCK")
+    if override:
+        return override
+    if _is_windows():
+        # No AF_UNIX/create_unix_server on Windows: the runner listens on
+        # loopback TCP and publishes {"host":"127.0.0.1","port":N} here.
+        return str(_windows_local_appdata() / "utter" / "runner.endpoint")
+    return str(xdg_runtime_dir() / "utter" / "runner.sock")
+
+
+def runner_token_path() -> str:
+    """Per-user runner token file (only meaningful on the TCP transport)."""
+    override = os.environ.get("UTTER_RUNNER_TOKEN")
+    if override:
+        return override
+    return str(xdg_state_home() / "utter" / "runner-token")
 
 
 # --------------------------------------------------------------------------- #
