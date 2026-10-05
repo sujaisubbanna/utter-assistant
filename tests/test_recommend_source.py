@@ -31,10 +31,12 @@ def _hw(vram: float, vendor: str = "nvidia") -> dict:
 
 
 class TestRecommendSources(unittest.TestCase):
-    def test_24gb_vision_tier_has_the_documented_source(self):
-        s = recommend.suggest(_hw(24.0))
-        self.assertEqual(s["vision"]["model"], "UI-TARS-7B")
-        self.assertEqual(s["vision"]["source"], "hf:ByteDance-Seed/UI-TARS-1.5-7B")
+    def test_vision_tiers_omit_unpullable_sources(self):
+        # UI-TARS repos are sharded safetensors and cannot be store-pulled, so
+        # no vision tier advertises a `source` (provision with install_inference.sh).
+        for vram in (24.0, 8.0):
+            with self.subTest(vram=vram):
+                self.assertNotIn("source", recommend.suggest(_hw(vram))["vision"])
 
     def test_whisper_cpp_tiers_are_pullable(self):
         cpu = recommend.suggest(_hw(0.0))
@@ -46,19 +48,20 @@ class TestRecommendSources(unittest.TestCase):
         # faster-whisper models are resolved by the backend, not the store.
         s = recommend.suggest(_hw(24.0))
         self.assertNotIn("source", s["decision_llm"])
-        # A 8 GB GPU suggests UI-TARS-2B, which has no documented single source.
+        # Sharded vision repos have no documented single-file source.
         self.assertNotIn("source", recommend.suggest(_hw(8.0))["vision"])
 
     def test_human_output_prints_the_install_command(self):
-        report = {"hardware": _hw(24.0), "suggestions": recommend.suggest(_hw(24.0))}
+        report = {"hardware": _hw(0.0), "suggestions": recommend.suggest(_hw(0.0))}
         text = recommend.human(report)
-        self.assertIn("assistant models pull hf:ByteDance-Seed/UI-TARS-1.5-7B", text)
+        self.assertIn("assistant models pull hf:ggerganov/whisper.cpp:ggml-base.en.bin", text)
+        # No dead vision pull is advertised.
+        self.assertNotIn("install_inference", text)
 
-    def test_json_report_carries_the_source(self):
+    def test_json_report_omits_the_vision_source(self):
         report = {"hardware": _hw(24.0), "suggestions": recommend.suggest(_hw(24.0))}
         decoded = json.loads(json.dumps(report))
-        self.assertEqual(decoded["suggestions"]["vision"]["source"],
-                         "hf:ByteDance-Seed/UI-TARS-1.5-7B")
+        self.assertNotIn("source", decoded["suggestions"]["vision"])
 
 
 if __name__ == "__main__":

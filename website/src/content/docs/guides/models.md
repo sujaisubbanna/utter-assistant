@@ -58,15 +58,18 @@ name `qwen3-4b`.
 | Less than 6 GB | none; accessibility only | |
 
 On the Models page, **Get it** pre-fills a ready-to-pull source for a recommendation when one is
-known (for UI-TARS-7B that is `hf:ByteDance-Seed/UI-TARS-1.5-7B`). `assistant recommend` prints
-the same `source` per tier, including in `--json`. Applying a recommendation also updates the
-matching config keys; for the decision model, match the name to what your server actually serves.
+known. The UI-TARS vision repos ship sharded safetensors (`model-0000N-of-0000M.safetensors` plus
+an index), so a single-file store pull cannot fetch them and `assistant recommend` omits `source`
+for the vision tier. Provision vision with `scripts/install_inference.sh` (it downloads the full
+repo directory) and serve it with `scripts/serve_vision.sh`. Applying a recommendation still
+updates the matching config keys; for the decision model, match the name to what your server
+actually serves.
 
 The installer offers the same tiers and, for each one you accept, pulls a **curated default
-source** — STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin` and vision
-`hf:ByteDance-Seed/UI-TARS-2B-SFT` on the 24 GB reference machine. `UTTER_MODEL_STT`,
-`UTTER_MODEL_VISION` and `UTTER_MODEL_DECISION` override them; the decision tier has no documented
-source and must be set explicitly.
+source** — STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin` on the 24 GB reference machine.
+`UTTER_MODEL_STT`, `UTTER_MODEL_VISION` and `UTTER_MODEL_DECISION` override them; the vision tier
+is sharded (use `scripts/install_inference.sh`) and the decision tier has no documented source and
+must be set explicitly.
 
 :::note[Smaller GPUs]
 Running well on 8 GB cards and CPU-only machines (smaller defaults, quantised builds, one GPU

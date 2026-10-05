@@ -18,7 +18,11 @@ export interface ModelNeed {
   model: string;
   /** Approximate download size in bytes, when known. */
   size?: number;
-  /** A source the model store can pull, when one exists. */
+  /**
+   * A source the model store can pull, when one exists. UI-TARS vision repos
+   * are sharded safetensors with no single-file pull, so this is undefined for
+   * them; callers must guard (see ModelRequired.tsx).
+   */
   source?: string;
   installed: boolean;
   /** False when the hardware probe failed and this is a safe fallback. */
@@ -29,8 +33,8 @@ const GB = 1e9;
 
 /** Used when `assistant recommend` can't be reached. */
 const FALLBACK: Record<ModelKind, { model: string; size?: number; source?: string }> = {
-  stt: { model: "distil-small.en", size: 166e6 },
-  vision: { model: "UI-TARS-7B", size: 8e9, source: PULL_SOURCES["UI-TARS-7B"] },
+  stt: { model: "ggml-small.en.bin", size: 466e6 },
+  vision: { model: "UI-TARS-7B", size: 8e9 },
 };
 
 const DEFAULT_STORE = "~/.local/share/utter-models";

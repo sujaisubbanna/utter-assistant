@@ -36,10 +36,13 @@ export function linkFor(id: string): string | undefined {
   return (LINKS as Record<string, string>)[id];
 }
 
-/** A ready-to-pull model source for recommendations the store can fetch. */
-export const PULL_SOURCES: Record<string, string> = {
-  "UI-TARS-7B": "hf:ByteDance-Seed/UI-TARS-1.5-7B",
-};
+/** A ready-to-pull model source for recommendations the store can fetch.
+ *
+ *  Keep this empty while every recommendation is un-pullable: the UI-TARS
+ *  vision repos are sharded safetensors, so a single-file pull fails at HEAD.
+ *  Vision models are provisioned with `scripts/install_inference.sh`; the UI
+ *  falls back to the "Get it" project link when a tier has no source here. */
+export const PULL_SOURCES: Record<string, string> = {};
 
 /** System tools reported by `doctor` — a project page, or a fix to copy. */
 export const DEP_HELP: Record<string, { url?: string; fix?: string }> = {

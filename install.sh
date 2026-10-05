@@ -1417,6 +1417,9 @@ GUI_BIN="$BIN_DIR/utter-gui"
 ASSISTANT_BIN="$BIN_DIR/assistant"
 DESKTOP_FILE="$APPS_DIR/utter-gui.desktop"
 RUNNER_UNIT="$UNIT_DIR/utter-runner.service"
+# The voice daemon (`python -m utter.daemon`) ships as a second user unit; the
+# runner supervises plugins, but does not start the daemon.
+DAEMON_UNIT="$UNIT_DIR/utter.service"
 NOCTALIA_PLUGINS="${NOCTALIA_PLUGINS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/noctalia/plugins}"
 NOCTALIA_DEST="$NOCTALIA_PLUGINS/utter"
 SYMLINK_PATH="$HOME/.local/bin/utter-gui"
@@ -1573,8 +1576,12 @@ found_core() {
 }
 
 found_units() {
-    if [[ -f "$RUNNER_UNIT" ]]; then
-        field_f "found:" "unit installed ({1})" "$RUNNER_UNIT"
+    if [[ -f "$RUNNER_UNIT" && -f "$DAEMON_UNIT" ]]; then
+        field "found:" "runner + voice daemon units installed"
+    elif [[ -f "$RUNNER_UNIT" ]]; then
+        field_f "found:" "runner unit installed ({1}); voice daemon unit missing" "$RUNNER_UNIT"
+    elif [[ -f "$DAEMON_UNIT" ]]; then
+        field_f "found:" "voice daemon unit installed ({1}); runner unit missing" "$DAEMON_UNIT"
     elif _systemd_user_ok; then
         field "found:" "systemd --user available, no unit yet"
     else
@@ -1709,10 +1716,10 @@ COMP_WHAT=(
     "Wayland/input/audio tools and libs (wtype, ydotool, grim, wl-clipboard, pipewire, webkit2gtk-4.1, libsoup-3.0)"
     "protocol + reference runner + assistant CLI + bundled plugins"
     "spoken language (STT/TTS) and optional per-language downloads"
-    "utter-runner.service user unit (+ optional enable & start)"
-    "recommended STT / decision-head / vision models (always the user's choice)"
+    "utter-runner.service + utter.service (voice daemon) user units (+ optional enable & start)"
+    "curated speech model (whisper.cpp) so voice works after install"
     "Tauri settings window (AppImage to \$PREFIX/bin, .desktop entry)"
-    "speech-to-text backend (faster-whisper or a whisper.cpp build)"
+    "speech-to-text: pywhispercpp bundled; whisper.cpp default (faster-whisper optional)"
     "vision grounding server deps (UI-TARS via vLLM / transformers)"
     "optional bar widget, attention panel and OSD for the Noctalia shell"
     "~/.config/utter/config.toml from the shipped default"
@@ -1722,7 +1729,7 @@ COMP_SIZE=(
     "~6 MB download"
     "English ships inline; downloads opt-in"
     "<10 KB"
-    "several GB per accepted tier"
+    "~466 MB (the speech model)"
     "release AppImage (tens of MB)"
     "varies (existing install or your own)"
     "varies (vLLM/transformers stack)"
@@ -2191,6 +2198,7 @@ do_uninstall() {
             sub "$ASSISTANT_BIN"
             sub "$DESKTOP_FILE"
             sub "$RUNNER_UNIT"
+            sub "$DAEMON_UNIT"
             sub "$SHARE_DIR"
             say ""
             say "Nothing removed. Re-run with --yes to remove them:"
@@ -2377,6 +2385,7 @@ do_uninstall_legacy() {
         [[ -f "$icon" ]] && run_f "remove {1}" "$icon" rm -f "$icon" || true
     done
     [[ -f "$RUNNER_UNIT" ]] && run_f "remove {1}" "$RUNNER_UNIT" rm -f "$RUNNER_UNIT" || note "no runner unit"
+    [[ -f "$DAEMON_UNIT" ]] && run_f "remove {1}" "$DAEMON_UNIT" rm -f "$DAEMON_UNIT" || note "no voice daemon unit"
     if [[ -d "$SHARE_DIR" ]]; then
         run_f "remove {1}" "$SHARE_DIR" rm -rf "$SHARE_DIR"
     else
@@ -2416,7 +2425,7 @@ compute_recommendations() {
     REC_BY_ID[core]=y
     REC_BY_ID[lang]=y
     REC_BY_ID[units]=y
-    REC_BY_ID[models]=n
+    REC_BY_ID[models]=y
     (( GUI_AVAILABLE )) && REC_BY_ID[gui]=y || REC_BY_ID[gui]=n
     REC_BY_ID[stt]=n
     REC_BY_ID[perception]=n
@@ -2467,48 +2476,29 @@ present_step() {
 }
 
 recommend_tiers() {
-    # echo lines: key|title|size|reason
-    local json=""
+    # echo one line: key|title|size|reason
+    #
+    # Only tiers with a store source are offered as downloads. Today that is
+    # just `stt`; the model is the curated whisper.cpp default (not necessarily
+    # the backend `assistant recommend` suggests), so the title/size reflect
+    # exactly what `exec_models` pulls. decision/vision have no store source and
+    # are announced as notes by the wizard instead.
+    local reason=""
     if [[ -x "$ASSISTANT_BIN" ]]; then
-        json="$("$ASSISTANT_BIN" recommend --json 2>/dev/null || true)"
+        reason="$("$ASSISTANT_BIN" recommend --json 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("suggestions",{}).get("stt",{}).get("reason",""))' 2>/dev/null || true)"
     elif [[ -d "$SHARE_DIR/assistant" ]] && command -v python3 >/dev/null 2>&1; then
-        json="$(cd "$SHARE_DIR" && python3 -m assistant recommend --json 2>/dev/null || true)"
+        reason="$(cd "$SHARE_DIR" && python3 -m assistant recommend --json 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("suggestions",{}).get("stt",{}).get("reason",""))' 2>/dev/null || true)"
     else
         local here; here="$(cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || echo "")"
         if [[ -n "$here" && -d "$here/assistant" ]] && command -v python3 >/dev/null 2>&1; then
-            json="$(cd "$here" && python3 -m assistant recommend --json 2>/dev/null || true)"
+            reason="$(cd "$here" && python3 -m assistant recommend --json 2>/dev/null \
+                | python3 -c 'import json,sys; print(json.load(sys.stdin).get("suggestions",{}).get("stt",{}).get("reason",""))' 2>/dev/null || true)"
         fi
     fi
-    if [[ -n "$json" ]] && command -v python3 >/dev/null 2>&1; then
-        if printf '%s' "$json" | python3 -c '
-import json, sys
-r = json.load(sys.stdin)
-s = r.get("suggestions", {})
-
-def size(d):
-    if d.get("est_vram_gb"):
-        return "~%d GB VRAM" % round(d["est_vram_gb"])
-    if d.get("est_ram_gb"):
-        return "~%d GB RAM" % round(d["est_ram_gb"])
-    return "size varies"
-
-stt = s.get("stt", {})
-stt_title = "%s / %s (%s)" % (stt.get("backend", "?"), stt.get("model", "?"), stt.get("device", "?"))
-print("stt", stt_title, size(stt), stt.get("reason", ""), sep="|")
-llm = s.get("decision_llm", {})
-llm_title = "%s %s" % (llm.get("model", "?"), llm.get("quant", ""))
-print("decision", llm_title, size(llm), llm.get("reason", ""), sep="|")
-vis = s.get("vision", {})
-print("vision", vis.get("model", "?"), size(vis), vis.get("reason", ""), sep="|")
-' 2>/dev/null; then
-            return 0
-        fi
-    fi
-    # Static fallback: core not installed yet, so describe the planned tiers.
-    printf '%s\n' \
-        "stt|STT|recommended whisper model (size varies)|see: assistant recommend" \
-        "decision|Decision head|7-8B (q4/awq), ~6 GB|follows your GPU" \
-        "vision|Vision|UI-TARS grounding, ~8 GB|follows your GPU"
+    [[ -n "$reason" ]] || reason="recommended for this machine"
+    printf 'stt|whisper.cpp / ggml-small.en.bin|~466 MB|%s\n' "$reason"
 }
 
 MODEL_TIER_KEYS=()
@@ -2518,12 +2508,16 @@ MODEL_TIER_SIZES=()
 # Curated default model sources, sized for the 24 GB reference machine (RTX
 # 3090 Ti; the shipped pair was measured on a 24 GB card):
 #   stt      ggml-small.en.bin (~466 MB) — English, runs on CPU or GPU
-#   vision   UI-TARS-2B-SFT (~4.5 GB bf16) — leaves room for the 4B AWQ planner
-# The 4-bit AWQ planner has no documented single Hugging Face source, so the
-# `decision` tier still needs UTTER_MODEL_DECISION (see docs/guides/models.md).
+# The vision tier (UI-TARS) is deliberately left without a store source: those
+# repos are sharded safetensors (model-0000N-of-0000M.safetensors + an index),
+# so a single-file `models pull` cannot fetch them. Provision vision with
+# scripts/install_inference.sh, which downloads the full repo directory, then
+# serve it with scripts/serve_vision.sh. Likewise the 4-bit AWQ planner has no
+# documented single Hugging Face source, so `decision` still needs
+# UTTER_MODEL_DECISION (see docs/guides/models.md).
 # Installs without a 24 GB NVIDIA GPU keep zero-model mode and pull nothing.
 DEFAULT_MODEL_STT="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
-DEFAULT_MODEL_VISION="hf:ByteDance-Seed/UI-TARS-2B-SFT"
+DEFAULT_MODEL_VISION=""
 
 # --------------------------------------------------------------------------- #
 # section: language (spoken STT/TTS; English ships inline)
@@ -2799,11 +2793,13 @@ wizard() {
             continue
         fi
 
-        # Models are handled per tier.
+        # Models: voice needs a speech model, so the STT tier is accepted by
+        # default. decision/vision have no store source and are never pulled.
         if [[ "$id" == "models" ]]; then
             if (( ASSUME_YES )); then
-                say "  default: no (recommended) — models are opt-in"
-                DECISION[i]="skip"
+                MODELS_YES="stt"
+                announce_default "y"
+                DECISION[i]="yes"
                 continue
             fi
             ui_rule
@@ -2820,12 +2816,15 @@ wizard() {
             done < <(recommend_tiers)
             local accepted=0 idx
             for idx in "${!MODEL_TIER_KEYS[@]}"; do
-                if ask_yn_f "n" "  Download the {1} model ({2})?" "${MODEL_TIER_TITLES[idx]}" "${MODEL_TIER_SIZES[idx]}"; then
+                if ask_yn_f "y" "  Download the {1} model ({2})?" "${MODEL_TIER_TITLES[idx]}" "${MODEL_TIER_SIZES[idx]}"; then
                     accepted=1
                     MODELS_YES="${MODELS_YES:+$MODELS_YES,}${MODEL_TIER_KEYS[idx]}"
                 fi
                 (( QUIT )) && return 1
             done
+            # Not store pulls; provisioned out of band. Inform, don't prompt.
+            note "decision head: no documented store source — set UTTER_MODEL_DECISION to a source you trust."
+            note "vision (UI-TARS): sharded safetensors, not store-pullable — provision with scripts/install_inference.sh."
             if (( accepted )); then DECISION[i]="yes"; else DECISION[i]="skip"; fi
             continue
         fi
@@ -2855,7 +2854,7 @@ fi
 
 # sub-questions (asked once, after the walk)
 if [[ "$(decision_of units)" == "yes" ]] && (( ! ASSUME_YES )); then
-    if ask_yn "n" "  Enable and start utter-runner.service now?"; then
+    if ask_yn "n" "  Enable and start utter-runner.service + utter.service now?"; then
         ENABLE_UNITS=1
     fi
     (( QUIT )) && { say "Quit before making any changes."; exit 0; }
@@ -2907,7 +2906,7 @@ for i in "${!COMP_IDS[@]}"; do
         fi
     fi
 done
-if (( ENABLE_UNITS )); then say_f "  units: enable + start utter-runner.service now"; fi
+if (( ENABLE_UNITS )); then say_f "  units: enable + start utter-runner.service + utter.service now"; fi
 if [[ -n "$LANG_CODE" ]]; then
     say_f "  language: {1} (English default otherwise)" "$LANG_CODE"
 else
@@ -2965,10 +2964,11 @@ exec_deps() {
 }
 
 # ensure_python_deps — make `python -m assistant` and the utter_py plugin
-# importable. The core needs PyYAML + requests; prefer an existing venv in the
-# core tree, create one if needed, else fall back to a --user install. Uses
-# python3 explicitly and never relies on a bare `python`. Sets ASSISTANT_PY to
-# the interpreter that should run the plugin.
+# importable. The core needs PyYAML + requests; the voice daemon also needs the
+# Linux voice runtime (numpy, evdev, sounddevice, pywhispercpp). Prefer an
+# existing venv in the core tree, create one if needed, else fall back to a
+# --user install. Uses python3 explicitly and never relies on a bare `python`.
+# Sets ASSISTANT_PY to the interpreter that should run the plugin.
 ASSISTANT_PY=""
 ensure_python_deps() {
     local py="" c
@@ -2979,7 +2979,7 @@ ensure_python_deps() {
     if [[ -z "$py" ]] && command -v python3 >/dev/null 2>&1; then py="$(command -v python3)"; fi
     [[ -n "$py" ]] || { warn "no python3 on PATH; cannot install assistant dependencies"; return 0; }
 
-    if "$py" -c 'import yaml, requests' >/dev/null 2>&1; then
+    if "$py" -c 'import yaml, requests, numpy, evdev, sounddevice, pywhispercpp' >/dev/null 2>&1; then
         say "  assistant Python dependencies already present"
         ASSISTANT_PY="$py"
         return 0
@@ -2989,7 +2989,7 @@ ensure_python_deps() {
     if (( DRY_RUN )); then
         ASSISTANT_PY="$venv/bin/python"
         run_f "create {1}" "$venv" python3 -m venv "$venv"
-        run "install PyYAML + requests" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests
+        run "install PyYAML + requests + Linux voice runtime" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp
         return 0
     fi
 
@@ -2997,17 +2997,17 @@ ensure_python_deps() {
         python3 -m venv "$venv" >/dev/null 2>&1 || true
     fi
     if [[ -x "$venv/bin/python" ]] \
-        && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
-        ok_f "installed PyYAML + requests into {1}" "$venv"
+        && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp >/dev/null 2>&1; then
+        ok_f "installed PyYAML + requests + Linux voice runtime into {1}" "$venv"
         ASSISTANT_PY="$venv/bin/python"
         return 0
     fi
-    if "$py" -m pip install --user --quiet --disable-pip-version-check PyYAML requests >/dev/null 2>&1; then
-        ok "installed PyYAML + requests for the user"
+    if "$py" -m pip install --user --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp >/dev/null 2>&1; then
+        ok "installed PyYAML + requests + Linux voice runtime for the user"
         ASSISTANT_PY="$py"
         return 0
     fi
-    warn "could not install PyYAML + requests; install them yourself: python3 -m pip install --user PyYAML requests"
+    warn "could not install voice dependencies; install them yourself: python3 -m pip install --user PyYAML requests numpy evdev sounddevice pywhispercpp"
     ASSISTANT_PY="$py"
     return 0
 }
@@ -3086,33 +3086,53 @@ WRAP
 
 exec_units() {
     section "install systemd user units"
-    local unit_src=""
-    if [[ -f "$SHARE_DIR/install/utter-runner.service" ]]; then
-        unit_src="$SHARE_DIR/install/utter-runner.service"
-    else
+    # The runner supervises plugins; the daemon (`python -m utter.daemon`) is a
+    # second unit that actually gives fresh installs voice. Prefer the installed
+    # core tree, else the extracted core context. If one unit is absent from the
+    # tarball the other still installs.
+    if [[ ! -f "$SHARE_DIR/install/utter-runner.service" || ! -f "$SHARE_DIR/systemd/utter.service" ]]; then
         ensure_core_context
-        unit_src="$CORE_CONTEXT/install/utter-runner.service"
     fi
-    if [[ -f "$unit_src" ]] || (( DRY_RUN )); then
+    local runner_src="$SHARE_DIR/install/utter-runner.service"
+    [[ -f "$runner_src" ]] || runner_src="$CORE_CONTEXT/install/utter-runner.service"
+    local daemon_src="$SHARE_DIR/systemd/utter.service"
+    [[ -f "$daemon_src" ]] || daemon_src="$CORE_CONTEXT/systemd/utter.service"
+
+    if [[ -f "$runner_src" ]] || [[ -f "$daemon_src" ]] || (( DRY_RUN )); then
         run_f "create {1}" "$UNIT_DIR" mkdir -p "$UNIT_DIR"
-        # The unit ships with @REPO@ placeholders; point them at the installed
+        # Both units ship with @REPO@ placeholders; point them at the installed
         # core tree, or systemd tries to run a literal "@REPO@" path.
-        install_unit() { sed "s|@REPO@|$SHARE_DIR|g" "$unit_src" > "$RUNNER_UNIT"; }
-        run "install utter-runner.service" install_unit
+        local names=() files=()
+        if [[ -f "$runner_src" ]] || (( DRY_RUN )); then
+            install_runner() { sed "s|@REPO@|$SHARE_DIR|g" "$runner_src" > "$RUNNER_UNIT"; }
+            run "install utter-runner.service" install_runner
+            names+=("utter-runner.service"); files+=("$RUNNER_UNIT")
+        else
+            warn "no runner unit found in the core tree; skipping utter-runner.service"
+        fi
+        if [[ -f "$daemon_src" ]] || (( DRY_RUN )); then
+            install_daemon() { sed "s|@REPO@|$SHARE_DIR|g" "$daemon_src" > "$DAEMON_UNIT"; }
+            run "install utter.service" install_daemon
+            names+=("utter.service"); files+=("$DAEMON_UNIT")
+        else
+            warn "no daemon unit found in the core tree; skipping utter.service"
+        fi
         if command -v systemctl >/dev/null 2>&1; then
             run "reload systemd user manager" systemctl --user daemon-reload || true
         fi
-        if (( ENABLE_UNITS )); then
-            run "enable + start the runner" systemctl --user enable --now utter-runner.service
-        else
-            note "enable later with: systemctl --user enable --now utter-runner.service"
+        if (( ${#names[@]} )); then
+            if (( ENABLE_UNITS )); then
+                run "enable + start the units" systemctl --user enable --now "${names[@]}"
+            else
+                note "enable later with: systemctl --user enable --now ${names[*]}"
+            fi
         fi
         reset_record
-        D_FILES=("$RUNNER_UNIT")
-        D_UNITS=("utter-runner.service")
-        record_component units "systemd user unit" "$VER_NUM" "systemd" 0 "$ASSISTANT_BIN"
+        D_FILES=("${files[@]}")
+        D_UNITS=("${names[@]}")
+        record_component units "systemd user units" "$VER_NUM" "systemd" 0 "$ASSISTANT_BIN"
     else
-        warn "no runner unit found in the core tree; skipping systemd wiring"
+        warn "no systemd units found in the core tree; skipping systemd wiring"
     fi
 }
 
@@ -3285,9 +3305,10 @@ DESKTOP
 exec_stt() {
     section "STT backend"
     found_stt
-    say "  To enable voice, install one of:"
-    say "    - python3 -m pip install --user faster-whisper (local whisper)"
-    say "    - a whisper.cpp build (whisper-cli) and set stt.backend = \"whisper_cpp\""
+    say "  Voice uses whisper.cpp by default; the installer bundles pywhispercpp and"
+    say "  the curated store model ggml-small.en.bin, so transcription works as-is."
+    say "  faster-whisper is an optional alternative: pip install it and set"
+    say "  stt.backend = \"faster_whisper\"."
     reset_record
     record_component stt "STT backend" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
 }

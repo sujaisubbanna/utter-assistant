@@ -144,7 +144,7 @@ summary with next steps.
 | `UTTER_PYTHON` | auto-detected | interpreter baked into the `assistant` wrapper |
 | `UTTER_MODEL_STT` | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | overrides the default source pulled if the speech tier is accepted (`hf:org/repo[:file]`, `https://...`, `file://...`) |
 | `UTTER_MODEL_DECISION` | unset | source to pull if the decision-head tier is accepted (no documented default) |
-| `UTTER_MODEL_VISION` | `hf:ByteDance-Seed/UI-TARS-2B-SFT` | overrides the default source pulled if the vision tier is accepted |
+| `UTTER_MODEL_VISION` | unset | source to pull if the vision tier is accepted; the UI-TARS repos are sharded, so provision vision with `scripts/install_inference.sh` |
 | `UTTER_MODEL_STT_<LANG>` | unset | per-language multilingual STT source offered by the language step (e.g. `UTTER_MODEL_STT_DE_DE`); falls back to `UTTER_MODEL_STT` |
 | `UTTER_MODEL_TTS`, `UTTER_MODEL_TTS_<LANG>` | unset | TTS voice model/path offered by the language step |
 | `UTTER_TTS_VOICE`, `UTTER_TTS_VOICE_<LANG>` | unset | voice written to `[tts] voice` for the chosen language (default: the language code) |

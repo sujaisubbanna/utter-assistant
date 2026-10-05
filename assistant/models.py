@@ -416,7 +416,17 @@ def _plan(src: Source, root: Path) -> None:
                 src.url, src.filename = url, candidate
                 break
     if size is None:
-        raise RuntimeError(f"could not resolve {src.url} (HEAD failed)")
+        # No single default file could be resolved. A repo whose weights are
+        # sharded (model-0000N-of-0000M.safetensors + an index) has no such
+        # file, so the single-file store cannot fetch it. Point at the real
+        # provisioner instead of a dead end; no extra network calls here.
+        raise RuntimeError(
+            f"could not resolve {src.url} (HEAD failed): no single default file. "
+            "A repo with sharded safetensors (model-0000N-of-0000M.safetensors + "
+            "model.safetensors.index.json) cannot be store-pulled; provision it "
+            "with scripts/install_inference.sh (vision), or pass an explicit "
+            "file as hf:org/repo:<file>."
+        )
     src.size, src.sha256 = size, sha
     free = shutil.disk_usage(root).free
     if size and free < size * 1.05:

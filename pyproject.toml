@@ -17,6 +17,14 @@ agent = [
 inference = [
     "vllm>=0.10",
 ]
+# Linux voice runtime (evdev push-to-talk, sounddevice capture, whisper.cpp).
+# install.sh installs these into the agent venv so a fresh install has voice.
+linux = [
+    "numpy>=1.26",
+    "evdev>=1.7",
+    "sounddevice>=0.4",
+    "pywhispercpp>=1.2",
+]
 # macOS voice + desktop glue (see docs/MACOS.md). Linux installs never need these.
 macos = [
     "numpy>=1.26",

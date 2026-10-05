@@ -61,6 +61,7 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/voice/test_locale.py || rc=1
 "$PY" tests/voice/test_stt_language.py || rc=1
 "$PY" tests/voice/test_stt_store.py || rc=1
+"$PY" tests/voice/test_audio_samplerate.py || rc=1
 "$PY" tests/voice/test_tts_linux.py || rc=1
 "$PY" tests/actions/test_open_url_browser.py || rc=1
 "$PY" tests/actions/test_profile_layers.py || rc=1
@@ -136,6 +137,9 @@ if [ -f tests/m5/test_installer_launcher.py ]; then
 fi
 if [ -f tests/m5/test_installer_models.py ]; then
     "$PY" tests/m5/test_installer_models.py || rc=1
+fi
+if [ -f tests/m5/test_installer_voice_service.py ]; then
+    "$PY" tests/m5/test_installer_voice_service.py || rc=1
 fi
 if [ -f tests/m5/test_serve_model_resolution.py ]; then
     "$PY" tests/m5/test_serve_model_resolution.py || rc=1

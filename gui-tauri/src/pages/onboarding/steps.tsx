@@ -837,7 +837,7 @@ export function ModelsStep({ data, commit, nav }: StepProps) {
   const sugg = recommendation?.suggestions;
   const hw = recommendation?.hardware;
   const gpu = Boolean(isMac || (hw?.gpus && hw.gpus.length > 0));
-  const recModel = String(sugg?.stt?.model || "distil-small.en");
+  const recModel = String(sugg?.stt?.model || "ggml-small.en.bin");
   const recBackend = normalizeSttBackend(String(sugg?.stt?.backend || "faster_whisper"));
   const visionModel = String(sugg?.vision?.model || "");
   const visionSource = visionModel && visionModel !== "none" ? PULL_SOURCES[visionModel] : undefined;

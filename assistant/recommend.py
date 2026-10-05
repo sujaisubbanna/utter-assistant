@@ -20,11 +20,12 @@ from . import util
 # pullable sources
 # --------------------------------------------------------------------------- #
 #: Ready-to-pull store sources for recommendation tiers. Only real, documented
-#: repos go here; a tier with no known Hugging Face source simply omits it (the
-#: settings app mirrors this in gui-tauri/src/lib/links.ts PULL_SOURCES).
-PULL_SOURCES = {
-    "UI-TARS-7B": "hf:ByteDance-Seed/UI-TARS-1.5-7B",
-}
+#: repos with a single default file go here; a tier with no known Hugging Face
+#: source simply omits it (the settings app mirrors this in
+#: gui-tauri/src/lib/links.ts PULL_SOURCES). The UI-TARS vision repos are
+#: sharded safetensors, so they cannot be store-pulled; provision them with
+#: scripts/install_inference.sh instead.
+PULL_SOURCES: dict[str, str] = {}
 
 #: whisper.cpp publishes the ggml checkpoints used by the CPU/Vulkan tiers.
 WHISPER_CPP_REPO = "hf:ggerganov/whisper.cpp"

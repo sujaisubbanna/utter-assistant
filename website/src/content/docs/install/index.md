@@ -144,8 +144,9 @@ Latency was measured on **NVIDIA RTX 3090 Ti (24 GB)** with the models above, **
 - The vision numbers include a synthetic 1344×756 image.
 
 The installer offers the model tiers and pulls a **curated default source** for each tier you
-accept (STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`, vision
-`hf:ByteDance-Seed/UI-TARS-2B-SFT`; the decision tier has no documented source). See
+accept (STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`; the decision tier has no documented
+source and the UI-TARS vision repos are sharded, so provision vision with
+`scripts/install_inference.sh`). See
 [Models](/guides/models/) for the recommendation rules and the model store.
 
 ## After installing

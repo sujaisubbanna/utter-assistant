@@ -118,10 +118,10 @@ $XDG_DATA_HOME/utter-models/      # override with UTTER_MODELS
 - `rm` drops the manifest and any now-unreferenced blobs; `prune` collects orphans.
 
 The installer offers model tiers and pulls a **curated default source** for the ones you accept
-(STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`, vision `hf:ByteDance-Seed/UI-TARS-2B-SFT`; the
-decision tier has no documented source). `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` /
-`UTTER_MODEL_DECISION` override them. `assistant recommend` suggests a profile for your GPU and
-RAM first. See the [Models guide](/guides/models/).
+(STT `hf:ggerganov/whisper.cpp:ggml-small.en.bin`; the decision tier has no documented source and
+the UI-TARS vision repos are sharded, so provision vision with `scripts/install_inference.sh`).
+`UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override them. `assistant
+recommend` suggests a profile for your GPU and RAM first. See the [Models guide](/guides/models/).
 
 ## Running the core from the checkout
 

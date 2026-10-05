@@ -83,6 +83,63 @@ def _pcm16_source(chunks, lock):
     return source
 
 
+def _open_input_stream(sd, cfg, callback) -> tuple[object, int]:
+    """Open an input stream at the best sample rate the device supports.
+
+    Prefers ``[audio] sample_rate`` but falls back to the device's own default
+    and then common rates. Some USB audio devices (e.g. the NanoKVMPro) accept
+    only 48000 Hz, so a fixed 16000 Hz request makes PortAudio raise
+    ``PaErrorCode -9997``. Before this helper that error killed the daemon.
+
+    Returns the open (but not started) ``InputStream`` plus the rate it uses.
+    """
+    device = cfg.audio.device or None
+    candidates = [int(cfg.audio.sample_rate)]
+    try:
+        info = (sd.query_devices(device) if device is not None
+                else sd.query_devices(kind="input"))
+        default_rate = int(info["default_samplerate"] or 0)
+    except Exception:  # noqa: BLE001 - no info just means fewer candidates
+        default_rate = 0
+    if default_rate:
+        candidates.append(default_rate)
+    candidates.extend([48000, 44100, 32000, 22050, 16000])
+
+    rates: list[int] = []
+    for rate in candidates:
+        if rate and rate not in rates:
+            rates.append(rate)
+
+    last_error: Optional[Exception] = None
+    for rate in rates:
+        try:
+            stream = sd.InputStream(samplerate=rate, channels=cfg.audio.channels,
+                                    dtype="float32", device=device, callback=callback)
+            return stream, rate
+        except Exception as exc:  # noqa: BLE001 - try the next rate
+            last_error = exc
+    raise RuntimeError(
+        f"could not open input device {device!r} at any of {rates}: {last_error}"
+    )
+
+
+def _resample_linear(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
+    """Linearly resample a 1-D float32 signal (numpy only).
+
+    Identity when the rates match or the input is empty. STT expects 16 kHz.
+    """
+    import numpy as np
+    arr = np.asarray(audio, dtype="float32").reshape(-1)
+    if arr.size == 0 or src_rate == dst_rate or src_rate <= 0 or dst_rate <= 0:
+        return arr
+    n_dst = int(round(arr.size * dst_rate / src_rate))
+    if n_dst <= 0:
+        return np.zeros(0, dtype="float32")
+    src_idx = np.linspace(0.0, float(arr.size - 1), arr.size, dtype="float64")
+    dst_idx = np.linspace(0.0, float(arr.size - 1), n_dst, dtype="float64")
+    return np.interp(dst_idx, src_idx, arr).astype("float32")
+
+
 def _model_service_reachable(cfg) -> bool:
     """True when the model server for this platform is actually up.
 
@@ -580,7 +637,7 @@ class Utter:
           like any other utterance (rules -> decision head -> actions).
         """
         from .voice import hotkey
-        from .voice.stt import Transcriber
+        from .voice.stt import Transcriber, SAMPLE_RATE as STT_SAMPLE_RATE
         import numpy as np
         import sounddevice as sd
 
@@ -588,7 +645,8 @@ class Utter:
 
         stt = Transcriber.for_platform(self.cfg)
         rec_lock = threading.Lock()
-        session: dict = {"stream": None, "chunks": [], "mode": None, "target": None}
+        session: dict = {"stream": None, "chunks": [], "mode": None, "target": None,
+                         "rate": 0}
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
@@ -612,10 +670,17 @@ class Utter:
                     with rec_lock:
                         session["chunks"].append(indata.copy())
                     osd.level(_rms(indata))
-                stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
-                                        channels=self.cfg.audio.channels, dtype="float32",
-                                        device=(self.cfg.audio.device or None), callback=cb)
+                try:
+                    stream, rate = _open_input_stream(sd, self.cfg, cb)
+                except Exception as exc:  # noqa: BLE001 - a bad device must not kill the daemon
+                    session["stream"] = None
+                    session["rate"] = 0
+                    log.error("PTT down (%s): cannot open audio input: %s", mode, exc)
+                    osd.idle()
+                    idle.end("listen")
+                    return
                 session["stream"] = stream
+                session["rate"] = rate
             idle.begin("listen")
             if sleeper.asleep:
                 sleeper.wake()
@@ -642,12 +707,14 @@ class Utter:
                 stream.stop(); stream.close()
                 data = (np.concatenate(session["chunks"]) if session["chunks"]
                         else np.zeros((0, 1), dtype="float32"))
+                rate = int(session.get("rate") or self.cfg.audio.sample_rate)
             try:
                 audio = data.reshape(-1).astype("float32")
-                if audio.size < self.cfg.audio.sample_rate * 0.2:
+                if audio.size < rate * 0.2:
                     log.info("too short, ignoring")
                     osd.idle()
                     return
+                audio = _resample_linear(audio, rate, STT_SAMPLE_RATE)
                 try:
                     text = stt.transcribe(audio)
                 except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
@@ -706,7 +773,7 @@ class Utter:
         import sounddevice as sd
 
         from .macos import hotkey as mac_hotkey
-        from .voice.stt import Transcriber
+        from .voice.stt import Transcriber, SAMPLE_RATE as STT_SAMPLE_RATE
 
         from . import sleep as _sleep
 
@@ -747,7 +814,8 @@ class Utter:
         log.info("macOS voice: stt chain=%s dictation=%s assistant=%s hotkeys=%s",
                  [stt.backend, *stt.fallbacks], mc.dictation_key, mc.assistant_key, mc.hotkey_backend)
         rec_lock = threading.Lock()
-        session: dict = {"stream": None, "chunks": [], "mode": None, "target": None}
+        session: dict = {"stream": None, "chunks": [], "mode": None, "target": None,
+                         "rate": 0}
         sleeper = _sleep.get(self.cfg)
         idle = _sleep.idle(self.cfg)
 
@@ -781,11 +849,20 @@ class Utter:
                     level = _rms(indata)
                     osd.level(level)
                     native.level(level)
-                stream = sd.InputStream(samplerate=self.cfg.audio.sample_rate,
-                                        channels=self.cfg.audio.channels, dtype="float32",
-                                        device=(self.cfg.audio.device or None), callback=cb)
+                try:
+                    stream, rate = _open_input_stream(sd, self.cfg, cb)
+                except Exception as exc:  # noqa: BLE001 - a bad device must not kill the daemon
+                    session["stream"] = None
+                    session["rate"] = 0
+                    log.error("PTT down (%s): cannot open audio input: %s", mode, exc)
+                    osd.idle()
+                    native.clear_loading()
+                    native.idle()
+                    idle.end("listen")
+                    return
                 stream.start()
                 session["stream"] = stream
+                session["rate"] = rate
             idle.begin("listen")
             if sleeper.asleep:
                 sleeper.wake()
@@ -803,13 +880,15 @@ class Utter:
                 session["stream"] = None
                 stream.stop(); stream.close()
                 data = np.concatenate(session["chunks"]) if session["chunks"] else np.zeros((0, 1), dtype="float32")
+                rate = int(session.get("rate") or self.cfg.audio.sample_rate)
             try:
                 audio = data.reshape(-1).astype("float32")
-                if audio.size < self.cfg.audio.sample_rate * 0.2:
+                if audio.size < rate * 0.2:
                     log.info("too short, ignoring")
                     osd.idle()
                     native.idle()
                     return
+                audio = _resample_linear(audio, rate, STT_SAMPLE_RATE)
                 try:
                     text = stt.transcribe(audio)
                 except Exception as e:  # noqa: BLE001

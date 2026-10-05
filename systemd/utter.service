@@ -6,8 +6,10 @@ PartOf=graphical-session.target
 [Service]
 Type=simple
 # @REPO@ = your checkout path (see docs/CUSTOMISING.md).
+# The wrapper discovers WAYLAND_DISPLAY / DBUS_SESSION_BUS_ADDRESS / NIRI_SOCKET
+# and XDG_RUNTIME_DIR, then execs `python -m utter.daemon` (same as the runner).
 WorkingDirectory=@REPO@
-ExecStart=@REPO@/.venv-agent/bin/python -m utter.daemon
+ExecStart=@REPO@/scripts/utter-daemon-ready.sh
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=2
