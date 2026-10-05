@@ -103,11 +103,16 @@ def capture() -> tuple[str, Rect]:
 
     Returns ``(png_path, logical_rect)`` for the focused output. On niri this is
     :func:`capture_niri` (``grim``, unchanged). On macOS the capture is delegated
-    to :mod:`utter.macos.screenshot` (``screencapture``). On any other compositor
+    to :mod:`utter.macos.screenshot` (``screencapture``). On Windows it is
+    delegated to :mod:`utter.win32.screenshot` (``mss``). On any other compositor
     the active backend's ``screenshot()`` is used (KWin: spectacle -> portal ->
     grim), which raises :class:`utter.context.compositor.CompositorUnsupported`
     when nothing works.
     """
+    if platform.is_windows():
+        from utter.win32 import screenshot as _win
+
+        return _win.capture()
     if platform.is_macos():
         from utter.macos import screenshot as _mac
 

@@ -3,6 +3,8 @@
 `launch_app` accepts either a desktop-entry id (e.g. "foot", "zen") or a raw
 argv string. Desktop entries are parsed from `Exec=` (field codes stripped) and
 spawned directly with `subprocess.Popen` list args. No shell is ever used.
+
+On Windows the call is delegated to :mod:`utter.win32.launch`.
 """
 from __future__ import annotations
 
@@ -105,6 +107,10 @@ def _spawn(argv: list[str]) -> tuple[bool, str]:
 
 def launch_app(app_id_or_argv) -> ActionResult:
     """Launch an app by desktop-entry id, or spawn a raw argv string / list."""
+    if platform.is_windows():
+        from utter.win32 import launch as _win
+
+        return _win.launch_app(app_id_or_argv)
     t0 = time.perf_counter()
     # Already-resolved argv (from a profile or the router): spawn directly.
     if isinstance(app_id_or_argv, (list, tuple)):
@@ -176,6 +182,10 @@ def open_url(url: str, browser_app_id: str | None = None) -> ActionResult:
     that browser so it lands as a tab in the window on screen. Otherwise the
     desktop's default handler decides (xdg-open).
     """
+    if platform.is_windows():
+        from utter.win32 import launch as _win
+
+        return _win.open_url(url, browser_app_id=browser_app_id)
     t0 = time.perf_counter()
     target = (url or "").strip()
     if not target:

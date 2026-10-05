@@ -9,7 +9,9 @@ Backends (selected by ``config.STTConfig.backend``):
 
 On macOS the ``[macos]`` section picks an ordered chain (primary + fallback),
 see :func:`select_backends`; a backend that fails to load hands over to the
-next one. On Linux the chain is exactly ``[stt.backend]`` as before.
+next one. On Linux the chain is exactly ``[stt.backend]`` as before. On Windows
+the chain is ``[[stt.backend] (default whisper_cpp), faster_whisper if the
+package is importable]``.
 
 Public API:
     transcribe(pcm: numpy.ndarray) -> str
@@ -237,6 +239,8 @@ def _pywhispercpp_cached_path(name: str) -> Optional[Path]:
 
 KNOWN_BACKENDS = ("whisper_cpp", "faster_whisper", "apple_speech", "vocamac", "none")
 MACOS_ONLY_BACKENDS = ("apple_speech", "vocamac")
+#: Backends that make sense on Windows (Speech.framework/VocaMac are macOS-only).
+WINDOWS_BACKENDS = ("whisper_cpp", "faster_whisper")
 
 # Where VocaMac installs its binary (Homebrew cask / drag-install).
 VOCAMAC_BINARIES = (
@@ -257,18 +261,45 @@ def _backend_available(name: str, *, has_module, which) -> bool:
     return name == "none"
 
 
+def _select_windows_backends(primary: str, *, has_module) -> list:
+    """Ordered Windows STT chain: ``[primary]`` plus an importable fallback.
+
+    Windows has no Apple Speech/VocaMac, so a configured macOS-only backend is
+    ignored in favour of whisper.cpp. ``faster_whisper`` is appended as a
+    fallback only when the package is importable; a load failure at runtime then
+    hands over to it (see :meth:`Transcriber._ensure_loaded`). ``none`` disables
+    transcription.
+    """
+    name = (primary or "whisper_cpp").strip().lower()
+    if name in ("none", "off", "false", "0"):
+        return ["none"]
+    if name not in WINDOWS_BACKENDS:
+        name = "whisper_cpp"
+    chain = [name]
+    if name != "faster_whisper" and has_module("faster_whisper"):
+        chain.append("faster_whisper")
+    return chain
+
+
 def select_backends(platform_name: str, stt_cfg=None, macos_cfg=None, *,
                     has_module=None, which=None) -> list:
     """Ordered STT backend chain for this platform (pure; unit-tested).
 
-    * Linux (and anything that is not Darwin): ``[stt.backend]`` exactly, so
-      behaviour is unchanged.
+    * Linux (and anything that is not Darwin/Windows): ``[stt.backend]`` exactly,
+      so behaviour is unchanged.
+    * Windows: ``[stt.backend]`` (default ``whisper_cpp``) with
+      ``faster_whisper`` appended when importable.
     * macOS: ``[macos.stt_backend, macos.stt_fallback]`` with duplicates and
       ``none`` removed. Backends whose runtime is missing are moved behind the
       ones that are present; if nothing is importable the configured order is
       returned unchanged so the error message names the configured backend.
     """
     primary = getattr(stt_cfg, "backend", "whisper_cpp") or "whisper_cpp"
+    if platform_name == "windows":
+        if has_module is None:
+            from utter import platform as _plat
+            has_module = _plat.has_module
+        return _select_windows_backends(primary, has_module=has_module)
     if platform_name != "darwin" or macos_cfg is None:
         return [primary]
     if has_module is None or which is None:

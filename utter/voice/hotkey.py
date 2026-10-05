@@ -17,6 +17,8 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
+from .. import platform
+
 logger = logging.getLogger(__name__)
 
 try:  # keep the module importable on machines without evdev / non-Linux
@@ -301,6 +303,10 @@ def listen(
         grab: do NOT enable unless you want to steal the key from the desktop.
             Defaults to False; even when True the device is ungrabbed on exit.
     """
+    if platform.is_windows():
+        from ..win32 import hotkey as win_hotkey
+
+        return win_hotkey.listen(on_press, on_release, key_name, stop_event=stop_event)
     if evdev is None:
         raise RuntimeError("python-evdev is not installed; cannot listen for hotkeys")
     key_code = resolve_keycode(key_name)
@@ -331,6 +337,10 @@ def listen_many(
     Raises ``ValueError`` for an empty map, an empty key name or an unknown key
     name, so a bad config fails fast instead of silently watching nothing.
     """
+    if platform.is_windows():
+        from ..win32 import hotkey as win_hotkey
+
+        return win_hotkey.listen_many(keys, stop_event=stop_event)
     if evdev is None:
         raise RuntimeError("python-evdev is not installed; cannot listen for hotkeys")
     if not keys:

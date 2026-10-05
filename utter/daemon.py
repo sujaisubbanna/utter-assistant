@@ -952,6 +952,186 @@ class Utter:
         idle.start()
         mac_hotkey.listen_many(keys, backend=mc.hotkey_backend)
 
+    def run_windows(self) -> None:
+        """Windows voice loop: push-to-talk keys and the portable STT chain.
+
+        * ``[ptt] dictation_key`` -> the transcript is typed into the pinned
+          target (Unicode ``SendInput`` injection).
+        * ``[ptt] assistant_key`` / ``[hotkey] key`` -> the transcript is routed
+          like any other utterance (rules -> decision head -> actions).
+
+        There is no native Windows overlay, so this mirrors the Linux
+        :meth:`run_hotkey` loop: capture is the portable ``sounddevice`` stream
+        and transcription uses the platform's ``Transcriber``. The key listener
+        is :mod:`utter.voice.hotkey`, which delegates to the Win32 low-level
+        hook on Windows.
+        """
+        import numpy as np
+        import sounddevice as sd
+
+        from .voice import hotkey
+        from .voice.stt import Transcriber, SAMPLE_RATE as STT_SAMPLE_RATE
+
+        from . import sleep as _sleep
+
+        stt = Transcriber.for_platform(self.cfg)
+        log.info("Windows voice: stt chain=%s dictation=%s assistant=%s legacy=%s",
+                 [stt.backend, *stt.fallbacks], self.cfg.ptt.dictation_key,
+                 self.cfg.ptt.assistant_key, self.cfg.hotkey.key)
+        rec_lock = threading.Lock()
+        # Serializes the listener's final transcribe with any OSD window decode
+        # so the single STT model is never run concurrently from two threads.
+        transcribe_lock = threading.Lock()
+        session: dict = {"stream": None, "chunks": [], "mode": None, "target": None,
+                         "rate": 0, "watchdog": None}
+        sleeper = _sleep.get(self.cfg)
+        idle = _sleep.idle(self.cfg)
+
+        # Additive OSD (waveform + listening/final), same as the Linux lane.
+        osd = _Osd(self.cfg, audio_source=_pcm16_source(session["chunks"], rec_lock),
+                   transcriber=stt, transcribe_lock=transcribe_lock)
+        osd.begin_loading()
+        osd.watch_sleep(sleeper)
+
+        def _watchdog_fire(mode: str) -> None:
+            log.warning("PTT (%s) still down after %.0fs with no key-up; forcing stop",
+                        mode, _PTT_MAX_HOLD_S)
+            try:
+                stop(mode)
+            except Exception:  # noqa: BLE001 - the safety net must never kill the daemon
+                log.exception("PTT watchdog stop failed")
+
+        def _arm_watchdog(mode: str) -> None:
+            timer = threading.Timer(_PTT_MAX_HOLD_S, _watchdog_fire, args=(mode,))
+            timer.daemon = True
+            with rec_lock:
+                old = session.get("watchdog")
+                if old is not None:
+                    old.cancel()
+                session["watchdog"] = timer
+            timer.start()
+
+        def _disarm_watchdog_locked() -> None:
+            timer = session.get("watchdog")
+            session["watchdog"] = None
+            if timer is not None:
+                timer.cancel()
+
+        def start(mode: str) -> None:
+            with rec_lock:
+                if session["stream"] is not None:
+                    return
+                # Pin the dictation target at key-down: focus may move mid-speech.
+                session["chunks"].clear()
+                session["mode"] = mode
+                session["target"] = (_capture_dictation_target()
+                                     if mode == "dictation" else None)
+
+                def cb(indata, frames, t, status):
+                    with rec_lock:
+                        session["chunks"].append(indata.copy())
+                    osd.level(_rms(indata))
+                try:
+                    stream, rate = _open_input_stream(sd, self.cfg, cb)
+                except Exception as exc:  # noqa: BLE001 - a bad device must not kill the daemon
+                    session["stream"] = None
+                    session["rate"] = 0
+                    log.error("PTT down (%s): cannot open audio input: %s", mode, exc)
+                    osd.idle()
+                    idle.end("listen")
+                    return
+                session["stream"] = stream
+                session["rate"] = rate
+            idle.begin("listen")
+            if sleeper.asleep:
+                sleeper.wake()
+                _play("wake")
+            _play("dictate" if mode == "dictation" else "start")
+            osd.listening("dictation" if mode == "dictation" else "assistant")
+            log.info("PTT down (%s) - listening", mode)
+            # Start outside the lock: the first callback may fire synchronously.
+            stream.start()
+            _arm_watchdog(mode)
+
+        def stop(mode: str) -> None:
+            with rec_lock:
+                stream = session["stream"]
+                if stream is None or session["mode"] != mode:
+                    return
+                session["stream"] = None
+                _disarm_watchdog_locked()
+                rate = int(session.get("rate") or self.cfg.audio.sample_rate)
+            # Stop/close outside rec_lock: PortAudio waits for the in-flight
+            # callback, which needs rec_lock (same deadlock as the Linux lane).
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:  # noqa: BLE001 - best-effort teardown
+                log.debug("stream teardown failed", exc_info=True)
+            with rec_lock:
+                data = (np.concatenate(session["chunks"]) if session["chunks"]
+                        else np.zeros((0, 1), dtype="float32"))
+            try:
+                audio = data.reshape(-1).astype("float32")
+                if audio.size < rate * 0.2:
+                    log.info("too short, ignoring")
+                    osd.idle()
+                    return
+                audio = _resample_linear(audio, rate, STT_SAMPLE_RATE)
+                try:
+                    with transcribe_lock:
+                        text = stt.transcribe(audio)
+                except Exception as exc:  # noqa: BLE001 - never kill the PTT loop
+                    log.error("transcription failed: %s", exc)
+                    osd.idle()
+                    return
+                log.info("transcript (%s): %r", mode, text)
+                if not text:
+                    osd.idle()
+                    return
+                if mode == "dictation":
+                    res = _deliver_dictation(text, session.get("target"), self.cfg)
+                    if res.ok:
+                        _play("typed")
+                        osd.final(text, True)
+                    else:
+                        # Never fail silently: keep the clipboard copy as a
+                        # safety net and park the transcript so the user can
+                        # pick a target.
+                        copied = _copy_to_clipboard(text)
+                        try:
+                            write_pending(text, res.detail)
+                        except Exception:  # noqa: BLE001 - pending must not break voice
+                            log.debug("dictation pending write failed", exc_info=True)
+                        _play("not_detected")
+                        message = _DICTATION_FALLBACK if copied else _DICTATION_FALLBACK_NOCLIP
+                        log.warning("dictation not delivered (%s); clipboard=%s",
+                                    res.detail, copied)
+                        osd.final(message, False)
+                    return
+                try:
+                    ok = self.handle_utterance(text)
+                except Exception:  # noqa: BLE001 - a bad utterance must not kill the daemon
+                    log.exception("handle_utterance failed; ignoring %r", text)
+                    osd.idle()
+                    return
+                _play("detected" if ok else "not_detected")
+                osd.final(text, bool(ok))
+            finally:
+                idle.end("listen")
+
+        # Same key config as Linux: [ptt] dictation/assistant plus the legacy
+        # [hotkey] key, resolved to VK codes by utter.win32.hotkey.
+        keys = _linux_ptt_keys(self.cfg, start, stop)
+        if not keys:
+            log.warning("no PTT keys configured ([ptt]/[hotkey]); voice lane idle")
+            return
+        idle.start()
+        try:
+            hotkey.listen_many(keys)
+        except ValueError as exc:  # bad key name: log, do not kill the daemon
+            log.error("invalid PTT key configuration: %s", exc)
+
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(prog="utter")
@@ -999,7 +1179,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0 if ok else 1
 
     from . import platform
-    if platform.is_macos():
+    if platform.is_windows():
+        app.run_windows()
+    elif platform.is_macos():
         app.run_macos()
     else:
         app.run_hotkey()

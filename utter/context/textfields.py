@@ -7,8 +7,9 @@ This module answers two questions without any UI:
 
 It is the only place that turns a platform accessibility tree into
 :class:`~utter.types.TextFieldCandidate` values. Linux uses AT-SPI
-(:mod:`utter.context.atspi`); macOS uses a bounded AX walk
-(:mod:`utter.macos.axtree`). Both degrade to an empty list and say *why* through
+(:mod:`utter.context.atspi`), macOS a bounded AX walk
+(:mod:`utter.macos.axtree`) and Windows a bounded UI Automation walk
+(:mod:`utter.win32.axtree`). All degrade to an empty list and say *why* through
 :func:`detection_status`.
 
 Design rules (the des-2 field-picker spec):
@@ -288,6 +289,55 @@ def _macos_probe(app_id, include_windows: bool, deadline: float) -> ProbeResult:
     return ProbeResult(candidates, True, "ok" if candidates else "no-text-fields")
 
 
+# --- Windows / UI Automation -------------------------------------------------
+
+def _winaxtree():
+    """Import seam for :mod:`utter.win32.axtree` (tests replace this)."""
+    from utter.win32 import axtree
+    return axtree
+
+
+def _windows_probe(app_id, include_windows: bool, deadline: float) -> ProbeResult:
+    axtree = _winaxtree()
+    ok, reason = axtree.available()
+    if not ok:
+        return ProbeResult([], False, reason)
+
+    focused = _focused_window_snapshot()
+    primary_app = app_id or (getattr(focused, "app_id", "") if focused else "")
+    tree = axtree.dump_tree(primary_app or None, max_nodes=_MAX_NODES_PER_TREE,
+                            timeout_s=max(0.05, _remaining(deadline)))
+    if tree is None:
+        return ProbeResult([], True, "no-a11y-tree")
+
+    roots: list[tuple[bool, UIElement, str]] = [(True, tree, primary_app or tree.app_id)]
+    if include_windows:
+        for other in _other_app_ids(focused, primary_app):
+            if _remaining(deadline) <= 0:
+                break
+            other_tree = axtree.dump_tree(other, max_nodes=_MAX_NODES_PER_TREE,
+                                          timeout_s=max(0.05, _remaining(deadline)))
+            if other_tree is not None:
+                roots.append((False, other_tree, other))
+
+    pid = int(getattr(focused, "pid", 0) or 0)
+    wid = int(getattr(focused, "window_id", 0) or 0)
+    if app_id and focused is not None and app_id != getattr(focused, "app_id", ""):
+        pid = wid = 0
+
+    entries: list[tuple[int, int, TextFieldCandidate]] = []
+    seq = 0
+    for primary, root, app in roots:
+        collected, seq = _collect(
+            root, primary=primary, app_id=app, app_name=app,
+            pid=pid if primary else 0, window_id=wid if primary else 0,
+            seq_start=seq)
+        entries.extend(collected)
+
+    candidates = _rank(entries)[:MAX_CANDIDATES]
+    return ProbeResult(candidates, True, "ok" if candidates else "no-text-fields")
+
+
 # --- public API -------------------------------------------------------------
 
 def probe(app_id=None, *, include_windows: bool = True,
@@ -297,6 +347,8 @@ def probe(app_id=None, *, include_windows: bool = True,
     try:
         if platform.is_macos():
             return _macos_probe(app_id, include_windows, deadline)
+        if platform.is_windows():
+            return _windows_probe(app_id, include_windows, deadline)
         return _linux_probe(app_id, include_windows, deadline)
     except Exception:  # noqa: BLE001 - a probe failure is an empty result
         return ProbeResult([], False, "error")
@@ -345,6 +397,9 @@ def detection_status(*, deadline_s: float = DEFAULT_DEADLINE_S) -> dict:
     * ``electron-ax-disabled`` — macOS Chromium app exposes no AX tree even
       after :func:`AXManualAccessibility` was requested.
     * ``no-ax-tree`` — macOS app has no focused window/element.
+    * ``win-unavailable`` — Windows backend used off Windows.
+    * ``uiautomation-unavailable`` — Windows without the optional UI Automation
+      package.
     * ``error`` — the probe raised and was swallowed.
     """
     try:

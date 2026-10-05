@@ -9,6 +9,8 @@ Backend selection (:func:`backend_for`, pure and unit-tested):
   **spd-say**. ``[tts] engine`` may force one or ``none``; ``[tts] language``
   follows the STT rules (``auto`` = system locale) and derives a default
   voice when ``[tts] voice`` is empty.
+* **Windows** — :mod:`utter.win32.tts` (SAPI / ``pyttsx3``). ``[tts] engine``
+  may force ``sapi``/``pyttsx3`` or ``none``; the default is ``sapi``.
 * Anything else — no backend.
 
 Everything shells out with argv lists (never ``shell=True``), spawns instead
@@ -32,6 +34,9 @@ logger = logging.getLogger(__name__)
 
 #: Linux engine preference order used by ``engine = "auto"``.
 LINUX_ENGINES = ("piper", "espeak-ng", "espeak", "spd-say")
+
+#: Windows engines the ``[tts] engine`` setting may force (default ``sapi``).
+WINDOWS_ENGINES = ("sapi", "pyttsx3")
 
 #: Raw players piper can stream into, best first (PipeWire, then PulseAudio, then ALSA).
 _PIPER_PLAYERS = ("pw-play", "paplay", "aplay")
@@ -73,14 +78,33 @@ def select_engine(engine: str = "auto", *, which=None, piper_model: Optional[str
     return "none"
 
 
+def select_windows_engine(tts_cfg=None) -> str:
+    """Pick a Windows TTS engine (pure; unit-tested).
+
+    ``[tts] engine`` may be ``"auto"``/empty (SAPI), ``"none"`` (or
+    off/false/0) or an explicit ``sapi``/``pyttsx3``. An unknown engine falls
+    back to SAPI rather than disabling speech.
+    """
+    want = (getattr(tts_cfg, "engine", "auto") if tts_cfg is not None else "auto") or "auto"
+    want = str(want).strip().lower()
+    if want in ("none", "off", "false", "0"):
+        return "none"
+    if want in WINDOWS_ENGINES:
+        return want
+    return "sapi"
+
+
 def backend_for(platform_name: str, macos_cfg=None, *, tts_cfg=None, which=None) -> str:
     """Name of the TTS backend used on ``platform_name`` (pure; unit-tested).
 
     macOS keeps its historical shape (``[macos] tts_backend``); Linux probes
-    the local engines, preferring piper when a voice model resolves.
+    the local engines, preferring piper when a voice model resolves; Windows
+    selects SAPI/``pyttsx3`` from ``[tts] engine``.
     """
     if platform_name == platform.MACOS:
         return (getattr(macos_cfg, "tts_backend", "say") or "say").strip().lower()
+    if platform_name == platform.WINDOWS:
+        return select_windows_engine(tts_cfg)
     if platform_name != platform.LINUX:
         return "none"
     engine = getattr(tts_cfg, "engine", "auto") if tts_cfg is not None else "auto"
@@ -338,6 +362,26 @@ def _speak_linux(text: str, tts_cfg=None) -> bool:
         return False
 
 
+def _speak_windows(text: str, tts_cfg=None) -> bool:
+    """Speak on Windows via :mod:`utter.win32.tts`. Never raises."""
+    if tts_cfg is not None and not bool(getattr(tts_cfg, "enabled", True)):
+        logger.debug("tts: spoken replies disabled by [tts] enabled=false")
+        return False
+    engine = select_windows_engine(tts_cfg)
+    if engine == "none":
+        logger.warning("tts: spoken replies disabled on Windows")
+        return False
+    voice = str(getattr(tts_cfg, "voice", "") or "") if tts_cfg is not None else ""
+    rate = int(getattr(tts_cfg, "rate", 0) or 0) if tts_cfg is not None else 0
+    try:
+        from utter.win32 import tts as _tts
+
+        return _tts.speak(text, backend=engine, voice=voice, rate=rate)
+    except Exception as exc:  # noqa: BLE001 - TTS must never break voice
+        logger.warning("tts: Windows engine %r failed: %s", engine, exc)
+        return False
+
+
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
@@ -362,11 +406,14 @@ def speak(text: str, cfg=None) -> bool:
             return False
     if platform.is_linux():
         return _speak_linux(text, getattr(cfg, "tts", None))
+    if platform.is_windows():
+        return _speak_windows(text, getattr(cfg, "tts", None))
     return False
 
 
 __all__ = [
     "LINUX_ENGINES",
+    "WINDOWS_ENGINES",
     "backend_for",
     "espeak_argv",
     "espeak_voice_for",
@@ -375,6 +422,7 @@ __all__ = [
     "player_argv",
     "resolve_piper_model",
     "select_engine",
+    "select_windows_engine",
     "speak",
     "spd_say_argv",
     "stop",

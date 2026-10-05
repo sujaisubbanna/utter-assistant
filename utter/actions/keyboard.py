@@ -174,6 +174,10 @@ def send_key(chord: str, *, pid: int | None = None) -> ActionResult:
         from utter.macos import inject
 
         return inject.send_key(chord, backend=_macos_backend(), pid=pid)
+    if platform.is_windows():
+        from utter.win32 import inject
+
+        return inject.send_key(chord, pid=pid)
     t0 = time.perf_counter()
     spec = (chord or "").strip()
     if not spec:
@@ -235,6 +239,10 @@ def type_text(text: str, *, pid: int | None = None) -> ActionResult:
         from utter.macos import inject
 
         return inject.type_text(text, backend=_macos_backend(), pid=pid)
+    if platform.is_windows():
+        from utter.win32 import inject
+
+        return inject.type_text(text, pid=pid)
     t0 = time.perf_counter()
     if text is None:
         text = ""

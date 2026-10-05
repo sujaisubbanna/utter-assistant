@@ -1,4 +1,7 @@
-"""Clipboard read via wl-clipboard (`wl-paste`); `pbpaste` on macOS."""
+"""Clipboard read via wl-clipboard (`wl-paste`); `pbpaste` on macOS.
+
+On Windows the read/write is delegated to :mod:`utter.win32.clipboard`.
+"""
 from __future__ import annotations
 
 import subprocess
@@ -103,6 +106,10 @@ def get_clipboard() -> str:
     Never raises; a non-text selection simply yields "". On KDE Plasma klipper
     is asked first (``org.kde.klipper``), wl-paste is the fallback.
     """
+    if platform.is_windows():
+        from utter.win32 import clipboard as _win
+
+        return _win.get_clipboard()
     commands = _COMMANDS if _COMMANDS is not _LINUX_DEFAULT else commands_for(platform.name())
     if commands is _LINUX_DEFAULT and _on_kwin():
         return _get_clipboard_kwin()
@@ -127,6 +134,10 @@ _LINUX_DEFAULT = _COMMANDS  # tests replace _COMMANDS directly; honour that
 
 def set_clipboard(text: str) -> bool:
     """Copy ``text`` to the Wayland clipboard via ``wl-copy``. Never raises."""
+    if platform.is_windows():
+        from utter.win32 import clipboard as _win
+
+        return _win.set_clipboard(text)
     try:
         proc = subprocess.run(["wl-copy"], input=text or "", text=True, timeout=_TIMEOUT)
     except (OSError, subprocess.SubprocessError, ValueError):
