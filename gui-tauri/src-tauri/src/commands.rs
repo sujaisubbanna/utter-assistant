@@ -1252,6 +1252,25 @@ fn timestamp() -> String {
     )
 }
 
+/// Pick the interpreter the support bundle should shell out with.
+///
+/// On a fresh install the GUI's `python` setting can be empty; `Cmd::new("")`
+/// then fails to spawn and doctor/status were written as `(failed: ...)`.
+/// Fall back to the repo's venv interpreters, then to `python3` on `PATH`.
+fn resolve_python(configured: &str, repo: &Path) -> String {
+    let configured = configured.trim();
+    if !configured.is_empty() && Path::new(configured).exists() {
+        return configured.to_string();
+    }
+    for candidate in [".venv-agent/bin/python", ".venv/bin/python"] {
+        let path = repo.join(candidate);
+        if path.exists() {
+            return path.to_string_lossy().into_owned();
+        }
+    }
+    "python3".to_string()
+}
+
 fn default_bundle_path() -> PathBuf {
     let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("."));
     let downloads = home.join("Downloads");
@@ -1270,8 +1289,8 @@ pub async fn export_bundle(
     state: State<'_, AppState>,
     dest: Option<String>,
 ) -> Result<BundleResult, String> {
-    let python = state.python();
     let repo = state.repo();
+    let python = resolve_python(&state.python(), &repo);
     let config_text = config::read_text(&state);
     let target = dest
         .filter(|value| !value.trim().is_empty())
