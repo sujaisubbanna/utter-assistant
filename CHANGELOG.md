@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-10-05
+
+### Fixed
+- **Voice commands no longer crash the daemon.** A free-form command reached the
+  LLM planner with a `RouterConfig`, but `resolve_router`/`resolve_vision` only
+  recognised that type on macOS and raised `AttributeError` on Linux, which the
+  daemon re-raised and died. The resolvers now accept it on every platform, and
+  a routing/executor error ends that one utterance instead of the service.
+
 ## [0.4.5] - 2026-10-05
 
 ### Fixed
