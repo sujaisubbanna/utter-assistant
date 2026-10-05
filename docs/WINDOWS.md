@@ -1,8 +1,10 @@
-# Native Windows support — plan
+# Native Windows support
 
-Status: **not yet supported** (Linux + macOS today). This documents the
-grounded plan and the first landed groundwork. Windows is an explicit non-goal
-in `README.md` and `docs/TRUST.md`; this file tracks the path to change that.
+Status: **P1 landed — opt-in / experimental.** The native `utter/win32/**`
+backends, the portable runner transport and a PowerShell bootstrap installer
+(`install.ps1`) are in place; the settings GUI ships as an (unsigned) NSIS/MSI
+bundle built on `windows-latest`. Windows is still an explicit non-goal in
+`README.md` and `docs/TRUST.md`; this file tracks the path to change that.
 
 ## Shape
 
@@ -22,6 +24,101 @@ plus a native runner transport and an NSIS/MSI installer.
 - `assistant/util.py`: `%LOCALAPPDATA%\utter` / `%APPDATA%\utter` paths.
 - `assistant/doctor.py`: platform-specific runner start hint.
 - `tests/platform/test_windows_detection.py`.
+- `utter/win32/**`: desktop context, clipboard, launch, inject, pointer, hotkey,
+  STT/TTS and screenshot backends, all behind `utter/platform.py`.
+- **DPI-aware capture** (P2 item, landed early): `utter/win32/dpi.py` makes the
+  process per-monitor DPI-aware (see below).
+
+## Installer (`install.ps1`)
+
+A PowerShell 5.1+ bootstrap installer, the Windows analogue of `install.sh`.
+It is warning-free on a stock Windows 10 1803+ (which ships `tar.exe`).
+
+```powershell
+# latest release
+irm https://utter.sujaisubbanna.com/install.ps1 | iex
+
+# or, from a checkout / download
+powershell -ExecutionPolicy Bypass -File install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File install.ps1 -Version v0.4.13
+powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall
+powershell -ExecutionPolicy Bypass -File install.ps1 -SkipGui
+```
+
+What it does, in order:
+
+1. **Resolve the release** — `api.github.com/repos/<repo>/releases/latest`
+   (authenticated with `GITHUB_TOKEN`/`GH_TOKEN` when set), falling back to the
+   `releases/latest` HTML redirect (`MaximumRedirection 0` + `Location`) so a
+   rate-limited API never blocks an install. `-Version` pins a tag; both
+   `0.4.13` and `v0.4.13` are accepted.
+2. **Core** — download `utter-core-<ver>.tar.gz` + `sha256sums.txt`, verify the
+   sha256, and merge-extract into `%LOCALAPPDATA%\utter`
+   (`$env:UTTER_PREFIX` overrides; `-Prefix` also works). The merge keeps the
+   runner endpoint/token files that live beside the core.
+3. **Agent venv** — `<core>\.venv-agent` from `py -3.12` (else `py -3`, else
+   `python`), then CPU-first runtime deps: `PyYAML requests numpy sounddevice
+   pywin32 uiautomation comtypes mss`. `pywhispercpp` / `faster-whisper` are
+   optional; GPU STT additionally needs CUDA 12 + cuDNN.
+4. **Scheduled Tasks** — per-user `utter-runner` and `utter.service`, created
+   `ONLOGON` with `schtasks /Create ... /F` and enabled with `/Change /ENABLE`
+   (see below).
+5. **Config** — `%APPDATA%\utter\config.toml` from the shipped
+   `config.default.toml`, only when absent (default STT `whisper_cpp` /
+   `ggml-small.en.bin`).
+6. **Settings GUI** — the release's Tauri Windows installer, matched flexibly
+   from the release assets (`*-setup.exe` or `*.msi`; product name `utter`):
+   NSIS runs with `/S`, MSI with `msiexec /i <file> /qn /norestart`. Verified
+   against `sha256sums-windows-x64.txt` when present. `-SkipGui` skips it; when
+   no installer exists it warns and continues.
+
+`-DryRun` prints every download, extraction and command and changes nothing.
+`-Uninstall` deletes the two Scheduled Tasks and the core tree, and keeps the
+config.
+
+### Scheduled Tasks
+
+Both are **per-user tasks at logon**, not Windows services: UIA, synthetic
+input and global hotkeys need an interactive desktop session, which Session 0
+services do not have.
+
+| Task | Command | Role |
+| --- | --- | --- |
+| `utter-runner` | `"<core>\.venv-agent\Scripts\python.exe" -m runner --config "<core>\config.runner.toml"` | plugin supervisor + trust boundary |
+| `utter.service` | `"<core>\.venv-agent\Scripts\python.exe" -m utter.daemon` | voice/context daemon |
+
+```powershell
+schtasks /Run    /TN utter-runner        # start now (otherwise at next logon)
+schtasks /Query  /TN utter-runner /V
+schtasks /Delete /TN utter-runner /F
+```
+
+### Unsigned installers
+
+The NSIS/MSI bundles are **not code-signed yet**: SmartScreen may warn
+("Windows protected your PC" → *More info* → *Run anyway*) and the `.msi`
+installer is not signature-verified by the bootstrap. `install.ps1` checks the
+GUI hash against the release checksums when they are published. Code signing is
+tracked under P2.
+
+## DPI awareness
+
+Windows virtualises coordinates for DPI-unaware processes, while `mss`
+screenshots and the pointer APIs work in physical pixels. `utter/win32/dpi.py`
+makes the process per-monitor DPI-aware before capture and before window
+lookups:
+
+- `ensure_dpi_aware()` tries `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)`
+  (Win10 1607+), then `SetProcessDPIAware()` (Vista+), then
+  `SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)` via `shcore` (Win8.1+).
+  It is idempotent (`E_ACCESS_DENIED` means "already set", e.g. by a manifest).
+- It is **best-effort**: every failure is swallowed, it returns `False` and is a
+  **no-op on non-Windows hosts**, so `utter/win32/**` still imports and the
+  Linux/macOS test suites run unchanged.
+- Called from `utter/win32/screenshot.py` (`capture_output`,
+  `total_geometry`) and `utter/win32/desktop.py` (`_focused_window`,
+  `_raw_windows`, `_list_monitors`).
 
 ## Runner transport & trust (the key decision)
 
@@ -98,9 +195,12 @@ there: its non-e2e suite uses Unix-only primitives (`os.memfd_create`,
 - **P1** — GUI + service + installer: `%LOCALAPPDATA%`/`%APPDATA%` everywhere,
   **per-user Scheduled Task** (Session 0 services cannot do UIA/input/hotkeys),
   GUI WASAPI/PowerShell ports, PowerShell/NSIS installer, CI `windows-latest`,
-  microphone-consent UX.
-- **P2** — depth + hardening: full UI Automation, DPI-aware capture, named-pipe
-  transport, optional Windows Speech backend, toasts/media integration.
+  microphone-consent UX. **Landed:** path plumbing, the `windows` extra,
+  `install.ps1` (core + venv + Scheduled Tasks + config + GUI), the Tauri
+  NSIS/MSI bundles and the `windows-latest` CI jobs.
+- **P2** — depth + hardening: full UI Automation, named-pipe transport, optional
+  Windows Speech backend, toasts/media integration, code signing. DPI-aware
+  capture (below) landed early.
 
 ## Spikes to run first
 
@@ -114,5 +214,7 @@ there: its non-e2e suite uses Unix-only primitives (`os.memfd_create`,
 
 - Weaker trust boundary (no peer identity without named pipes); no sandbox.
 - UIPI blocks input into **elevated** windows unless Utter is elevated (avoid).
-- Per-monitor DPI makes screenshot↔pointer coordinates error-prone.
+- Per-monitor DPI: `dpi.py` removes the screenshot↔pointer mismatch, but a
+  per-monitor mixed-DPI setup is still worth re-testing after display changes.
 - Packaging a Python runtime plus CUDA deps into an MSI is heavy.
+- The Windows GUI bundles are unsigned, so SmartScreen warns on install.
