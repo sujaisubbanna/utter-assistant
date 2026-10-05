@@ -25,7 +25,26 @@ PROFILES_DIR = Path(__file__).resolve().parent.parent / "profiles"
 
 
 def _xdg(var: str, fallback: str) -> Path:
-    return Path(os.environ.get(var) or (Path.home() / fallback))
+    """Resolve an XDG base dir, delegating to the Windows-aware ``assistant.util``.
+
+    Windows maps to ``%APPDATA%`` / ``%LOCALAPPDATA%`` (via the ``assistant.util``
+    helpers); Linux/macOS keep the exact XDG env var / POSIX default. The legacy
+    daemon ships ``utter`` without the ``assistant`` core, so a missing import
+    falls back to the plain XDG resolution.
+    """
+    try:
+        from assistant import util as _util
+    except Exception:  # noqa: BLE001 - assistant core is optional for the daemon
+        return Path(os.environ.get(var) or (Path.home() / fallback))
+    resolvers = {
+        "XDG_CONFIG_HOME": _util.xdg_config_home,
+        "XDG_DATA_HOME": _util.xdg_data_home,
+        "XDG_STATE_HOME": _util.xdg_state_home,
+    }
+    resolver = resolvers.get(var)
+    if resolver is None:
+        return Path(os.environ.get(var) or (Path.home() / fallback))
+    return resolver()
 
 
 # Your own profiles and edits (the settings app writes here). They win over the

@@ -114,6 +114,13 @@ def _store_root() -> Optional[Path]:
         override = os.environ.get("UTTER_MODELS")
         if override:
             return Path(override).expanduser()
+        # Mirrors assistant.util.models_root(): Windows uses
+        # %LOCALAPPDATA%\utter\models; Linux/macOS use $XDG_DATA_HOME/utter-models.
+        from utter import platform
+        if platform.is_windows():
+            base = Path(os.environ.get("LOCALAPPDATA")
+                        or (Path.home() / "AppData" / "Local"))
+            return base / "utter" / "models"
         xdg = os.environ.get("XDG_DATA_HOME")
         base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "share"
         return base / "utter-models"

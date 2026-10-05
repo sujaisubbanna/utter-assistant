@@ -42,6 +42,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, List, Optional
 
+from . import platform
+
 log = logging.getLogger(__name__)
 
 Hook = Callable[[], None]
@@ -60,6 +62,10 @@ def state_path() -> Path:
     if _IS_MACOS:
         # /run/user/<uid> does not exist on macOS; use the per-user app dir.
         return Path.home() / "Library" / "Application Support" / "utter" / "sleep.json"
+    if platform.is_windows():
+        # No /run/user or os.getuid on Windows; reuse the Windows-aware helper.
+        from assistant.util import xdg_runtime_dir
+        return xdg_runtime_dir() / "utter" / "sleep.json"
     return Path(f"/run/user/{os.getuid()}") / "utter" / "sleep.json"
 
 
@@ -94,7 +100,8 @@ class SleepController:
         if systemctl is not None:
             self._systemctl: Optional[Runner] = systemctl
             self._manages_services = True
-        elif _IS_MACOS:
+        elif _IS_MACOS or platform.is_windows():
+            # No systemd user units on macOS/Windows: clean no-op for services.
             self._systemctl = None
             self._manages_services = False
         else:

@@ -8,8 +8,18 @@ from pathlib import Path
 
 
 def _xdg_config_dir() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "utter"
+    """Per-user config dir (``~/.config/utter`` / ``%APPDATA%\\utter``).
+
+    Delegates to the Windows-aware ``assistant.util.config_dir()``; the legacy
+    daemon ships ``utter`` without the ``assistant`` core, so a missing import
+    falls back to the plain XDG resolution.
+    """
+    try:
+        from assistant.util import config_dir
+        return config_dir()
+    except Exception:  # noqa: BLE001 - assistant core is optional for the daemon
+        base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+        return Path(base) / "utter"
 
 
 @dataclass

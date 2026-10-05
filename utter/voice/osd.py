@@ -71,9 +71,20 @@ def _env_override() -> Optional[bool]:
 
 
 def default_path() -> Path:
-    """Resolve the OSD JSON path from the environment."""
-    base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-    return Path(base) / "utter" / "osd.json"
+    """Resolve the OSD JSON path from the environment.
+
+    Uses the Windows-aware ``assistant.util.xdg_runtime_dir()`` (Linux/macOS keep
+    honouring ``XDG_RUNTIME_DIR``; Windows falls back to the temp dir) and keeps
+    the frozen ``<runtime>/utter/osd.json`` shape. The legacy daemon ships
+    ``utter`` without the ``assistant`` core, so a missing import falls back to
+    the plain ``XDG_RUNTIME_DIR or tempdir`` resolution.
+    """
+    try:
+        from assistant.util import xdg_runtime_dir
+        base = xdg_runtime_dir()
+    except Exception:  # noqa: BLE001 - assistant core is optional for the daemon
+        base = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir())
+    return base / "utter" / "osd.json"
 
 
 def _normalise_level(value) -> float:
