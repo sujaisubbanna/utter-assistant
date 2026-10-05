@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-10-05
+
+### Added
+- **Production runner config.** `config.runner.toml` replaces the M3 dev config as
+  the shipped default and runs with `UTTER_DRY_RUN=0`, so the modular runner
+  performs real actions. `config.m3.toml` is kept for the test suites.
+- **On-demand vision and planner models.** Vision (UI-TARS) and the decision
+  planner (`Qwen3-4B-Instruct-2507-AWQ-4bit`) are sharded and cannot come from the
+  single-file store; `scripts/install_inference.sh` provisions them (vLLM plus the
+  models) and the installer's perception step offers to run it.
+- **Install the engine from the GUI.** AppImage/deb/rpm-only installs get an
+  "Install the engine" card with the official one-liner, Copy, and Open-in-terminal.
+
+### Fixed
+- The core tarball now ships the inference/serve scripts the perception step needs.
+
 ## [0.4.8] - 2026-10-05
 
 ### Fixed
