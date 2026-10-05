@@ -20,7 +20,8 @@
 #                                   CUDA_VISIBLE_DEVICES=0,1 exported, so we
 #                                   deliberately do NOT inherit it)
 #   UTTER_PLANNER_MODEL_PATH   (a local path or Hugging Face repo id; default:
-#                                   the model store, else a models/… checkout)
+#                                   the model store, else a models/… checkout,
+#                                   else cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit)
 #   UTTER_PLANNER_PORT         (default 8001)
 #   UTTER_PLANNER_SERVED_NAME  (default qwen3-4b)
 #   UTTER_PLANNER_GPU_MEM_UTIL (default 0.30)
@@ -29,9 +30,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Resolve the model from the store / checkout. There is no documented single
-# Hugging Face source for the AWQ checkpoint, so with neither a store entry nor
-# a checkout this errors and names UTTER_PLANNER_MODEL_PATH.
+# Resolve the model from the store / checkout, then the documented Hugging Face
+# repo (cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit), which vLLM downloads as a
+# complete repo directory. scripts/install_inference.sh pre-fetches it into
+# models/Qwen3-4B-Instruct-2507-AWQ-4bit.
 source "$REPO_ROOT/scripts/resolve_model.sh"
 
 # Pin to GPU 1. Override the outer CUDA_VISIBLE_DEVICES entirely so a
@@ -40,7 +42,7 @@ export CUDA_VISIBLE_DEVICES="${UTTER_CUDA_VISIBLE_DEVICES:-1}"
 export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 
 MODEL="$(resolve_model "${UTTER_PLANNER_MODEL_PATH:-}" UTTER_PLANNER_MODEL_PATH \
-    Qwen3-4B-Instruct-2507-AWQ-4bit "")"
+    Qwen3-4B-Instruct-2507-AWQ-4bit cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit)"
 PORT="${UTTER_PLANNER_PORT:-8001}"
 SERVED_NAME="${UTTER_PLANNER_SERVED_NAME:-qwen3-4b}"
 

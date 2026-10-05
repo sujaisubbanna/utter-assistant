@@ -58,6 +58,10 @@ What it does:
 6. Records what it did in `$XDG_STATE_HOME/utter/install.json` (reversible).
 7. Runs `python3 -m assistant doctor --json` (or `recommend --json`) to verify.
 
+The wizard also walks the optional components — the **Perception** step (default **No**) is the
+one that provisions the vision + planner stack via `scripts/install_inference.sh`; see
+[§4 Model store](#4-model-store).
+
 On first launch the settings app opens the **first-run setup wizard** — language, permissions,
 push-to-talk keys, which apps Utter may control, and a model to run. It is documented in
 [`ONBOARDING.md`](ONBOARDING.md).
@@ -128,12 +132,17 @@ defaults are:
 | Tier | Default source | Notes |
 |---|---|---|
 | STT | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | ~466 MB; runs on CPU or GPU |
-| Vision | — | UI-TARS repos are sharded safetensors (no single-file pull); provision with `scripts/install_inference.sh` |
-| Decision / planner | — | no documented single Hugging Face source; set `UTTER_MODEL_DECISION` |
+| Vision | — | UI-TARS repos are multi-file (sharded safetensors); the single-file store cannot pull them. `scripts/install_inference.sh` downloads the full repo |
+| Decision / planner | `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit` | multi-file 4-bit AWQ; provisioned by `scripts/install_inference.sh`, not the store. `UTTER_MODEL_DECISION` overrides it with any source you trust |
 
-`UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults. Nothing
-is downloaded unless you accept the tier, and `assistant recommend` suggests a profile for the
-machine's GPU/RAM before you choose.
+Vision and the decision/planner model are **provisioned**, not store-pulled: both ship as
+multi-file (sharded safetensors) repos and the store fetches a single file. The wizard's optional
+**Perception** component (default **No**) runs `scripts/install_inference.sh` when you accept it —
+it creates `.venv`, installs vLLM + `huggingface_hub`, and downloads UI-TARS vision and the
+Qwen3-4B AWQ planner into `models/` (several GB). Then start
+`scripts/serve_vision.sh` (`:8000`) and `scripts/serve_planner.sh` (`:8001`). Nothing is
+downloaded without consent; `--yes` leaves the perception component off, like every other model
+tier. `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults.
 
 ### Spoken language and downloads
 

@@ -80,9 +80,12 @@ copy_path utter
 copy_path widgets
 copy_path assets
 # scripts: verify + python helpers + the session-env wrappers (runner + daemon)
+# plus the inference provisioner/serve scripts the perception step invokes.
 mkdir -p "$ROOT/scripts"
 for f in "$REPO"/scripts/*.py "$REPO"/scripts/verify.sh \
-         "$REPO"/scripts/utter-wayland-ready.sh "$REPO"/scripts/utter-daemon-ready.sh; do
+         "$REPO"/scripts/utter-wayland-ready.sh "$REPO"/scripts/utter-daemon-ready.sh \
+         "$REPO"/scripts/install_inference.sh "$REPO"/scripts/resolve_model.sh \
+         "$REPO"/scripts/serve_vision.sh "$REPO"/scripts/serve_planner.sh; do
     [[ -e "$f" ]] || continue
     cp -a "$f" "$ROOT/scripts/"
 done

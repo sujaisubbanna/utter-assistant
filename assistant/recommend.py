@@ -22,10 +22,17 @@ from . import util
 #: Ready-to-pull store sources for recommendation tiers. Only real, documented
 #: repos with a single default file go here; a tier with no known Hugging Face
 #: source simply omits it (the settings app mirrors this in
-#: gui-tauri/src/lib/links.ts PULL_SOURCES). The UI-TARS vision repos are
-#: sharded safetensors, so they cannot be store-pulled; provision them with
-#: scripts/install_inference.sh instead.
+#: gui-tauri/src/lib/links.ts PULL_SOURCES). The UI-TARS vision repos and the
+#: AWQ planner are sharded safetensors, so they cannot be store-pulled; those
+#: tiers carry a ``provision`` script instead (see INSTALL_INFERENCE below).
 PULL_SOURCES: dict[str, str] = {}
+
+#: The provisioner for the non-pullable vLLM tiers (vision + decision/planner):
+#: it creates .venv, installs vLLM, and downloads the complete repo directories.
+INSTALL_INFERENCE = "scripts/install_inference.sh"
+
+#: The documented Hugging Face repo for the 4-bit AWQ planner.
+PLANNER_HF_REPO = "cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit"
 
 #: whisper.cpp publishes the ggml checkpoints used by the CPU/Vulkan tiers.
 WHISPER_CPP_REPO = "hf:ggerganov/whisper.cpp"
@@ -146,20 +153,25 @@ def suggest(hw: dict[str, Any]) -> dict[str, Any]:
 
     if vram >= 24:
         llm = {"model": "7-8B", "quant": "awq", "est_vram_gb": 6.0,
-               "reason": f"{vram:.0f} GB VRAM (>=24 GB)"}
+               "reason": f"{vram:.0f} GB VRAM (>=24 GB)",
+               "provision": INSTALL_INFERENCE, "hf_repo": PLANNER_HF_REPO}
     elif vram >= 8:
         llm = {"model": "4B", "quant": "awq", "est_vram_gb": 3.0,
-               "reason": f"{vram:.0f} GB VRAM (8-16 GB)"}
+               "reason": f"{vram:.0f} GB VRAM (8-16 GB)",
+               "provision": INSTALL_INFERENCE, "hf_repo": PLANNER_HF_REPO}
     else:
         llm = {"model": "1.5-3B", "quant": "q4", "device": "cpu", "est_ram_gb": 3.0,
                "reason": "<=8 GB VRAM; small CPU model or an existing endpoint"}
 
     if vram >= 16:
         vision = {"model": "UI-TARS-7B", "est_vram_gb": 8.0,
-                  "reason": f"{vram:.0f} GB VRAM (>=16 GB)"}
+                  "reason": f"{vram:.0f} GB VRAM (>=16 GB)",
+                  "provision": INSTALL_INFERENCE}
     elif vram >= 6:
         vision = {"model": "UI-TARS-2B", "est_vram_gb": 4.0,
-                  "reason": f"{vram:.0f} GB VRAM (>=6 GB)"}
+                  "reason": f"{vram:.0f} GB VRAM (>=6 GB)",
+                  "provision": INSTALL_INFERENCE,
+                  "hf_repo": "ByteDance-Seed/UI-TARS-2B-SFT"}
     else:
         vision = {"model": "none", "mode": "a11y-only",
                   "reason": "no GPU with >=6 GB VRAM; accessibility-only"}
@@ -200,20 +212,26 @@ def human(report: dict[str, Any]) -> str:
     else:
         lines.append("  GPU:     none detected")
 
-    def pull(entry: dict[str, Any]) -> str:
+    def get(entry: dict[str, Any]) -> str:
         source = entry.get("source")
-        return f"\n              install: assistant models pull {source}" if source else ""
+        if source:
+            return f"\n              install: assistant models pull {source}"
+        provision = entry.get("provision")
+        if provision:
+            repo = entry.get("hf_repo")
+            return f"\n              provision: {provision}" + (f" ({repo})" if repo else "")
+        return ""
 
     lines += [
         "",
         "Suggested profile (nothing is installed automatically):",
         f"  STT:          {s['stt']['backend']} / {s['stt']['model']} ({s['stt']['device']})"
-        f" — {s['stt']['reason']}{pull(s['stt'])}",
+        f" — {s['stt']['reason']}{get(s['stt'])}",
         f"  Decision LLM: {s['decision_llm']['model']} {s['decision_llm'].get('quant','')}"
-        f" — {s['decision_llm']['reason']}{pull(s['decision_llm'])}",
+        f" — {s['decision_llm']['reason']}{get(s['decision_llm'])}",
         f"  Planner LLM:  {s['planner_llm']['model']} {s['planner_llm'].get('quant','')}"
-        f" — {s['planner_llm']['reason']}{pull(s['planner_llm'])}",
-        f"  Vision:       {s['vision']['model']} — {s['vision']['reason']}{pull(s['vision'])}",
+        f" — {s['planner_llm']['reason']}{get(s['planner_llm'])}",
+        f"  Vision:       {s['vision']['model']} — {s['vision']['reason']}{get(s['vision'])}",
         "",
         "  Zero-model mode is always available (rules + context + a11y).",
     ]

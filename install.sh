@@ -2531,6 +2531,13 @@ present_step() {
         field "sudo" "no"
     fi
     run_dep_probe "$id"
+    # Perception provisions the non-pullable vLLM stack; say so up front so the
+    # user knows what accepting the step downloads and how to point at it.
+    if [[ "$id" == "perception" ]]; then
+        note "opt-in: runs scripts/install_inference.sh (vLLM + UI-TARS vision + planner, several GB)"
+        note "without it, vision stays off and context uses accessibility only"
+        note "override the planner with UTTER_MODEL_DECISION / vision with UTTER_MODEL_VISION"
+    fi
 }
 
 recommend_tiers() {
@@ -2570,9 +2577,10 @@ MODEL_TIER_SIZES=()
 # repos are sharded safetensors (model-0000N-of-0000M.safetensors + an index),
 # so a single-file `models pull` cannot fetch them. Provision vision with
 # scripts/install_inference.sh, which downloads the full repo directory, then
-# serve it with scripts/serve_vision.sh. Likewise the 4-bit AWQ planner has no
-# documented single Hugging Face source, so `decision` still needs
-# UTTER_MODEL_DECISION (see docs/guides/models.md).
+# serve it with scripts/serve_vision.sh. The 4-bit AWQ planner has a documented
+# Hugging Face repo (cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit) but is likewise
+# multi-file, so it is provisioned by scripts/install_inference.sh too (the
+# decision tier still needs UTTER_MODEL_DECISION for any custom store source).
 # Installs without a 24 GB NVIDIA GPU keep zero-model mode and pull nothing.
 DEFAULT_MODEL_STT="hf:ggerganov/whisper.cpp:ggml-small.en.bin"
 DEFAULT_MODEL_VISION=""
@@ -3145,13 +3153,16 @@ ensure_python_deps() {
 }
 
 # fix_plugin_python — the shipped utter_py manifest uses a bare `["python", …]`
-# entrypoint and the runner config uses `["python3", …]`. Point both at
+# entrypoint and the runner configs use `["python3", …]`. Point all of them at
 # ASSISTANT_PY so the plugin starts with the core's dependencies even when
 # `python` is not on PATH and system `python3` lacks PyYAML/requests.
+# config.runner.toml is the production runner config; config.m3.toml is kept for
+# the M3 tests.
 fix_plugin_python() {
     [[ -n "$ASSISTANT_PY" ]] || return 0
     local files=(
         "$SHARE_DIR/plugins/utter_py/utter-plugin.toml"
+        "$SHARE_DIR/config.runner.toml"
         "$SHARE_DIR/config.m3.toml"
     )
     if (( DRY_RUN )); then
@@ -3445,14 +3456,47 @@ exec_stt() {
     record_component stt "STT backend" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
 }
 
+# inference_script — locate the inference provisioner. Order: the checkout that
+# holds install.sh (a source install), then the installed core tree. Prints
+# nothing when neither has it.
+inference_script() {
+    local d
+    d="$(_i18n_script_dir)"
+    if [[ -n "$d" && -f "$d/scripts/install_inference.sh" ]]; then
+        printf '%s' "$d/scripts/install_inference.sh"; return 0
+    fi
+    if [[ -f "$SHARE_DIR/scripts/install_inference.sh" ]]; then
+        printf '%s' "$SHARE_DIR/scripts/install_inference.sh"; return 0
+    fi
+    if [[ -n "${CORE_CONTEXT:-}" && -f "$CORE_CONTEXT/scripts/install_inference.sh" ]]; then
+        printf '%s' "$CORE_CONTEXT/scripts/install_inference.sh"; return 0
+    fi
+    return 0
+}
+
 exec_perception() {
-    section "perception (vision server deps)"
+    section "perception (vision + planner models)"
     found_perception
-    say "  Vision grounding is optional; the assistant works with a11y-only context."
-    say "  To enable it: serve UI-TARS with vLLM and point [vision].base_url at it."
-    say "  See docs/INSTALL.md and scripts/serve_*.sh in the extracted core tree."
+    local script; script="$(inference_script)"
+    if [[ -z "$script" ]]; then
+        warn "scripts/install_inference.sh not found; provision the vision/planner stack manually:"
+        say "  bash <core-tree>/scripts/install_inference.sh"
+        say "  (installs vLLM into .venv and downloads UI-TARS + the Qwen3-4B AWQ planner)"
+        note "the assistant works without it: context falls back to accessibility only"
+        reset_record
+        record_component perception "Perception deps" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
+        return 0
+    fi
+    say "  Provisioning the optional vision + planner stack:"
+    say "    vLLM + huggingface_hub into .venv; UI-TARS vision and the Qwen3-4B"
+    say "    AWQ planner into models/ (several GB — this can take a while)."
+    run "provision inference models (vLLM + UI-TARS + planner)" bash "$script"
     reset_record
-    record_component perception "Perception deps" "$VER_NUM" "advisory" 0 "$ASSISTANT_BIN"
+    D_KEEP=1
+    record_component perception "Perception deps" "$VER_NUM" "install_inference" 0 "$ASSISTANT_BIN"
+    say "  Start the servers, then point [vision]/[router] at their endpoints:"
+    say "    scripts/serve_vision.sh    # http://127.0.0.1:8000/v1"
+    say "    scripts/serve_planner.sh   # http://127.0.0.1:8001/v1"
 }
 
 exec_noctalia() {
