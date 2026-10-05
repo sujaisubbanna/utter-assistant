@@ -1,0 +1,48 @@
+name: install-test
+
+# Verify the installer's Python environment on clean distros in Docker, so the
+# isolated-venv / missing-voice-deps class of bug is caught off the dev machine.
+# Independent of the `verify` workflow.
+on:
+  push:
+    paths:
+      - "install.sh"
+      - "install/**"
+      - "scripts/test-install-container.sh"
+      - ".github/workflows/install-test.yml"
+  pull_request:
+    paths:
+      - "install.sh"
+      - "install/**"
+      - "scripts/test-install-container.sh"
+      - ".github/workflows/install-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:24.04
+          - fedora:41
+          - archlinux:latest
+    name: ${{ matrix.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Docker
+        run: docker version
+
+      - name: Test install in ${{ matrix.image }}
+        run: bash scripts/test-install-container.sh "${{ matrix.image }}"

@@ -213,3 +213,28 @@ Skip it entirely if you don't use Noctalia — the core assistant does not depen
 
 The runner works with **no models at all**: rules + on-screen context + accessibility handle
 deterministic commands; STT is needed only for voice, and vision/LLM plugins are optional.
+
+## 7. Container install test
+
+`scripts/test-install-container.sh` checks the installer's Python environment on a **clean
+distro**, not just on the dev machine — the failure mode where the venv was built from an
+isolated Python and could not see `gi`/Atspi or the voice deps.
+
+```bash
+scripts/test-install-container.sh                       # ubuntu:24.04
+scripts/test-install-container.sh ubuntu:24.04 fedora:41 archlinux:latest
+scripts/test-install-container.sh --skip-deps ubuntu:24.04
+```
+
+For each image it runs a throwaway `docker run --rm` container with the repo mounted read-only,
+installs the distro prerequisites (apt/dnf/pacman/zypper), copies the repo to a writable path and
+runs `install.sh --yes --skip models,gui` under a sandbox `HOME`, then asserts:
+
+1. `~/.local/share/utter/.venv-agent/pyvenv.cfg` has `include-system-site-packages = true`;
+2. that venv imports `gi`/Atspi plus `yaml, requests, numpy, evdev, sounddevice, pywhispercpp`;
+3. `assistant doctor --json` runs and prints valid JSON;
+4. both `utter-runner.service` and `utter.service` are installed with `@REPO@` substituted.
+
+It prints one `PASS`/`FAIL` line per image and exits non-zero if any failed. Nothing is written on
+the host outside Docker. The same check runs in CI on PRs and pushes that touch the installer
+(`.github/workflows/install-test.yml`).
