@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.11] - 2026-10-05
+
+### Fixed
+- **Settings-UI scroll jank.** Styling `::-webkit-scrollbar` replaced WebKitGTK's
+  fast native scrollbar with one rendered in the web process, which made
+  scrolling janky at every window size and on every page. The app now uses
+  native scrollbars.
+- **Human missing-engine errors.** When the engine cannot run, the UI no longer
+  shows a raw `(os error 2)`; it shows a clear message and an install-engine
+  prompt on every page.
+
 ## [0.4.10] - 2026-10-05
 
 ### Fixed

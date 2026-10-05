@@ -1,6 +1,6 @@
 [package]
 name = "utter"
-version = "0.4.10"
+version = "0.4.11"
 description = "Modern Tauri settings app for the utter voice→desktop assistant"
 authors = ["utter"]
 license = "Apache-2.0"
