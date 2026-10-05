@@ -317,6 +317,9 @@ Cut from v1: WASM/Extism, OCI, MCP adapter, deep GTK features, default latency b
 
 ## 12. Open items
 
+- **Native Windows support** — planned; see [`docs/WINDOWS.md`](docs/WINDOWS.md).
+  P0 platform plumbing has landed; the runner transport will be localhost TCP +
+  token (or named pipes) rather than AF_UNIX.
 - Registry now vs later (plan: static index/custom repos now; OCI/MCP later).
 - First plugin SDKs: Python + Rust (TypeScript next).
 - ~~Licensing gate for the vocalinux bridge before OSS release.~~ **Removed** with the bridge.

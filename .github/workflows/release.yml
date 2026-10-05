@@ -124,6 +124,43 @@ jobs:
         working-directory: gui-tauri
         run: pnpm dlx @tauri-apps/cli build --bundles appimage,deb,rpm
 
+      # The Tauri AppImage bundles its own WebKitGTK + the CI distro's
+      # GLib/Wayland stack, which is a known source of WebKitGTK scroll/render
+      # jank on Wayland/NVIDIA (tauri-apps/tauri#9394, #14427). Repack without
+      # WebKit so the AppImage uses the host's WebKitGTK.
+      - name: Strip bundled WebKitGTK from the AppImage
+        if: steps.gui.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find gui-tauri/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1 || true)"
+          if [[ -z "$APPIMAGE" ]]; then
+            echo "::warning::no AppImage built; skipping the WebKit strip"
+            exit 0
+          fi
+          chmod +x "$APPIMAGE"
+          rm -rf squashfs-root
+          "$APPIMAGE" --appimage-extract >/dev/null
+          if ! compgen -G "squashfs-root/usr/lib/libwebkit2gtk-4.1*" >/dev/null; then
+            echo "::warning::no bundled WebKitGTK found; leaving the AppImage as built"
+            exit 0
+          fi
+          rm -f squashfs-root/usr/lib/libwebkit2gtk-4.1*
+          rm -f squashfs-root/usr/lib/libjavascriptcoregtk-4.1*
+          rm -rf squashfs-root/usr/lib/webkit2gtk-4.1
+          curl -fsSL -o /tmp/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 /tmp/appimagetool squashfs-root "$APPIMAGE"
+          # Verify the repack really dropped the bundled WebKit.
+          rm -rf squashfs-root
+          "$APPIMAGE" --appimage-extract >/dev/null
+          if compgen -G "squashfs-root/usr/lib/libwebkit2gtk-4.1*" >/dev/null; then
+            echo "::error::AppImage still bundles libwebkit2gtk after repack"
+            exit 1
+          fi
+          rm -rf squashfs-root
+
       # ------------------------------------------------------------------ #
       # 3. Rename to stable names + sha256sums.txt
       # ------------------------------------------------------------------ #
