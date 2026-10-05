@@ -9,14 +9,18 @@ on:
     paths:
       - "runner/**"
       - "assistant/**"
+      - "utter/**"
       - "tests/platform/**"
+      - "tests/voice/**"
       - "pyproject.toml"
       - ".github/workflows/windows.yml"
   pull_request:
     paths:
       - "runner/**"
       - "assistant/**"
+      - "utter/**"
       - "tests/platform/**"
+      - "tests/voice/**"
       - "pyproject.toml"
       - ".github/workflows/windows.yml"
 
@@ -64,6 +68,18 @@ jobs:
       - name: Assistant CLI loads
         continue-on-error: false
         run: python -m assistant --version
+
+      - name: Windows backends import
+        continue-on-error: false
+        run: python -c "import utter.win32.desktop, utter.win32.axtree, utter.win32.clipboard, utter.win32.launch, utter.win32.permissions, utter.win32.hotkey, utter.win32.inject, utter.win32.pointer, utter.win32.tts, utter.win32.screenshot; print('win32 imports ok')"
+
+      - name: Windows backend tests (native)
+        continue-on-error: false
+        shell: bash
+        run: |
+          python tests/platform/test_windows_backends_context.py
+          python tests/platform/test_windows_backends.py
+          python tests/voice/test_windows_backends.py
 
       # NOTE: `python -m runner._selftest` is intentionally *not* run here. Its
       # non-e2e suite is bound to Unix runtime primitives that do not exist on
