@@ -89,6 +89,7 @@ echo "== guardrails: runner stdlib, provenance, installer contract =="
 "$PY" tests/test_gui_unwired_config.py || rc=1
 "$PY" tests/test_installer_contract.py || rc=1
 "$PY" tests/test_models_store.py || rc=1
+"$PY" tests/test_models_hf_hash.py || rc=1
 "$PY" tests/test_recommend_source.py || rc=1
 "$PY" tests/test_uninstall_keeps_models.py || rc=1
 
