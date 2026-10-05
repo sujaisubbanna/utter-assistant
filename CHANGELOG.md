@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.13] - 2026-10-05
+
+### Added
+- **Dictation destination picker.** When a dictation can't reach an input field
+  (nothing usable is focused), Utter no longer only copies to the clipboard: the
+  settings app shows a picker to type the transcript into a chosen window
+  (Type into selected / Copy / Dismiss). Adds `assistant windows --json` and
+  `assistant dictation --pending/--deliver/--dismiss`.
+
 ## [0.4.12] - 2026-10-05
 
 ### Fixed
