@@ -130,8 +130,8 @@ def _run_dictation(*, target, type_result, clipboard_ok=True, text="hello world"
          patch("utter.daemon._copy_to_clipboard", side_effect=fake_copy), \
          patch("utter.actions.keyboard.type_text", side_effect=fake_type), \
          patch("utter.platform.is_macos", return_value=macos), \
-         patch("utter.daemon._still_focused", return_value=still_focused), \
-         patch("utter.daemon._refocus",
+         patch("utter.dictation._still_focused", return_value=still_focused), \
+         patch("utter.dictation._refocus",
                side_effect=lambda tgt: calls["refocus"].append(tgt) or True), \
          patch("utter.daemon._Osd", return_value=osd), \
          patch("utter.daemon._NativeOverlay", return_value=native), \

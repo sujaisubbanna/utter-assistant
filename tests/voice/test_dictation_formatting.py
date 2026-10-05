@@ -237,7 +237,7 @@ def _run_linux(*, press, text="hello world"):
         patch("utter.daemon._play"),
         patch("utter.daemon._notify"),
         patch("utter.daemon._capture_dictation_target", return_value=_target()),
-        patch("utter.daemon._still_focused", return_value=True),
+        patch("utter.dictation._still_focused", return_value=True),
         patch("utter.daemon._Osd", return_value=osd),
         patch("utter.platform.is_macos", return_value=False),
         patch("utter.actions.keyboard.type_text", side_effect=fake_type),

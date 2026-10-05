@@ -186,6 +186,54 @@ def cmd_windows(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dictation(args: argparse.Namespace) -> int:
+    """Pending dictation records + the post-hoc target picker.
+
+    * ``--pending``  print the parked record (``{}`` when none).
+    * ``--deliver --text <text> --target <spec>`` type it into a window.
+    * ``--dismiss``  drop the parked record.
+    """
+    from utter import dictation
+
+    if args.pending:
+        record = dictation.read_pending()
+        if args.json:
+            util.emit(record)
+        elif record:
+            print(f"{record.get('text', '')}")
+        else:
+            print("no pending dictation")
+        return 0
+
+    if args.dismiss:
+        removed = dictation.clear_pending()
+        if args.json:
+            util.emit({"ok": True, "removed": removed})
+        else:
+            print("pending dictation dismissed" if removed else "no pending dictation")
+        return 0
+
+    if args.deliver:
+        if not args.text or not args.target:
+            util.eprint("dictation --deliver requires --text and --target")
+            return 2
+        from utter.config import load_config
+
+        cfg = load_config(getattr(args, "config", None))
+        result = dictation.deliver_to_spec(args.target, args.text, cfg)
+        if result.ok:
+            dictation.clear_pending()
+        payload = {"ok": bool(result.ok), "detail": result.detail}
+        if args.json:
+            util.emit(payload)
+        else:
+            print(f"{'ok' if result.ok else 'failed'}: {result.detail}")
+        return 0 if result.ok else 1
+
+    util.eprint("dictation: choose one of --pending, --deliver, --dismiss")
+    return 2
+
+
 def cmd_install_state(args: argparse.Namespace) -> int:
     if args.install_action == "record":
         files = install_state.parse_csv((args.files or []) + (args.file or []))
@@ -246,6 +294,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_windows = sub.add_parser("windows", help="list desktop windows (dictation target pinning)")
     p_windows.add_argument("--json", action="store_true")
     p_windows.set_defaults(func=cmd_windows)
+
+    p_dict = sub.add_parser("dictation", help="pending dictation + target picker")
+    p_dict.add_argument("--pending", action="store_true",
+                        help="print the parked dictation record ({} when none)")
+    p_dict.add_argument("--deliver", action="store_true",
+                        help="type the text into the target window and clear the record")
+    p_dict.add_argument("--dismiss", action="store_true", help="drop the parked record")
+    p_dict.add_argument("--text", default=None, help="transcript to deliver")
+    p_dict.add_argument("--target", default=None,
+                        help="target spec: <window-id> | pid:<n> | app_id:<s>")
+    p_dict.add_argument("--config", default=None, help="path to config.toml")
+    p_dict.add_argument("--json", action="store_true")
+    p_dict.set_defaults(func=cmd_dictation)
 
     p_models = sub.add_parser("models", help="model store")
     msub = p_models.add_subparsers(dest="models_action", required=True)
