@@ -16,6 +16,12 @@ on:
 permissions:
   contents: write
 
+# One tag must build once: a duplicate trigger for the same ref would race two
+# release jobs that attach assets to the same Release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
