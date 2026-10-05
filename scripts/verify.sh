@@ -159,6 +159,9 @@ fi
 if [ -f tests/m5/test_serve_model_resolution.py ]; then
     "$PY" tests/m5/test_serve_model_resolution.py || rc=1
 fi
+if [ -f tests/m5/test_inference_cli.py ]; then
+    "$PY" tests/m5/test_inference_cli.py || rc=1
+fi
 
 echo
 echo "== measurement spike =="

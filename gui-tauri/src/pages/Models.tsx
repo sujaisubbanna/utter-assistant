@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { InferenceInstallButton } from "../components/InferenceInstall";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
@@ -17,6 +18,7 @@ import { useConfig } from "../lib/config";
 import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
 import { humanBytes, parseJsonLine } from "../lib/format";
+import { useInferenceStatus } from "../lib/inference";
 import { HF_MODELS, LINKS, PULL_SOURCES } from "../lib/links";
 import { normalizeSttBackend } from "../lib/services";
 import type { AppInfo, ModelEntry, Recommendation } from "../lib/types";
@@ -63,6 +65,7 @@ export function ModelsPage() {
   const [loading, setLoading] = useState(false);
   const pullId = useRef("");
   const sourceRef = useRef<HTMLInputElement>(null);
+  const { status: inference, loading: inferenceLoading, refresh: refreshInference } = useInferenceStatus();
 
   const loadModels = useCallback(async () => {
     setLoading(true);
@@ -372,6 +375,36 @@ export function ModelsPage() {
           )}
         </Section>
 
+        <Section
+          title={t("models.inference.title")}
+          description={t("models.inference.description")}
+        >
+          <InferenceStatusRow
+            icon="eye"
+            title={t("models.inference.vision")}
+            model={t("models.inference.visionModel")}
+            size={t("models.inference.visionSize")}
+            loading={inferenceLoading}
+            present={Boolean(inference?.vision)}
+          />
+          <InferenceStatusRow
+            icon="sparkles"
+            title={t("models.inference.planner")}
+            model={t("models.inference.plannerModel")}
+            size={t("models.inference.plannerSize")}
+            loading={inferenceLoading}
+            present={Boolean(inference?.planner)}
+          />
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <LinkButton href={LINKS.uitars} variant="ghost">
+              {t("models.inference.website")}
+            </LinkButton>
+            <div className="ml-auto">
+              <InferenceInstallButton status={inference} onInstalled={() => void refreshInference()} />
+            </div>
+          </div>
+        </Section>
+
         <Section title={t("models.pull.title")} description={t("models.pull.description")}>
           <Row title={t("models.pull.source")} description={t("models.pull.sourceHint")}>
             <Input
@@ -517,3 +550,36 @@ function RecRow({
     </Row>
   );
 }
+
+/** A sharded vision/planner model the store can't fetch, with its state. */
+function InferenceStatusRow({
+  icon,
+  title,
+  model,
+  size,
+  loading,
+  present,
+}: {
+  icon: "eye" | "sparkles";
+  title: string;
+  model: string;
+  size: string;
+  loading: boolean;
+  present: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <Row leading={<Tile icon={icon} />} title={title} description={`${model} · ${size}`}>
+      {loading ? (
+        <Badge tone="muted">{t("models.inference.checking")}</Badge>
+      ) : present ? (
+        <Badge tone="ok" dot>
+          {t("models.inference.ready")}
+        </Badge>
+      ) : (
+        <Badge tone="muted">{t("models.inference.missing")}</Badge>
+      )}
+    </Row>
+  );
+}
+

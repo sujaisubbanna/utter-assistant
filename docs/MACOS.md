@@ -91,6 +91,28 @@ Utter's macOS runtime resolver (`utter/runtime.py`) speaks standard OpenAI `/v1`
 - **LM Studio** ([lmstudio.ai](https://lmstudio.ai)): Start the local server (`lms server start` or via the GUI) on `http://127.0.0.1:1234/v1`. Configure `[macos.runtime] llm_provider = "lm_studio"`.
 - **llama.cpp** ([github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)): Start `llama-server` with `-ngl 99` (offload all layers to Metal) on `http://127.0.0.1:8080/v1`. Configure `[macos.runtime] llm_provider = "llamacpp"`.
 
+### UI-TARS via transformers (optional, no Ollama)
+
+The sharded UI-TARS grounding repo is not store-pullable, and macOS has no vLLM wheel. You can
+still provision it locally, exactly like Linux:
+
+```bash
+python -m assistant inference install        # add --json for NDJSON progress
+python -m assistant inference status --json
+```
+
+That installs `transformers` + `torch` (Metal/MPS) + `accelerate` into `.venv` and downloads the
+same UI-TARS vision and Qwen3-4B planner repos as Linux. Vision is then served by
+`scripts/serve_vision_transformers.py` (an OpenAI-compatible `/v1` endpoint on port 8000), not by
+vLLM:
+
+```bash
+.venv/bin/python scripts/serve_vision_transformers.py \
+    --model models/UI-TARS-2B-SFT --served-model-name uitars --port 8000
+```
+
+`assistant inference install` is refused on Windows for now.
+
 ### Setup & Recommended Models
 
 1. **Install Ollama via Homebrew:**

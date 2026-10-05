@@ -100,6 +100,7 @@ inherit the session environment automatically.
 python3 -m assistant doctor [--json]                    # deps + plugin negotiation + drift
 python -m assistant recommend [--json]                 # hardware-aware profile suggestions
 python -m assistant models list|show <n>|pull <src>|rm <n>|prune [--json]
+python -m assistant inference install|status [--json]    # vision + planner provisioner
 python -m assistant status [--json]                    # runner.status passthrough
 python -m assistant install-state record|show
 ```
@@ -143,6 +144,13 @@ Qwen3-4B AWQ planner into `models/` (several GB). Then start
 `scripts/serve_vision.sh` (`:8000`) and `scripts/serve_planner.sh` (`:8001`). Nothing is
 downloaded without consent; `--yes` leaves the perception component off, like every other model
 tier. `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults.
+
+The settings UI can run the same provisioner through
+`python -m assistant inference install [--json]` (NDJSON progress, see
+[CLI.md](CLI.md#inference-models-vision--planner)); `python -m assistant inference status --json`
+reports whether the two model dirs are complete. On **macOS** there is no vLLM wheel: the same
+script installs `transformers` + `torch` (Metal/MPS) + `accelerate` and the vision model is served
+by `scripts/serve_vision_transformers.py` instead of `scripts/serve_vision.sh`.
 
 ### Spoken language and downloads
 

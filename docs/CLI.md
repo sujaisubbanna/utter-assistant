@@ -36,6 +36,38 @@ All successful JSON responses use `{"schema":"utter.cli/v1","ok":true,"command":
 | `utter settings list|get|set` | Read or edit the active TOML settings. |
 | `utter commands list|set|remove` | List built-in app shortcuts and create/remove per-app custom spoken phrases that send a key chord. |
 
+### Inference models (vision + planner)
+
+The vision (UI-TARS) and planner (Qwen3-4B AWQ) checkpoints ship as multi-file
+(sharded safetensors) repositories, so the single-file model store
+(`assistant models pull`) cannot fetch them. Use the provisioner instead:
+
+```sh
+python -m assistant inference status  [--json]   # are the model dirs complete?
+python -m assistant inference install [--json]   # download + prepare them
+```
+
+`status --json` returns
+`{"vision":bool,"planner":bool,"vision_path":str,"planner_path":str}`. Human
+output also names the platform's serve script (`scripts/serve_vision.sh` on
+Linux, `scripts/serve_vision_transformers.py` on macOS).
+
+`install` runs `scripts/install_inference.sh` and streams its output. With
+`--json` it emits one JSON object per line (NDJSON):
+
+```
+{"event":"start"}
+{"event":"progress","line":"…"}
+{"event":"done","ok":true}
+```
+
+A failure emits `{"event":"error","error":"…"}` instead of `done`; the exit code
+is 0 on success and 1 on failure. On Windows `install` exits 1 with
+`not supported on Windows yet`. On macOS vLLM has no wheel, so the script
+installs `transformers` + `torch` (Metal/MPS) + `accelerate` and serves vision
+with `scripts/serve_vision_transformers.py`; Linux installs vLLM and serves with
+`scripts/serve_vision.sh` / `scripts/serve_planner.sh`.
+
 ## Settings and custom commands
 
 Settings use dotted keys matching the config sections. Values to `settings set` are JSON values, type-checked against Utter's config model. Use `--dry-run` to preview; writing requires `--confirm`. Edits preserve other TOML lines and comments and replace the file atomically.
@@ -74,7 +106,7 @@ utter commands remove firefox "toggle developer tools" --confirm --json
 
 The canonical JSON Schema is packaged at `utter/data/cli.schema.json` and returned under `data.json_schema` by `utter schema --json`. Validate responses with any Draft 2020-12 JSON Schema validator.
 
-The old `utter --text TEXT` and `python -m utter.daemon` service interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `macos-permissions`, `models`, `install-state`).
+The old `utter --text TEXT` and `python -m utter.daemon` service interfaces remain available. Management stays under `python -m assistant` (`doctor`, `recommend`, `status`, `macos-permissions`, `models`, `inference`, `install-state`).
 
 ## Exit and error contract
 

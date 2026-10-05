@@ -220,6 +220,18 @@ export interface ModelStoreInfo {
   fallback_to?: string | null;
 }
 
+/**
+ * `assistant inference status --json` — whether the sharded vision + planner
+ * models are provisioned, and where they live. These are not in the model
+ * store, so the UI checks this instead of `models list`.
+ */
+export interface InferenceStatus {
+  vision: boolean;
+  planner: boolean;
+  vision_path: string;
+  planner_path: string;
+}
+
 export interface Recommendation {
   hardware?: {
     cpu?: { model?: string; cores?: number };
