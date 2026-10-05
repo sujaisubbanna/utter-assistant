@@ -60,6 +60,11 @@ language = "auto"
 # model/path. Empty = derive from `language` (espeak) or the engine default.
 voice = ""
 
+[sounds]
+# Output device for UI sounds (pw-play --target / paplay --device). Empty =
+# system default sink. UTTER_SOUND_SINK in the environment overrides this.
+sink = ""
+
 [dictation]
 # The dictation lane types your words verbatim (assistant commands are never
 # formatted). Optionally clean up the transcript before typing it:

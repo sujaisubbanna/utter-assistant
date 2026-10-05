@@ -64,6 +64,13 @@ class TTSConfig:
 
 
 @dataclass
+class SoundsConfig:
+    """UI sounds (``[sounds]``)."""
+    # Output device for UI sounds: a PipeWire sink name. Empty = system default.
+    sink: str = ""
+
+
+@dataclass
 class DictationConfig:
     """Dictation lane settings (``[dictation]``).
 
@@ -298,6 +305,7 @@ class Config:
     audio: AudioConfig = field(default_factory=AudioConfig)
     stt: STTConfig = field(default_factory=STTConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
+    sounds: SoundsConfig = field(default_factory=SoundsConfig)
     dictation: DictationConfig = field(default_factory=DictationConfig)
     router: RouterConfig = field(default_factory=RouterConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
@@ -338,6 +346,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         _merge(cfg.audio, raw.get("audio", {}))
         _merge(cfg.stt, raw.get("stt", {}))
         _merge(cfg.tts, raw.get("tts", {}))
+        _merge(cfg.sounds, raw.get("sounds", {}))
         _merge(cfg.dictation, raw.get("dictation", {}))
         _merge(cfg.router, raw.get("router", {}))
         _merge(cfg.vision, raw.get("vision", {}))

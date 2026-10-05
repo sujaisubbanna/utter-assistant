@@ -63,6 +63,7 @@ echo "== voice: push-to-talk rescan leak =="
 "$PY" tests/voice/test_stt_language.py || rc=1
 "$PY" tests/voice/test_stt_store.py || rc=1
 "$PY" tests/voice/test_audio_samplerate.py || rc=1
+"$PY" tests/voice/test_sounds_sink.py || rc=1
 "$PY" tests/voice/test_tts_linux.py || rc=1
 "$PY" tests/actions/test_open_url_browser.py || rc=1
 "$PY" tests/actions/test_profile_layers.py || rc=1

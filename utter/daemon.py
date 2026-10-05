@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import logging
 import json
+import os
 import sys
 import threading
 import time
@@ -527,6 +528,11 @@ class Utter:
     def __init__(self, cfg: Optional[Config] = None, dry_run: bool = False):
         self.cfg = cfg or load_config()
         self.dry_run = dry_run
+        # Route UI sounds to the configured sink. setdefault so an explicit
+        # UTTER_SOUND_SINK in the environment still wins over the config.
+        sink = getattr(self.cfg.sounds, "sink", "")
+        if sink:
+            os.environ.setdefault("UTTER_SOUND_SINK", sink)
         self.executor: Optional[Executor] = None
         self.profiles: dict = {}
         self._profiles_mod = None

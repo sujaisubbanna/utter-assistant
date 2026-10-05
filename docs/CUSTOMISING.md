@@ -436,6 +436,22 @@ The recipes/tones are in `_RECIPES` (`sounds.py`); generated files are
 export UTTER_SOUNDS=0
 ```
 
+### `[sounds] sink`
+
+Sounds play to the system default sink unless you name one. Set `[sounds] sink`
+to a PipeWire sink (list them with `pactl list short sinks`; the daemon still
+keeps its own default) to route them elsewhere — useful when a virtual sink
+(e.g. Sunshine's) is the system default and you never hear the cues locally:
+
+```toml
+[sounds]
+sink = "alsa_output.pci-0000_01_00.1.hdmi-stereo"
+```
+
+This is passed to `pw-play --target` (or `paplay --device`; `afplay` on macOS
+ignores it). Empty means the system default. `UTTER_SOUND_SINK` in the
+environment overrides the config value; `afplay` (macOS) ignores the sink.
+
 Playback runs detached (`start_new_session=True`) so it never blocks the daemon
 (`play`, `sounds.py`).
 
