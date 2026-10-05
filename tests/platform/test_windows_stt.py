@@ -129,6 +129,33 @@ check("Install-Core guards prefix creation with -DryRun",
                 core_fn, re.S) is not None, core_fn)
 
 # --------------------------------------------------------------------------- #
+# 2c. the planner/vision engine goes through `assistant inference install`
+# --------------------------------------------------------------------------- #
+inference_fn = ps_function(ps, "Install-Inference")
+check("install.ps1 defines Install-Inference", bool(inference_fn))
+if inference_fn:
+    check("Install-Inference invokes `assistant inference install`",
+          "'assistant'" in inference_fn and "'inference'" in inference_fn
+          and "'install'" in inference_fn)
+    check("Install-Inference names the llama.cpp/GGUF planner",
+          "llama.cpp" in inference_fn and "GGUF" in inference_fn)
+    check("Install-Inference honors -DryRun", "$DryRun" in inference_fn)
+    inf_dry = re.search(
+        r"if\s*\(\s*\$DryRun\s*\)\s*\{(?P<body>.*?)\n\s*\}", inference_fn, re.S)
+    check("Install-Inference has an `if ($DryRun)` guard", inf_dry is not None)
+    if inf_dry:
+        body = inf_dry.group("body")
+        check("Install-Inference DryRun branch returns before mutating",
+              re.search(r"\breturn\b", body) is not None, body)
+        check("Install-Inference DryRun branch does no network/filesystem work",
+              re.search(r"Invoke-Native|Test-Path|New-Item|Remove-Item|Copy-Item",
+                        body) is None, body)
+    check("Install-Inference hands off to the GUI onboarding on failure",
+          "AllowFailure" in inference_fn and "wizard" in inference_fn.lower())
+check("Main calls Install-Inference unconditionally",
+      re.search(r"(?m)^    Install-Inference\s*$", main_fn) is not None, main_fn)
+
+# --------------------------------------------------------------------------- #
 # 3. docs/WINDOWS.md documents the mandatory flow + fallback
 # --------------------------------------------------------------------------- #
 doc = WINDOWS_DOC.read_text(encoding="utf-8")

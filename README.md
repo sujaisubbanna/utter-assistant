@@ -38,7 +38,7 @@
 
 ## Features
 
-Utter is a context-aware desktop assistant, natively supported on **Linux (Wayland)** — niri first, plus KDE Plasma (KWin) implemented and unit-tested but not yet exercised on a live Plasma session ([docs/PLASMA.md](docs/PLASMA.md)) — and on **macOS** ([docs/MACOS.md](docs/MACOS.md)).
+Utter is a context-aware desktop assistant, natively supported on **Linux (Wayland)** — niri first, plus KDE Plasma (KWin) implemented and unit-tested but not yet exercised on a live Plasma session ([docs/PLASMA.md](docs/PLASMA.md)) — and on **macOS** ([docs/MACOS.md](docs/MACOS.md)). **Windows** support is opt-in and experimental ([docs/WINDOWS.md](docs/WINDOWS.md)).
 
 | Feature | What it does |
 |---|---|
@@ -126,11 +126,13 @@ Every command takes `--json` and returns a stable `utter.cli/v1` envelope. `--dr
 
 A tiny **runner** supervises swappable **plugins** over one versioned protocol. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+**The inference engines differ per platform.** The planner (Qwen3-4B-Instruct-2507) always answers on `http://127.0.0.1:8001/v1` as `qwen3-4b`: **vLLM + 4-bit AWQ on Linux**, **llama.cpp (`llama-server`) + GGUF on macOS and Windows**. Vision (UI-TARS) always answers on `http://127.0.0.1:8000/v1` as `uitars`: **vLLM on Linux**, **`scripts/serve_vision_transformers.py` on macOS/Windows**. Speech recognition uses the **mandatory whisper.cpp** model on every platform. See [docs/INSTALL.md](docs/INSTALL.md).
+
 ## How Utter compares
 
 | Tool | Open source | Local/offline | Platforms | Voice → actions? |
 |---|---|---|---|---|
-| **Utter** | Yes (Apache-2.0) | Local by default; no cloud | Linux (Wayland: niri, KDE/KWin) + macOS | Yes |
+| **Utter** | Yes (Apache-2.0) | Local by default; no cloud | Linux (Wayland: niri, KDE/KWin) + macOS (Windows experimental) | Yes |
 | **Talon Voice** | No (proprietary) | Local; crash reports + optional metrics | macOS/Windows; Linux/X11 only, no Wayland | Yes |
 | **Wispr Flow** | No (proprietary) | Cloud-only | macOS/Windows/Android | No (dictation) |
 | **Handy** | Yes (MIT) | Fully offline | Windows/macOS/Linux | No (dictation) |
@@ -163,7 +165,7 @@ Shipped: KDE Plasma (KWin) backend (implemented and unit-tested, not yet exercis
 - [ ] **Actions, not just commands** *(most important)* — handle whole requests rather than single commands: ask for an outcome and Utter works out the steps (for example, *"Play some jazz"* opens Spotify and starts jazz).
 
 **Platforms and performance**
-- [ ] **Windows version.**
+- [ ] **Windows version** — opt-in/experimental backends, installer and CI exist today ([docs/WINDOWS.md](docs/WINDOWS.md)); broad support is still open.
 - [ ] **Run well on less memory** — smaller default models, quantised builds and one shared GPU, so 8 GB cards and CPU-only machines work.
 - [ ] **End-to-end task benchmark** — run a small set of real spoken scenarios in a throwaway compositor and score whether the task actually completed (closer to what other assistants publish than the internal plan-accuracy harness, which only checks routing).
 

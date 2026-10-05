@@ -46,11 +46,17 @@ first time it is used. See
 | 8 to 24 GB | 4 B parameters | AWQ | about 3 GB VRAM |
 | 8 GB or less | 1.5 to 3 B parameters on CPU, or an existing endpoint | q4 | about 3 GB RAM |
 
-The shipped default serving script uses a 4-bit AWQ build of Qwen3-4B-Instruct
-(`cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`) under the served name `qwen3-4b`.
-`scripts/install_inference.sh` downloads that repo in full; the model store
-cannot fetch it, because the store pulls a single file and this repo is not
-single-file.
+On **Linux** the shipped default serving script uses a 4-bit AWQ build of
+Qwen3-4B-Instruct (`cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`) under the served
+name `qwen3-4b`. `scripts/install_inference.sh` downloads that repo in full; the
+model store cannot fetch it, because the store pulls a single file and this repo
+is not single-file.
+
+On **macOS and Windows** the planner is the `unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M
+checkpoint, served by **llama.cpp** (`scripts/serve_planner_llamacpp.sh`) on the same
+`http://127.0.0.1:8001/v1` endpoint and the same served name `qwen3-4b`, so
+`[router] llm_base_url` / `llm_model` are unchanged across platforms. The provisioner downloads
+the GGUF and fetches a pinned `llama-server` build.
 
 ### Screen vision
 
@@ -61,12 +67,13 @@ single-file.
 | Less than 6 GB | none; accessibility only | |
 
 On the Models page, **Get it** pre-fills a ready-to-pull source for a recommendation when one is
-known. The vision and decision/planner tiers have no such source: the UI-TARS vision repos and the
-4-bit AWQ planner ship multi-file (sharded safetensors), so a single-file store pull cannot fetch
-them and `assistant recommend` omits `source` for them (it carries a `provision` field pointing at
-`scripts/install_inference.sh`, plus `hf_repo` where one is documented). Provision both tiers with
-`scripts/install_inference.sh` (it downloads the full repo directories) and serve them with
-`scripts/serve_vision.sh` / `scripts/serve_planner.sh`. Applying a recommendation still updates the
+known. The vision and decision/planner tiers have no store source: the UI-TARS vision repos are sharded
+safetensors and the Linux planner is a multi-file AWQ repo (the macOS/Windows planner GGUF is
+single-file, but still provisioned by the same tool). Apply a recommendation with
+`scripts/install_inference.sh` (it downloads the full repo directories), then serve them with
+`scripts/serve_vision.sh` / `scripts/serve_planner.sh` on Linux, or
+`scripts/serve_vision_transformers.py` / `scripts/serve_planner_llamacpp.sh` on macOS/Windows.
+Applying a recommendation still updates the
 matching config keys; for the decision model, match the name to what your server actually serves.
 
 The installer offers the same tiers and, for each one you accept, pulls a **curated default
@@ -133,9 +140,32 @@ blobs and unfinished downloads; the Models page calls this **Clean up**.
 
 ## Serving the language and vision models
 
-The store holds the files. Serving them is a separate step, done by vLLM (or any
-OpenAI-compatible server such as Ollama or llama.cpp) and pointed to from
-`~/.config/utter/config.toml`:
+The store holds the files. Serving them is a separate step, and the engine depends on the
+platform:
+
+- **Linux** — `scripts/serve_planner.sh` (vLLM + 4-bit AWQ, `:8001`) and `scripts/serve_vision.sh`
+  (vLLM UI-TARS, `:8000`) start both servers with sensible defaults.
+- **macOS / Windows** — the planner runs on **llama.cpp** and vision on the cross-platform
+  `scripts/serve_vision_transformers.py`. `python -m assistant inference install` downloads the
+  `unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M file and a pinned `llama-server` build, so there is
+  nothing to install by hand:
+
+  ```bash
+  # planner: http://127.0.0.1:8001/v1 (qwen3-4b)
+  scripts/serve_planner_llamacpp.sh
+  # under the hood:
+  # llama-server --model <gguf> --alias qwen3-4b --host 127.0.0.1 --port 8001 \
+  #     -c 4096 -ngl auto -fa auto --jinja --reasoning off -np 1 --no-webui
+
+  # vision: http://127.0.0.1:8000/v1 (uitars)
+  .venv/bin/python scripts/serve_vision_transformers.py \
+      --model models/UI-TARS-2B-SFT --served-model-name uitars --port 8000
+  ```
+
+  `--reasoning off` is **mandatory** (Qwen3-4B-Instruct-2507 is often misdetected as a thinking
+  model); `-ngl auto` offloads what it can to Metal/CUDA and falls back to CPU.
+
+Both endpoints are then pointed to from `~/.config/utter/config.toml` (`[macos.runtime]` on a Mac):
 
 ```toml
 [router]
@@ -147,21 +177,23 @@ base_url = "http://127.0.0.1:8000/v1"
 model = "uitars"
 ```
 
-`scripts/serve_planner.sh` and `scripts/serve_vision.sh` start vLLM with sensible defaults. Each
-resolves its model in order: `UTTER_PLANNER_MODEL_PATH` / `UTTER_VISION_MODEL_PATH`, then the
-store, then a `models/<name>` checkout, then the Hugging Face repo id (vision
-`ByteDance-Seed/UI-TARS-2B-SFT`, planner `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`), which vLLM
-downloads itself. A store entry holds one content-addressed file, not the multi-file directory
-vLLM needs, so the scripts report that and fall through; keep a full checkout (pre-fetched by
-`scripts/install_inference.sh`) for both. See
+The Linux scripts resolve their model in order: `UTTER_PLANNER_MODEL_PATH` /
+`UTTER_VISION_MODEL_PATH`, then the store, then a `models/<name>` checkout, then the Hugging Face
+repo id (vision `ByteDance-Seed/UI-TARS-2B-SFT`, planner
+`cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit`), which vLLM downloads itself. A store entry holds one
+content-addressed file, not the multi-file directory vLLM needs, so the scripts report that and
+fall through; keep a full checkout (pre-fetched by `scripts/install_inference.sh`) for both. Any
+OpenAI-compatible server (Ollama, LM Studio, llama.cpp) also works: just point `llm_base_url` /
+`llm_model` at it. See
 [Configuration](/guides/configuration/#the-decision-head-and-the-planner). If you point either
 endpoint at another machine, the settings app marks it in amber: that is the one case where
 your data leaves the computer.
 
 ## GPU memory and latency
 
-The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers**. Per-component
-footprint:
+The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers** — this section
+is Linux-specific (on macOS/Windows the planner is llama.cpp and vision is
+`serve_vision_transformers.py`, so these fractions do not apply). Per-component footprint:
 
 | Component | Model | Precision | GPU memory setting | On disk |
 |---|---|---|---|---|

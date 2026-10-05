@@ -221,6 +221,14 @@ export interface ModelStoreInfo {
 }
 
 /**
+ * How the planner model (Qwen3-4B-Instruct-2507) is served. Linux keeps the
+ * vLLM + AWQ runtime; macOS and Windows use llama.cpp `llama-server` + GGUF.
+ * The OpenAI-compatible endpoint is the same either way
+ * (`http://127.0.0.1:8001/v1`, alias `qwen3-4b`).
+ */
+export type PlannerBackend = "vllm" | "llamacpp";
+
+/**
  * `assistant inference status --json` — whether the sharded vision + planner
  * models are provisioned, and where they live. These are not in the model
  * store, so the UI checks this instead of `models list`.
@@ -230,6 +238,22 @@ export interface InferenceStatus {
   planner: boolean;
   vision_path: string;
   planner_path: string;
+  /** Which runtime serves the planner. Absent on engines that predate it. */
+  planner_backend?: PlannerBackend | string;
+}
+
+/**
+ * `assistant inference check` — a smoke test of the planner endpoint. `ok` is
+ * the authoritative pass/fail (the command's exit status); `detail` explains a
+ * failure (for example, no server reachable).
+ */
+export interface InferenceCheckResult {
+  ok?: boolean;
+  reachable?: boolean;
+  base_url?: string;
+  models?: string[] | null;
+  detail?: string;
+  errors?: string[];
 }
 
 export interface Recommendation {

@@ -14,9 +14,12 @@
       4. pull the MANDATORY whisper.cpp STT model (ggml-small.en.bin) into the
          model store and verify it. This step cannot be skipped: a failure
          aborts the install (Windows STT does not work without it);
-      5. register the per-user Scheduled Tasks utter-runner and utter.service;
-      6. write %APPDATA%\utter\config.toml from the shipped default if absent;
-      7. download and silently install the settings GUI (Tauri NSIS *-setup.exe
+      5. provision the planner + vision engine via `assistant inference install`
+         (llama.cpp + GGUF on Windows); best-effort, handing off to the GUI
+         first-run onboarding if the runtime/model download fails;
+      6. register the per-user Scheduled Tasks utter-runner and utter.service;
+      7. write %APPDATA%\utter\config.toml from the shipped default if absent;
+      8. download and silently install the settings GUI (Tauri NSIS *-setup.exe
          with /S, else the .msi with msiexec /i <file> /qn).
 
     The runner + voice daemon run as Scheduled Tasks at logon, not as Session 0
@@ -472,6 +475,39 @@ function Install-WhisperModel {
 }
 
 # --------------------------------------------------------------------------- #
+# planner + vision engine (llama.cpp / GGUF on Windows)
+# --------------------------------------------------------------------------- #
+function Install-Inference {
+    # Windows/macOS run the planner on llama.cpp (llama-server + GGUF), not
+    # vLLM. `assistant inference install` selects the platform plan and
+    # provisions the runtime plus the UI-TARS vision and planner repos into the
+    # core's .venv; it is idempotent (a complete venv/model dir is reused).
+    # Unlike the mandatory STT model this step is best-effort: on failure it
+    # hands off to the settings app's first-run wizard, so a model download
+    # cannot fail an otherwise-good install. -DryRun only prints the command.
+    Write-Section "planner + vision engine (llama.cpp / GGUF)"
+    if ($DryRun) {
+        Write-Info "  [dry-run] $($Script:VenvPython) -m assistant inference install"
+        Write-Info "  [dry-run] provision the llama.cpp runtime + GGUF planner under <core>\models"
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Script:VenvPython)) {
+        Write-Warn "agent venv not present; skipping the planner/vision provisioning"
+        return
+    }
+    $code = Invoke-Native -FilePath $Script:VenvPython -Arguments @(
+        '-m', 'assistant', 'inference', 'install'
+    ) -AllowFailure
+    if ($code -ne 0) {
+        Write-Warn "planner/vision provisioning failed (exit $code); the assistant still runs rules-only"
+        Write-Note "finish it from the settings app's first-run wizard, or run:"
+        Write-Note "  `"$($Script:VenvPython)`" -m assistant inference install"
+        return
+    }
+    Write-Ok "planner + vision engine provisioned (assistant inference install)"
+}
+
+# --------------------------------------------------------------------------- #
 # scheduled tasks
 # --------------------------------------------------------------------------- #
 function Install-ScheduledTask {
@@ -736,6 +772,7 @@ function Main {
     Install-Core
     Install-AgentVenv
     Install-WhisperModel
+    Install-Inference
     Install-ServiceTasks
     Install-Config
     Install-Gui

@@ -105,7 +105,7 @@ The ten steps, in order:
    optional `~/.local/bin/utter-gui` symlink is created so the widget's left-click finds it.
 7. **STT backend.** Detects a whisper backend; if none, advises how to add one.
    Advisory only.
-8. **Perception.** Detects a UI-TARS / vLLM / transformers stack; advises how to serve it.
+8. **Perception.** Detects a UI-TARS / vLLM / transformers / llama.cpp stack; advises how to serve it.
    Advisory only.
 9. **Noctalia widget.** Optional. If Noctalia is **not** detected, prints a one-line hint and
    skips. If accepted, runs the bundled widget installer from the extracted core tree.

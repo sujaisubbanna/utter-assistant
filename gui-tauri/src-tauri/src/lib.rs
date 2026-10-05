@@ -274,6 +274,7 @@ pub fn run() {
             commands::start_models_pull,
             commands::cancel_models_pull,
             commands::inference_status,
+            commands::inference_check,
             commands::start_inference_install,
             commands::cancel_inference_install,
             commands::systemctl_show,

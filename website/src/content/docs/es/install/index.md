@@ -107,7 +107,9 @@ el almacén de modelos.
 
 ## Requisitos de GPU y latencia
 
-Los scripts de servicio incluidos asumen **una GPU NVIDIA compartida por ambos servidores vLLM**. Huella por
+En Linux, los scripts de servicio incluidos asumen **una GPU NVIDIA compartida por ambos
+servidores vLLM**; en macOS y Windows el planificador usa llama.cpp y la visión
+`serve_vision_transformers.py`, así que esto no aplica. Huella por
 componente:
 
 | Componente | Modelo | Precisión | Ajuste de memoria de GPU | En disco |

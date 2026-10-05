@@ -73,6 +73,16 @@ An unknown name falls back to detection and says so in the probe's `reason`.
 
 Not needed on Plasma: `niri`, `grim`, `wtype`.
 
+### Planner and vision servers
+
+KDE Plasma is a Linux session, so its inference stack is the same as niri's: the planner
+(Qwen3-4B) is served by **vLLM + 4-bit AWQ** at `http://127.0.0.1:8001/v1` under the name
+`qwen3-4b` (`scripts/serve_planner.sh`), and vision (UI-TARS) by **vLLM** at
+`http://127.0.0.1:8000/v1` (`scripts/serve_vision.sh`). **llama.cpp + GGUF** applies only to
+macOS/Windows, not Plasma. Speech recognition uses the **mandatory whisper.cpp** model on every
+platform. The compositor backend only changes how Utter *reaches* the desktop, never how the
+models are served.
+
 ## How it talks to Plasma
 
 Everything is a subprocess with an **argv list** (never `shell=True`), or a

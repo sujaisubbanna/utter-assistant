@@ -38,19 +38,26 @@ All successful JSON responses use `{"schema":"utter.cli/v1","ok":true,"command":
 
 ### Inference models (vision + planner)
 
-The vision (UI-TARS) and planner (Qwen3-4B AWQ) checkpoints ship as multi-file
-(sharded safetensors) repositories, so the single-file model store
-(`assistant models pull`) cannot fetch them. Use the provisioner instead:
+The vision (UI-TARS) checkpoint, and the Linux planner (Qwen3-4B AWQ), ship as
+multi-file (sharded safetensors) repositories, so the single-file model store
+(`assistant models pull`) cannot fetch them. Use the provisioner instead — it
+prepares the platform's planner too (AWQ on Linux, GGUF on macOS/Windows):
 
 ```sh
 python -m assistant inference status  [--json]   # are the model dirs complete?
 python -m assistant inference install [--json]   # download + prepare them
+python -m assistant inference check   [--json]   # smoke-check a running planner (:8001)
 ```
 
 `status --json` returns
-`{"vision":bool,"planner":bool,"vision_path":str,"planner_path":str}`. Human
-output also names the platform's serve script (`scripts/serve_vision.sh` on
-Linux, `scripts/serve_vision_transformers.py` on macOS).
+`{"vision":bool,"planner":bool,"vision_path":str,"planner_path":str,"planner_backend":str}`
+(backend is `vllm` on Linux, `llamacpp` on macOS/Windows). Human output also names the platform's
+serve scripts (`scripts/serve_vision.sh` / `scripts/serve_planner.sh` on Linux,
+`scripts/serve_vision_transformers.py` / `scripts/serve_planner_llamacpp.sh` on macOS/Windows).
+
+`check` probes a running planner endpoint — `/v1/models`, then one tool call and one
+`json_schema` response — and exits non-zero when it is not healthy. `--base-url` overrides
+`http://127.0.0.1:8001/v1`.
 
 `install` provisions the stack in Python (`assistant/inference.py`) and streams
 its output; `scripts/install_inference.sh` is a thin wrapper that runs the same
@@ -68,11 +75,11 @@ emits one JSON object per line (NDJSON):
 A failure emits `{"event":"error","error":"…"}` instead of `done`; the exit code
 is 0 on success and 1 on failure. All three desktop platforms are supported:
 
-| Platform | Runtime | Vision serve |
-|---|---|---|
-| Linux | `vllm>=0.10` | `scripts/serve_vision.sh` / `scripts/serve_planner.sh` |
-| macOS | `transformers` + `torch` (Metal/MPS) + `accelerate` | `scripts/serve_vision_transformers.py` |
-| Windows | `torch` (CUDA when `nvidia-smi` is present, else the CPU wheel index) + `transformers` + `accelerate` | `scripts/serve_vision_transformers.py` |
+| Platform | Runtime | Vision serve (`:8000`) | Planner serve (`:8001`, `qwen3-4b`) |
+|---|---|---|---|
+| Linux | `vllm>=0.10` | `scripts/serve_vision.sh` (UI-TARS) | `scripts/serve_planner.sh` (vLLM + 4-bit AWQ) |
+| macOS | `transformers` + `torch` (Metal/MPS) + `accelerate` for vision; llama.cpp for the planner | `scripts/serve_vision_transformers.py` | `scripts/serve_planner_llamacpp.sh` (GGUF) |
+| Windows | `torch` (CUDA when `nvidia-smi` is present, else the CPU wheel index) + `transformers` + `accelerate` for vision; llama.cpp for the planner | `scripts/serve_vision_transformers.py` | `scripts/serve_planner_llamacpp.sh` (GGUF) |
 
 Every platform also installs `huggingface_hub[cli]`, `requests` and `Pillow`.
 The Windows CPU path uses `--index-url https://download.pytorch.org/whl/cpu`

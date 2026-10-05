@@ -28,6 +28,12 @@ lists exactly what still needs a Plasma desktop to confirm. Please report what b
 You do **not** need `niri`, `grim` or `wtype` on Plasma. The installer's dependency list and the
 settings app's *System tools* adapt automatically.
 
+Plasma is a Linux session, so the inference stack is the same as on niri: the planner is
+**vLLM + 4-bit AWQ** on `http://127.0.0.1:8001/v1` (`qwen3-4b`) and vision is **vLLM UI-TARS** on
+`http://127.0.0.1:8000/v1` (`uitars`). **llama.cpp + GGUF** is for macOS/Windows only. Speech
+recognition uses the mandatory whisper.cpp model. The compositor backend changes only how Utter
+reaches the desktop, not how the models are served.
+
 ## How it is detected
 
 Utter reads the session environment and picks a backend. First match wins:

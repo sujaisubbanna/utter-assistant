@@ -115,8 +115,8 @@ The ten steps, in order:
    widget's left-click finds it.
 7. **STT backend** — detects a whisper backend; if none, advises how to add one.
    Advisory only.
-8. **Perception** (vision server deps) — detects a UI-TARS/vLLM/transformers
-   stack; advises how to serve it. Advisory only.
+8. **Perception** (vision + planner deps) — detects a UI-TARS / vLLM / transformers /
+   llama.cpp stack; advises how to serve it. Advisory only.
 9. **Noctalia widget** — optional. If Noctalia is **not** detected, prints a
    one-line hint and skips. If accepted, runs the bundled
    `widgets/noctalia/install.sh --yes` from the extracted core tree.

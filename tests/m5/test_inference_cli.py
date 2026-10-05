@@ -107,10 +107,14 @@ class InstallNdjsonTests(unittest.TestCase):
             out = io.StringIO()
             with mock.patch.dict(os.environ, env, clear=False):
                 with mock.patch("assistant.inference._platform_name", return_value="windows"):
-                    with mock.patch("assistant.inference._run_streamed",
-                                    side_effect=_stub_run(0)):
-                        with contextlib.redirect_stdout(out):
-                            code = inference.install(json_progress=True)
+                    # The llama.cpp binary fetch is network I/O; stub it like
+                    # every other subprocess in this file.
+                    with mock.patch("assistant.inference._install_llamacpp",
+                                    return_value=True):
+                        with mock.patch("assistant.inference._run_streamed",
+                                        side_effect=_stub_run(0)):
+                            with contextlib.redirect_stdout(out):
+                                code = inference.install(json_progress=True)
         self.assertEqual(code, 0)
         events = [json.loads(line) for line in out.getvalue().splitlines() if line.strip()]
         self.assertEqual(events[-1], {"event": "done", "ok": True})
@@ -135,9 +139,11 @@ class StatusTests(unittest.TestCase):
             }):
                 data = inference.status()
             self.assertEqual(set(data),
-                             {"vision", "planner", "vision_path", "planner_path"})
+                             {"vision", "planner", "vision_path", "planner_path",
+                              "planner_backend"})
             self.assertTrue(data["vision"])
             self.assertFalse(data["planner"])
+            self.assertEqual(data["planner_backend"], "vllm")
             self.assertEqual(data["vision_path"], str(vision))
             self.assertEqual(data["planner_path"], str(planner))
 

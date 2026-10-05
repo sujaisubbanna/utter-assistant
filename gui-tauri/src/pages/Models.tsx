@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { InferenceInstallButton } from "../components/InferenceInstall";
+import { InferenceCheckButton, InferenceInstallButton } from "../components/InferenceInstall";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
@@ -18,8 +18,9 @@ import { useConfig } from "../lib/config";
 import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
 import { humanBytes, parseJsonLine } from "../lib/format";
-import { useInferenceStatus } from "../lib/inference";
+import { useInferenceStatus, plannerBackend, plannerBackendLabel, plannerModelLabel } from "../lib/inference";
 import { HF_MODELS, LINKS, PULL_SOURCES } from "../lib/links";
+import { usePlatform } from "../lib/platform";
 import { normalizeSttBackend } from "../lib/services";
 import type { AppInfo, ModelEntry, Recommendation } from "../lib/types";
 
@@ -66,6 +67,8 @@ export function ModelsPage() {
   const pullId = useRef("");
   const sourceRef = useRef<HTMLInputElement>(null);
   const { status: inference, loading: inferenceLoading, refresh: refreshInference } = useInferenceStatus();
+  const { os } = usePlatform();
+  const inferenceBackend = plannerBackend(inference, os);
 
   const loadModels = useCallback(async () => {
     setLoading(true);
@@ -390,8 +393,9 @@ export function ModelsPage() {
           <InferenceStatusRow
             icon="sparkles"
             title={t("models.inference.planner")}
-            model={t("models.inference.plannerModel")}
+            model={plannerModelLabel(inferenceBackend)}
             size={t("models.inference.plannerSize")}
+            runtime={plannerBackendLabel(inferenceBackend)}
             loading={inferenceLoading}
             present={Boolean(inference?.planner)}
           />
@@ -399,7 +403,8 @@ export function ModelsPage() {
             <LinkButton href={LINKS.uitars} variant="ghost">
               {t("models.inference.website")}
             </LinkButton>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <InferenceCheckButton />
               <InferenceInstallButton status={inference} onInstalled={() => void refreshInference()} />
             </div>
           </div>
@@ -557,6 +562,7 @@ function InferenceStatusRow({
   title,
   model,
   size,
+  runtime,
   loading,
   present,
 }: {
@@ -564,12 +570,15 @@ function InferenceStatusRow({
   title: string;
   model: string;
   size: string;
+  /** Serving runtime (vLLM / llama.cpp) shown as a badge when known. */
+  runtime?: string;
   loading: boolean;
   present: boolean;
 }) {
   const { t } = useI18n();
   return (
     <Row leading={<Tile icon={icon} />} title={title} description={`${model} · ${size}`}>
+      {runtime && <Badge tone="muted">{runtime}</Badge>}
       {loading ? (
         <Badge tone="muted">{t("models.inference.checking")}</Badge>
       ) : present ? (

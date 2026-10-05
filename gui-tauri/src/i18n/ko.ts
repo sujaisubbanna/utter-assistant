@@ -126,6 +126,7 @@ export const ko: Messages = {
       installLater: "Install later",
       installLaterHint:
         "If you install later, setup stays unfinished until the speech model is ready.",
+      runtimePlanner: "Planner: {backend} · {model}",
     },
     firstAction: {
       eyebrow: "마지막으로",
@@ -701,6 +702,11 @@ export const ko: Messages = {
       ready: "Ready",
       missing: "Not downloaded",
       checking: "Checking…",
+      readyTitle: "Vision + planning ready",
+      readyBody: "Utter can see your screen and plan actions.",
+      check: "Check server",
+      checkOk: "The planner server is responding.",
+      checkFailed: "The planner server didn't respond. Try Install / repair.",
       download: "Download vision + planner models",
       redownload: "Download them again",
       consentTitle: "Download the vision and planner models?",
@@ -843,6 +849,11 @@ export const ko: Messages = {
       widthHint: "작을수록 빠릅니다. 1344는 밸런스가 좋습니다.",
       gpu: "그래픽 카드",
       gpuHint: "비전 서버가 사용하는 GPU입니다(0이 첫 번째임).",
+    },
+    planner: {
+      title: "Planning",
+      description: "The separate model that turns your words into actions. It's set up with screen vision.",
+      runtime: "Planner runtime",
     },
     trust: {
       title: "안전한 이유",

@@ -119,6 +119,23 @@ EOF
     fi
 fi
 
+# Planner + vision engine. macOS runs the planner through llama.cpp
+# (llama-server + GGUF) and vision through transformers, so provision both via
+# the assistant CLI — the same platform-aware `assistant inference install`
+# Windows uses. It is idempotent by design (a complete venv / model directory
+# is reused). Like the STT model above this step is deliberately not skippable:
+# the planner drives the decision head, and a failure aborts setup.
+echo "provisioning the planner + vision engine via assistant inference install (llama.cpp/GGUF, several GB)"
+if ! "$VENV/bin/python" -m assistant inference install; then
+    cat >&2 <<EOF
+macos/setup.sh: could not provision the planner + vision engine
+  python -m assistant inference install
+The planner (llama.cpp + GGUF) drives the decision head. Check your network and
+re-run macos/setup.sh.
+EOF
+    exit 1
+fi
+
 # Let the packaged settings app (utter.app) find this checkout and its venv.
 # This symlink is a dev-only convenience: when the app manages a packaged
 # runtime we leave it alone so the app keeps using its own core + interpreter.

@@ -120,6 +120,7 @@ export const es: Messages = {
       installLater: "Install later",
       installLaterHint:
         "If you install later, setup stays unfinished until the speech model is ready.",
+      runtimePlanner: "Planner: {backend} · {model}",
     },
     firstAction: {
       eyebrow: "Una cosa más",
@@ -698,6 +699,11 @@ export const es: Messages = {
       ready: "Ready",
       missing: "Not downloaded",
       checking: "Checking…",
+      readyTitle: "Vision + planning ready",
+      readyBody: "Utter can see your screen and plan actions.",
+      check: "Check server",
+      checkOk: "The planner server is responding.",
+      checkFailed: "The planner server didn't respond. Try Install / repair.",
       download: "Download vision + planner models",
       redownload: "Download them again",
       consentTitle: "Download the vision and planner models?",
@@ -840,6 +846,11 @@ export const es: Messages = {
       widthHint: "Más pequeña es más rápida. 1344 es un buen equilibrio.",
       gpu: "Tarjeta gráfica",
       gpuHint: "Qué GPU usa el servidor de visión (0 es la primera).",
+    },
+    planner: {
+      title: "Planning",
+      description: "The separate model that turns your words into actions. It's set up with screen vision.",
+      runtime: "Planner runtime",
     },
     trust: {
       title: "Por qué es seguro",

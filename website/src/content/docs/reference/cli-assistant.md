@@ -70,6 +70,29 @@ stops an in-flight download cleanly.
 Store location: `$XDG_DATA_HOME/utter-models/`, or `UTTER_MODELS`. It sits beside the
 install tree and is kept on uninstall.
 
+## `inference`
+
+```bash
+assistant inference install [--json]     # provision the vision + planner stack
+assistant inference status  [--json]     # are the payloads complete?
+assistant inference check   [--json] [--base-url URL] [--timeout SECONDS]
+```
+
+Provisions and checks the vision (UI-TARS) and planner models, which are multi-file or
+platform-specific and so are not pulled with `assistant models`. `install` creates `.venv`,
+installs the platform runtime, downloads the UI-TARS repo, and prepares the platform planner: vLLM
++ a 4-bit AWQ checkpoint on Linux, llama.cpp + the `unsloth/Qwen3-4B-Instruct-2507-GGUF` Q4_K_M
+GGUF and a pinned `llama-server` build on macOS/Windows.
+
+`status --json` reports
+`{"vision":bool,"planner":bool,"vision_path":str,"planner_path":str,"planner_backend":"vllm"|"llamacpp"}`.
+
+`check` smoke-tests a running planner at `http://127.0.0.1:8001/v1` (or `--base-url`): it probes
+`/v1/models`, then asserts one tool call and one `json_schema` response, and exits non-zero when
+the endpoint is unhealthy. It never starts a server; on failure it points at the right serve
+script (`scripts/serve_planner.sh` on Linux, `scripts/serve_planner_llamacpp.sh` on
+macOS/Windows).
+
 ## `status`
 
 ```bash
@@ -99,6 +122,10 @@ installs reversible and that `doctor` compares against the running system.
 | `UTTER_DRY_RUN` | the `utter_py` plugin defaults this to on; set `0` to touch the desktop |
 | `UTTER_SOUNDS` | `0` disables the UI sounds |
 | `UTTER_OSD` | `0` disables the on-screen display |
+| `UTTER_PLANNER_BASE_URL` | planner endpoint for `inference check` (default `http://127.0.0.1:8001/v1`) |
+| `UTTER_PLANNER_MODEL_PATH` | planner model override: a GGUF file/dir (llama.cpp) or a checkpoint dir (vLLM) |
+| `UTTER_PLANNER_PORT` / `UTTER_PLANNER_SERVED_NAME` | planner port / served name used by the serve scripts and `check` |
+| `UTTER_LLAMACPP_SERVER` / `UTTER_LLAMACPP_TAG` | `llama-server` path / pinned llama.cpp build tag |
 | `XDG_RUNTIME_DIR` | where the runner socket, plugin sockets and OSD state live |
 # Utter command line
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "./api";
-import type { InferenceStatus, ModelEntry } from "./types";
+import type { InferenceStatus, ModelEntry, PlannerBackend } from "./types";
 
 /**
  * The whisper.cpp speech model Utter requires on every platform. Speech is
@@ -61,4 +61,37 @@ export function useInferenceStatus(): {
 /** True only when both halves of the sharded set are present. */
 export function inferenceReady(status: InferenceStatus | null): boolean {
   return Boolean(status?.vision && status?.planner);
+}
+
+/** Normalise the `planner_backend` field, tolerating aliases and bad values. */
+export function normalizePlannerBackend(value: unknown): PlannerBackend | null {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "vllm") return "vllm";
+  if (raw === "llamacpp" || raw === "llama.cpp" || raw === "llama_cpp") return "llamacpp";
+  return null;
+}
+
+/**
+ * The planner runtime a host uses when the engine doesn't report one. Linux
+ * keeps vLLM + AWQ; macOS and Windows use llama.cpp + GGUF.
+ */
+export function defaultPlannerBackend(os: string): PlannerBackend {
+  return os === "linux" ? "vllm" : "llamacpp";
+}
+
+/** The planner runtime to show: what the engine reports, else the platform default. */
+export function plannerBackend(status: InferenceStatus | null, os: string): PlannerBackend {
+  return normalizePlannerBackend(status?.planner_backend) ?? defaultPlannerBackend(os);
+}
+
+/** Brand name for a planner runtime (not translated — these are proper nouns). */
+export function plannerBackendLabel(backend: PlannerBackend): string {
+  return backend === "vllm" ? "vLLM" : "llama.cpp";
+}
+
+/** The planner checkpoint each runtime loads (short, human-readable form). */
+export function plannerModelLabel(backend: PlannerBackend): string {
+  return backend === "vllm"
+    ? "Qwen3-4B-Instruct-2507 (AWQ 4-bit)"
+    : "Qwen3-4B-Instruct-2507 (GGUF Q4_K_M)";
 }

@@ -102,5 +102,7 @@ See [Architecture](/reference/architecture/) for the full picture and the
 Utter is young software built with the help of AI coding assistants and reviewed by a human.
 Read the code before trusting it with anything important, and please
 [report anything that looks wrong](https://github.com/sujaisubbanna/utter-assistant/issues).
-Linux x86_64 on Wayland and macOS are supported platforms (see [macOS](/guides/macos/)).
-Windows is not supported.
+Linux (Wayland: niri, KDE/KWin) and macOS are supported platforms (see
+[macOS](/guides/macos/)). **Windows** is supported on an opt-in, experimental basis
+(see the Windows plan in the repository). The planner (Qwen3-4B) runs on **vLLM + AWQ on Linux**
+and on **llama.cpp + GGUF on macOS/Windows**, always at `http://127.0.0.1:8001/v1` (`qwen3-4b`).

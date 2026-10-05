@@ -3,13 +3,19 @@ title: "Install"
 description: "The ways to install Utter on Linux and macOS: clone and install, the one-line remote installer, or build from source."
 ---
 
-Utter runs on **Linux on Wayland** and **macOS**. On Linux, **niri** and **KDE Plasma (KWin)** are
+Utter runs on **Linux on Wayland** and **macOS**; **Windows** support is opt-in and experimental
+(see the Windows plan in the repository). On Linux, **niri** and **KDE Plasma (KWin)** are
 first-class and other compositors get partial support (dictation, typing, launching; no window
-actions). Both platforms need **Python 3.12+**; Linux needs **PipeWire**. Dictation and the
+actions). Both major platforms need **Python 3.12+**; Linux needs **PipeWire**. Dictation and the
 assistant key both work on Linux and macOS.
 See [macOS](/guides/macos/) for the macOS-specific setup.
 An NVIDIA GPU is recommended for the larger models but not required.
-Building the settings app needs Node + pnpm and a Rust toolchain. Linux release assets are
+
+The planner (Qwen3-4B) always answers on `http://127.0.0.1:8001/v1` as `qwen3-4b`: **vLLM + AWQ on
+Linux**, **llama.cpp (`llama-server`) + GGUF on macOS/Windows**. Vision (UI-TARS) is on
+`http://127.0.0.1:8000/v1` as `uitars`: vLLM on Linux, `scripts/serve_vision_transformers.py` on
+macOS/Windows. Speech recognition uses the mandatory whisper.cpp model everywhere. Building the
+settings app needs Node + pnpm and a Rust toolchain. Linux release assets are
 published for x86_64 today; macOS ships `.dmg` bundles for Apple Silicon and Intel.
 
 The installer is an **interactive wizard**. It walks each component (the runner and `assistant`
@@ -105,8 +111,9 @@ the model store.
 
 ## GPU requirements and latency
 
-The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers**. Per-component
-footprint:
+The shipped serving scripts assume **one NVIDIA GPU shared by both vLLM servers** — this section
+is Linux-specific (macOS/Windows use llama.cpp + transformers, so these fractions do not apply).
+Per-component footprint:
 
 | Component | Model | Precision | GPU memory setting | On disk |
 |---|---|---|---|---|

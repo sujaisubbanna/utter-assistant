@@ -1,15 +1,17 @@
 import { useCallback, useState } from "react";
 
 import { Icon, type IconName } from "../components/icons";
+import { InferenceCheckButton } from "../components/InferenceInstall";
 import { ModelRequiredDialog } from "../components/ModelRequired";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { ConfigNumber, ConfigSwitch, ConfigText, SwitchSetting } from "../components/Setting";
 import { Badge } from "../components/ui/Badge";
 import { LinkButton } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
-import { Row } from "../components/ui/Row";
+import { Row, Tile } from "../components/ui/Row";
 import { useT, type MessageKey } from "../i18n";
 import { useConfig } from "../lib/config";
+import { plannerBackend, plannerBackendLabel, plannerModelLabel, useInferenceStatus } from "../lib/inference";
 import { LINKS } from "../lib/links";
 import { useModelStatus } from "../lib/models";
 import { usePlatform } from "../lib/platform";
@@ -32,10 +34,12 @@ export function PerceptionPage() {
   // On macOS the effective VLM endpoint/model come from [macos.runtime]
   // (resolve_vision overrides [vision]); only enabled/target_width are read
   // from [vision], and CUDA is never used.
-  const { isMac } = usePlatform();
+  const { isMac, os } = usePlatform();
   const visionSection = isMac ? "macos.runtime" : "vision";
   const { get, setMany } = useConfig();
   const { need, storePath, refresh } = useModelStatus();
+  const { status: inference } = useInferenceStatus();
+  const backend = plannerBackend(inference, os);
   const [askingModel, setAskingModel] = useState(false);
   const closeModel = useCallback(() => setAskingModel(false), []);
   const visionEnabled = Boolean(get("vision", "enabled", false));
@@ -156,6 +160,16 @@ export function PerceptionPage() {
               width="w-20"
             />
           )}
+        </Section>
+
+        <Section title={t("perception.planner.title")} description={t("perception.planner.description")}>
+          <Row
+            leading={<Tile icon="sparkles" tone="accent" />}
+            title={t("perception.planner.runtime")}
+            description={`${plannerBackendLabel(backend)} · ${plannerModelLabel(backend)}`}
+          >
+            <InferenceCheckButton />
+          </Row>
         </Section>
 
         <Section title={t("perception.trust.title")} description={t("perception.trust.description")}>

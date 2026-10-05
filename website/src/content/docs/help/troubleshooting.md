@@ -107,8 +107,11 @@ timeout.
 **Cause:** the model store holds files; a server has to serve them. The endpoints in
 `[router] llm_base_url` and `[vision] base_url` must be running.
 
-**Fix:** start the servers (`scripts/serve_planner.sh`, `scripts/serve_vision.sh`) or point the
-config at your own OpenAI-compatible server, then use **Test endpoint** on the LLM page. The
+**Fix:** start the servers — on Linux `scripts/serve_planner.sh` (`:8001`) and
+`scripts/serve_vision.sh` (`:8000`); on macOS/Windows `scripts/serve_planner_llamacpp.sh` (`:8001`)
+and `scripts/serve_vision_transformers.py` (`:8000`) — or point the config at your own
+OpenAI-compatible server, then use **Test endpoint** on the LLM page. You can also run
+`python -m assistant inference check --json` to smoke-test the planner endpoint directly. The
 decision head **fails open to rules** on any error, so a missing server degrades gracefully rather
 than breaking commands.
 

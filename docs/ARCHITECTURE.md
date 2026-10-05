@@ -22,7 +22,7 @@ and packaging**, not memory, and a Rust port is deferred until profiling shows a
               JSON-RPC 2.0 (Content-Length) over stdio / unix socket
    ┌──────────┬───────────┼──────────────┬──────────────┬─────────┐
  stt        router       llm          perceive        action     ui
-(whisper)  (+decide)  (vllm/ollama)  (a11y/vision)  (niri/input) (bar/gui)
+(whisper)  (+decide)  (vllm/llama.cpp) (a11y/vision) (niri/input) (bar/gui)
 ```
 
 ## 4. Protocol (see `protocol/PROTOCOL.md`)
@@ -84,3 +84,7 @@ N-2 window yet), capability registry governance, deprecation, install lockfile, 
 - The installer detects the distro from `/etc/os-release` and uses pacman/apt/dnf/zypper for
   system dependencies. The settings app ships as an AppImage, `.deb` and `.rpm`; the Python
   core ships as a tarball. The daemon is deliberately **not** an AppImage or Flatpak.
+- The **planner** (`:8001`, served name `qwen3-4b`) is **vLLM + 4-bit AWQ on Linux** and
+  **llama.cpp (`llama-server`) + GGUF on macOS/Windows**. **Vision** (`:8000`, `uitars`) is
+  **vLLM UI-TARS on Linux** and **`scripts/serve_vision_transformers.py` on macOS/Windows**. Speech
+  recognition uses the mandatory whisper.cpp model on every platform.

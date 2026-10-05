@@ -260,7 +260,7 @@ Two things use the local language-model endpoint on port `8001`:
 - **The free-form planner** is the JSON fallback used only when rules and the decision head both
   fail. Disable it with `[router] llm_fallback = false`.
 
-Serve the planner with vLLM (GPU 1, port 8001, served name `qwen3-4b`):
+Serve the planner on **Linux** with vLLM (GPU 1, port 8001, served name `qwen3-4b`):
 
 ```bash
 scripts/serve_planner.sh
@@ -268,14 +268,31 @@ scripts/serve_planner.sh
 setsid bash -c 'scripts/serve_planner.sh > /tmp/vllm-planner.log 2>&1 &'
 ```
 
-Override model, port and GPU with `UTTER_PLANNER_MODEL_PATH`, `UTTER_PLANNER_PORT`,
+On **macOS/Windows** the planner is llama.cpp over the `unsloth/Qwen3-4B-Instruct-2507-GGUF`
+Q4_K_M checkpoint, on the same endpoint and served name so `llm_base_url` / `llm_model` do not
+change. `python -m assistant inference install` fetches the GGUF and a pinned `llama-server` build:
+
+```bash
+scripts/serve_planner_llamacpp.sh
+# under the hood:
+# llama-server --model <gguf> --alias qwen3-4b --host 127.0.0.1 --port 8001 \
+#     -c 4096 -ngl auto -fa auto --jinja --reasoning off -np 1 --no-webui
+```
+
+`--reasoning off` is **mandatory** — Qwen3-4B-Instruct-2507 is often misdetected as a thinking
+model and would otherwise emit reasoning tokens. `-ngl auto` offloads what it can (Metal on macOS,
+CUDA on Windows) and falls back to CPU; `--jinja` applies the model's chat template.
+
+On Linux, override model, port and GPU with `UTTER_PLANNER_MODEL_PATH`, `UTTER_PLANNER_PORT`,
 `UTTER_PLANNER_SERVED_NAME`, `UTTER_PLANNER_GPU_MEM_UTIL` and `UTTER_CUDA_VISIBLE_DEVICES`. The
-default checkpoint is a 4-bit AWQ build of Qwen3-4B-Instruct. Any OpenAI-compatible server
-(Ollama, llama.cpp) works too; point `llm_base_url` and `llm_model` at it from the **LLM** page.
+Linux default checkpoint is a 4-bit AWQ build of Qwen3-4B-Instruct. Any OpenAI-compatible server
+(Ollama, LM Studio, llama.cpp) works on any platform too; point `llm_base_url` and `llm_model` at
+it from the **LLM** page.
 
 ## Vision
 
-The vision tier grounds a description to a click point using **UI-TARS** served by vLLM:
+The vision tier grounds a description to a click point using **UI-TARS**. On **Linux** it is served
+by vLLM:
 
 ```bash
 scripts/serve_vision.sh
@@ -288,6 +305,10 @@ setsid bash -c 'scripts/serve_vision.sh > /tmp/vllm-serve.log 2>&1 &'
   `UTTER_CUDA_VISIBLE_DEVICES`.
 - The planner and vision servers can share one GPU through vLLM's memory utilisation flags
   (vision 0.55, planner 0.30 by default).
+
+On **macOS/Windows** the same UI-TARS checkpoint is served by
+`scripts/serve_vision_transformers.py` on the same `http://127.0.0.1:8000/v1` / `uitars` endpoint;
+there is no vLLM wheel there. See [macOS](/guides/macos/).
 
 On the client side, Utter captures with `grim`, resizes the screenshot to `target_width`
 (rounded to a multiple of 28 for the model) and converts the model's 0 to 1000 normalised

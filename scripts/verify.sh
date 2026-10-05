@@ -39,6 +39,7 @@ echo "== router: rules golden order =="
 "$PY" tests/router/test_rules_order.py || rc=1
 "$PY" tests/router/test_app_target_rules.py || rc=1
 "$PY" tests/router/test_app_enabled.py || rc=1
+"$PY" tests/router/test_planner_llamacpp.py || rc=1
 
 echo "== router: eval corpus =="
 "$PY" tests/eval/run_eval.py || rc=1
@@ -167,6 +168,9 @@ if [ -f tests/m5/test_inference_cli.py ]; then
 fi
 if [ -f tests/m5/test_inference_plan.py ]; then
     "$PY" tests/m5/test_inference_plan.py || rc=1
+fi
+if [ -f tests/m5/test_planner_llamacpp.py ]; then
+    "$PY" tests/m5/test_planner_llamacpp.py || rc=1
 fi
 
 echo

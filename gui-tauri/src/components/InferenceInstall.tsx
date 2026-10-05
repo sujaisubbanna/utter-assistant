@@ -5,15 +5,25 @@ import { api } from "../lib/api";
 import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
 import { humanBytes, parseJsonLine } from "../lib/format";
-import { inferenceReady, REQUIRED_SPEECH_SOURCE, useInferenceStatus } from "../lib/inference";
+import {
+  inferenceReady,
+  plannerBackend,
+  plannerBackendLabel,
+  plannerModelLabel,
+  REQUIRED_SPEECH_SOURCE,
+  useInferenceStatus,
+} from "../lib/inference";
 import { LINKS } from "../lib/links";
-import type { InferenceStatus } from "../lib/types";
+import { usePlatform } from "../lib/platform";
+import type { InferenceStatus, PlannerBackend } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Icon } from "./icons";
+import { Badge } from "./ui/Badge";
 import { Button, LinkButton } from "./ui/Button";
 import { Modal } from "./ui/Modal";
 import { Progress } from "./ui/Progress";
 import { Tile } from "./ui/Row";
+import { useToast } from "./ui/Toast";
 
 type Phase = "idle" | "starting" | "downloading" | "done" | "error";
 type Stage = "engine" | "speech";
@@ -39,6 +49,7 @@ export function InferenceInstallDialog({
   includeSpeech = false,
   engineReady = false,
   speechReady = false,
+  backend,
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,8 +60,16 @@ export function InferenceInstallDialog({
   engineReady?: boolean;
   /** Whether the required speech model is already present. */
   speechReady?: boolean;
+  /**
+   * Which runtime serves the planner, from `inference status` when known.
+   * Falls back to the host default (vLLM on Linux, llama.cpp elsewhere).
+   */
+  backend?: PlannerBackend;
 }) {
   const { t } = useI18n();
+  const { os } = usePlatform();
+  const runtime = backend ?? plannerBackend(null, os);
+  const plannerDescription = `${plannerBackendLabel(runtime)} · ${plannerModelLabel(runtime)}`;
   const [phase, setPhase] = useState<Phase>("idle");
   const [stage, setStage] = useState<Stage>("engine");
   const [error, setError] = useState("");
@@ -368,7 +387,7 @@ export function InferenceInstallDialog({
                 <InferencePart
                   icon="sparkles"
                   title={t("models.inference.planner")}
-                  model={t("models.inference.plannerModel")}
+                  model={plannerDescription}
                   size={t("models.inference.plannerSize")}
                 />
               </>
@@ -427,7 +446,8 @@ function InferencePart({
 /**
  * The "Download vision + planner models" action. Opens the consent/progress
  * dialog above. Available on every platform: the installer sets up the right
- * runtime for the host (torch + transformers on Windows/macOS, vLLM on Linux).
+ * runtime for the host — vLLM + AWQ on Linux, llama.cpp + GGUF on Windows/macOS
+ * (with torch + transformers serving screen vision).
  *
  * Pass `status` when the caller already tracks the models; otherwise this reads
  * it itself so it can label the button (Download vs Download again).
@@ -444,10 +464,12 @@ export function InferenceInstallButton({
   variant?: "primary" | "secondary";
 }) {
   const { t } = useI18n();
+  const { os } = usePlatform();
   const [open, setOpen] = useState(false);
   const internal = useInferenceStatus();
   const resolved = status !== undefined ? status : internal.status;
   const ready = inferenceReady(resolved);
+  const backend = plannerBackend(resolved, os);
 
   return (
     <>
@@ -457,6 +479,7 @@ export function InferenceInstallButton({
       <InferenceInstallDialog
         open={open}
         onClose={() => setOpen(false)}
+        backend={backend}
         onInstalled={() => {
           void internal.refresh();
           onInstalled?.();
@@ -467,22 +490,65 @@ export function InferenceInstallButton({
 }
 
 /**
- * The settings home for the missing-runtime state: a status card with an
- * Install / repair action. Renders nothing until the probe answers and nothing
- * once the vision + planner runtime and the required speech model are present,
- * so it can be dropped in unconditionally.
- *
- * It stays hidden while the status is unknown (for example when the Python
- * engine itself is missing) because `EngineInstallCard` owns that state.
+ * Smoke-test the planner endpoint (`assistant inference check`). A pass/fail
+ * toast keeps the action self-contained wherever it is placed.
+ */
+export function InferenceCheckButton({
+  size = "sm",
+  variant = "secondary",
+}: {
+  size?: "sm" | "md";
+  variant?: "primary" | "secondary" | "ghost";
+}) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [checking, setChecking] = useState(false);
+
+  const run = async () => {
+    setChecking(true);
+    try {
+      const result = await api.inferenceCheck();
+      if (result?.ok) {
+        toast(t("models.inference.checkOk"), "ok");
+      } else if (result?.detail) {
+        // The CLI's message names the serve script to start; show it verbatim.
+        toast(result.detail, "error");
+      } else {
+        toast(t("models.inference.checkFailed"), "error");
+      }
+    } catch {
+      toast(t("models.inference.checkFailed"), "error");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <Button size={size} variant={variant} icon="zap" loading={checking} onClick={() => void run()}>
+      {t("models.inference.check")}
+    </Button>
+  );
+}
+
+/**
+ * The settings home for the inference runtime: shows which planner runtime is
+ * in use (vLLM on Linux, llama.cpp on macOS/Windows) and the checkpoint it
+ * serves. Renders nothing until the probe answers (for example when the Python
+ * engine itself is missing, which `EngineInstallCard` owns). Once the probe
+ * answers the card always shows; it adds an Install / repair action when the
+ * vision + planner models or the required speech model are missing.
  */
 export function InferenceInstallCard({ className }: { className?: string }) {
   const { t } = useI18n();
+  const { os } = usePlatform();
   const { status, speech, loading, refresh } = useInferenceStatus();
   const [open, setOpen] = useState(false);
   if (loading || !status) return null;
 
+  const backend = plannerBackend(status, os);
   const engineMissing = !inferenceReady(status);
-  if (!engineMissing && speech) return null;
+  const speechMissing = !speech;
+  const ready = !engineMissing && !speechMissing;
 
   return (
     <section
@@ -493,29 +559,46 @@ export function InferenceInstallCard({ className }: { className?: string }) {
         <span
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
           style={{
-            color: "var(--primary)",
-            background: "color-mix(in oklab, var(--primary) 13%, transparent)",
+            color: ready ? "var(--success)" : "var(--primary)",
+            background: `color-mix(in oklab, ${ready ? "var(--success)" : "var(--primary)"} 13%, transparent)`,
           }}
         >
-          <Icon name={engineMissing ? "eye" : "mic"} size={22} />
+          <Icon name={ready ? "check-circle" : engineMissing ? "eye" : "mic"} size={22} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[15px] font-semibold text-foreground">{t("models.inference.requiredTitle")}</span>
-            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-text">
-              {t("models.inference.required")}
+            <span className="text-[15px] font-semibold text-foreground">
+              {ready ? t("models.inference.readyTitle") : t("models.inference.requiredTitle")}
             </span>
+            {ready ? (
+              <Badge tone="ok" dot>
+                {t("models.inference.ready")}
+              </Badge>
+            ) : (
+              <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-text">
+                {t("models.inference.required")}
+              </span>
+            )}
           </div>
           <p className="mt-1 max-w-[44rem] text-xs leading-[18px] text-muted-foreground">
-            {t("models.inference.requiredDescription")}
+            {ready ? t("models.inference.readyBody") : t("models.inference.requiredDescription")}
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            {plannerBackendLabel(backend)} · {plannerModelLabel(backend)}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="primary" icon="download" onClick={() => setOpen(true)}>
-              {t("models.inference.repair")}
-            </Button>
-            <LinkButton href={LINKS.uitars} variant="ghost">
-              {t("models.inference.website")}
-            </LinkButton>
+            {ready ? (
+              <InferenceCheckButton />
+            ) : (
+              <>
+                <Button size="sm" variant="primary" icon="download" onClick={() => setOpen(true)}>
+                  {t("models.inference.repair")}
+                </Button>
+                <LinkButton href={LINKS.uitars} variant="ghost">
+                  {t("models.inference.website")}
+                </LinkButton>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -525,6 +608,7 @@ export function InferenceInstallCard({ className }: { className?: string }) {
         includeSpeech
         engineReady={!engineMissing}
         speechReady={speech}
+        backend={backend}
         onInstalled={() => void refresh()}
       />
     </section>
