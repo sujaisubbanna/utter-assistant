@@ -77,7 +77,7 @@ check("[macos] defaults: whisper_cpp -> apple_speech", defaults.macos.stt_backen
       and defaults.macos.stt_fallback == "apple_speech")
 check("[macos] defaults: say / quartz", defaults.macos.tts_backend == "say"
       and defaults.macos.hotkey_backend == "quartz" and defaults.macos.injection == "quartz")
-check("Linux [stt] default unchanged", defaults.stt.backend == "faster_whisper")
+check("Linux [stt] default unchanged", defaults.stt.backend == "whisper_cpp")
 check("Linux [ptt] default unchanged", defaults.ptt.dictation_key == "KEY_F13"
       and defaults.ptt.assistant_key == "KEY_INSERT")
 check("Linux [hotkey] default unchanged", defaults.hotkey.key == "KEY_RIGHTCTRL")
@@ -133,7 +133,7 @@ check("darwin: vocamac counts as present when the app binary exists",
 
 t = stt.Transcriber.for_platform(Config(), platform_name="linux")
 check("Transcriber.for_platform(linux) == configured backend, no fallbacks",
-      t.backend == "faster_whisper" and t.fallbacks == [])
+      t.backend == "whisper_cpp" and t.fallbacks == [])
 t = stt.Transcriber.for_platform(Config(), platform_name="darwin")
 check("Transcriber.for_platform(darwin) has a fallback", len(t.fallbacks) == 1
       and set([t.backend, *t.fallbacks]) == {"apple_speech", "whisper_cpp"})

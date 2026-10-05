@@ -35,8 +35,8 @@ class AudioConfig:
 
 @dataclass
 class STTConfig:
-    backend: str = "faster_whisper"
-    model: str = "distil-small.en"
+    backend: str = "whisper_cpp"
+    model: str = "ggml-small.en.bin"
     device: str = "cuda"  # Linux default (CUDA/NVIDIA; ignored on macOS)
     compute_type: str = "float16"
     # Spoken language. "auto" = resolve from the system locale (LC_ALL/

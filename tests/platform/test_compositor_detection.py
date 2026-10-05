@@ -136,7 +136,7 @@ with tempfile.TemporaryDirectory() as td:
     cfg = load_config(cfg_path)
     check("config: [general] compositor override parsed", cfg.general.compositor == "kwin")
     check("config: [kwin] keys parsed", cfg.kwin.screenshot == "spectacle" and cfg.kwin.use_kdotool is False)
-    check("config: Linux defaults untouched", cfg.stt.backend == "faster_whisper" and cfg.ptt.dictation_key == "KEY_F13")
+    check("config: Linux defaults untouched", cfg.stt.backend == "whisper_cpp" and cfg.ptt.dictation_key == "KEY_F13")
 
 # the config value is what `configured()` returns when no env override is present
 with env(XDG_CONFIG_HOME=tempfile.mkdtemp()):
