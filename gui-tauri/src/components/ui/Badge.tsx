@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 
@@ -18,7 +18,7 @@ const STYLES: Record<Tone, { className: string; style?: React.CSSProperties }> =
   danger: { className: "", style: tint("var(--destructive)") },
 };
 
-export function Badge({
+export const Badge = memo(function Badge({
   children,
   tone = "neutral",
   dot,
@@ -43,4 +43,4 @@ export function Badge({
       {children}
     </span>
   );
-}
+});

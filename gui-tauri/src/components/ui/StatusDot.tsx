@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import { cn } from "../../lib/utils";
 import { Icon } from "../icons";
 
@@ -15,7 +17,7 @@ export function toneColor(tone: DotTone): string {
           : "color-mix(in oklab, var(--muted-foreground) 70%, transparent)";
 }
 
-export function StatusDot({
+export const StatusDot = memo(function StatusDot({
   tone = "unknown",
   pulse,
   className,
@@ -40,7 +42,7 @@ export function StatusDot({
       }}
     />
   );
-}
+});
 
 export function DotLabel({ tone, label, pulse }: { tone?: DotTone; label: string; pulse?: boolean }) {
   return (

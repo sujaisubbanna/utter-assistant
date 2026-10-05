@@ -25,6 +25,7 @@ import { resetOnboarding } from "../lib/onboarding";
 import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
 import { useRunnerStatus } from "../lib/status";
 import type { UnitStatus } from "../lib/types";
+import { sameJson } from "../lib/utils";
 
 const RUNNER = "utter-runner";
 
@@ -116,9 +117,10 @@ export function GeneralPage() {
         api.systemctlShow(SERVICES.map((service) => service.unit)),
         api.systemctl("is-enabled", RUNNER),
       ]);
-      setUnits(list);
+      setUnits((prev) => (sameJson(prev, list) ? prev : list));
       setUnitError(null);
-      setEnabled((state.stdout || state.stderr).trim());
+      const nextEnabled = (state.stdout || state.stderr).trim();
+      setEnabled((prev) => (prev === nextEnabled ? prev : nextEnabled));
     } catch (error) {
       setUnitError(String(error));
     }

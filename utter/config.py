@@ -35,8 +35,8 @@ class AudioConfig:
 
 @dataclass
 class STTConfig:
-    backend: str = "faster_whisper"
-    model: str = "distil-small.en"
+    backend: str = "whisper_cpp"
+    model: str = "ggml-small.en.bin"
     device: str = "cuda"  # Linux default (CUDA/NVIDIA; ignored on macOS)
     compute_type: str = "float16"
     # Spoken language. "auto" = resolve from the system locale (LC_ALL/
@@ -146,7 +146,11 @@ class OsdConfig:
     enabled: bool = True
     position: str = "bottom_center"
     dismiss_ms: int = 1200
-    stream: bool = True
+    # Windowed partial transcription while listening. Off by default: it runs a
+    # full STT decode every `stream_interval_ms` and, on a slow CPU, competes
+    # with the listener's final transcription. The waveform + final text are
+    # unaffected. Set true to opt back into live partials.
+    stream: bool = False
     stream_interval_ms: int = 700
     window_s: float = 6.0
 

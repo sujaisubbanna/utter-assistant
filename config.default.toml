@@ -151,7 +151,10 @@ model_ready_timeout_s = 30
 enabled = true
 position = "bottom_center"
 dismiss_ms = 1200
-stream = true
+# Live partial transcription while listening. Off by default: it runs a full
+# STT decode every stream_interval_ms and can compete with the listener's final
+# transcription on slow hardware. The waveform and final text still work.
+stream = false
 stream_interval_ms = 700
 window_s = 6
 

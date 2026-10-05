@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 import { Icon, type IconName } from "../icons";
@@ -26,7 +26,9 @@ export function Row({
   return (
     <Tag
       className={cn(
-        "flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-150",
+        // `cv-row` lets WebKit skip layout and paint for off-screen rows while
+        // scrolling; the intrinsic size matches the `min-h-[52px]` below.
+        "cv-row flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-150",
         (onClick || as === "button" || as === "label") && "focus-ring cursor-pointer hover:bg-wash",
         className,
       )}
@@ -46,7 +48,7 @@ export function Row({
 }
 
 /** Leading icon tile for a row. */
-export function Tile({
+export const Tile = memo(function Tile({
   icon,
   tone = "muted",
   className,
@@ -80,7 +82,7 @@ export function Tile({
       <Icon name={icon} size={15} />
     </span>
   );
-}
+});
 
 /** Right-aligned secondary value (versions, paths, states). */
 export function Value({ children, mono = true, className }: { children: ReactNode; mono?: boolean; className?: string }) {

@@ -1492,6 +1492,8 @@ pkg_for() {
         pacman:webkit2gtk)   echo "webkit2gtk-4.1" ;;
         pacman:libsoup)      echo "libsoup3" ;;
         pacman:keyd)         echo "keyd" ;;
+        pacman:python-gobject) echo "python-gobject" ;;
+        pacman:at-spi2-core) echo "at-spi2-core" ;;
         apt:wtype)           echo "wtype" ;;
         apt:ydotool)         echo "ydotool" ;;
         apt:grim)            echo "grim" ;;
@@ -1500,6 +1502,8 @@ pkg_for() {
         apt:webkit2gtk)      echo "libwebkit2gtk-4.1-0" ;;
         apt:libsoup)         echo "libsoup-3.0-0" ;;
         apt:keyd)            echo "" ;;
+        apt:python-gobject)  echo "python3-gi" ;;
+        apt:at-spi2-core)    echo "" ;;
         dnf:wtype)           echo "wtype" ;;
         dnf:ydotool)         echo "ydotool" ;;
         dnf:grim)            echo "grim" ;;
@@ -1508,6 +1512,8 @@ pkg_for() {
         dnf:webkit2gtk)      echo "webkit2gtk4.1" ;;
         dnf:libsoup)         echo "libsoup3" ;;
         dnf:keyd)            echo "" ;;
+        dnf:python-gobject)  echo "python3-gobject" ;;
+        dnf:at-spi2-core)    echo "at-spi2-core" ;;
         zypper:wtype)        echo "wtype" ;;
         zypper:ydotool)      echo "ydotool" ;;
         zypper:grim)         echo "grim" ;;
@@ -1516,6 +1522,8 @@ pkg_for() {
         zypper:webkit2gtk)   echo "libwebkit2gtk-4_1-0" ;;
         zypper:libsoup)      echo "libsoup-3_0-0" ;;
         zypper:keyd)         echo "" ;;
+        zypper:python-gobject) echo "python3-gobject" ;;
+        zypper:at-spi2-core) echo "at-spi2-core" ;;
         *)                   echo "" ;;
     esac
 }
@@ -1538,8 +1546,25 @@ dep_present() {
         libsoup)      lib_present "libsoup-3.0" "libsoup-3.0" ;;
         systemd-user) _systemd_user_ok ;;
         keyd)         command -v keyd >/dev/null 2>&1 ;;
+        # a11y (context detection) needs the distro PyGObject/Atspi bindings.
+        python-gobject) system_gi_present ;;
+        at-spi2-core) lib_present "atspi-2" "libatspi.so" ;;
         *)            false ;;
     esac
+}
+
+# system_gi_present — the distro python has PyGObject with the Atspi typelib.
+# Probing a system interpreter (not the app venv) mirrors what the installer's
+# --system-site-packages venv will be able to import.
+system_gi_present() {
+    local p
+    for p in /usr/bin/python3 /usr/bin/python3.*; do
+        [[ -x "$p" ]] || continue
+        if "$p" -c 'import gi; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi' >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 _systemd_user_ok() {
@@ -1547,12 +1572,28 @@ _systemd_user_ok() {
 }
 
 DEP_REQUIRED=(wtype ydotool grim wl-clipboard pipewire webkit2gtk libsoup)
+# Required for context/a11y detection; the installer prints the packages and
+# they are pulled by the system-deps step. They are not fatal to the rest of
+# the install (voice/actions work without a11y), so they live in their own list.
+DEP_A11Y=(python-gobject at-spi2-core)
 DEP_OPTIONAL=(keyd)
 
 missing_pkgs() {
     # echo the mapped package names for missing required deps
     local out=() logical pkg
     for logical in "${DEP_REQUIRED[@]}"; do
+        if ! dep_present "$logical"; then
+            pkg="$(pkg_for "$logical")"
+            [[ -n "$pkg" ]] && out+=("$pkg")
+        fi
+    done
+    printf '%s\n' "${out[@]:-}"
+}
+
+missing_a11y_pkgs() {
+    # echo the mapped package names for missing accessibility deps
+    local out=() logical pkg
+    for logical in "${DEP_A11Y[@]}"; do
         if ! dep_present "$logical"; then
             pkg="$(pkg_for "$logical")"
             [[ -n "$pkg" ]] && out+=("$pkg")
@@ -2931,14 +2972,19 @@ asset_names_ready || { resolve_release; set_asset_names; }
 exec_deps() {
     section "system deps"
     local missing_csv; missing_csv="$(missing_pkgs | paste -sd, - 2>/dev/null || missing_pkgs | tr '\n' ',')"
-    if [[ -z "$missing_csv" ]]; then
+    local a11y_csv; a11y_csv="$(missing_a11y_pkgs | paste -sd, - 2>/dev/null || missing_a11y_pkgs | tr '\n' ',')"
+    if [[ -z "$missing_csv" && -z "$a11y_csv" ]]; then
         say "  all required dependencies are already present"
         return 0
     fi
-    say_f "  missing packages: {1}" "$missing_csv"
+    [[ -n "$missing_csv" ]] && say_f "  missing packages: {1}" "$missing_csv"
+    [[ -n "$a11y_csv" ]] && say_f "  missing accessibility packages (context detection): {1}" "$a11y_csv"
     local PKGS=()
     local p
     while IFS= read -r p; do [[ -n "$p" ]] && PKGS+=("$p"); done < <(missing_pkgs)
+    # a11y packages are required for context detection; pull them alongside.
+    while IFS= read -r p; do [[ -n "$p" ]] && PKGS+=("$p"); done < <(missing_a11y_pkgs)
+    [[ ${#PKGS[@]} -gt 0 ]] || return 0
     local INSTALL_CMD=()
     case "$PKG_MGR" in
         pacman) INSTALL_CMD=(sudo pacman -S --needed --noconfirm "${PKGS[@]}") ;;
@@ -2963,43 +3009,112 @@ exec_deps() {
     record_component deps "System deps" "$VER_NUM" "$PKG_MGR" 1 "$ASSISTANT_BIN"
 }
 
+# py_has_gi <python> — true when this interpreter can import the distro Atspi
+# bindings. A Homebrew/isolated python usually cannot; /usr/bin/python3 can.
+py_has_gi() {
+    local p="$1"
+    [[ -n "$p" ]] || return 1
+    "$p" -c 'import gi; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi' >/dev/null 2>&1
+}
+
+# choose_base_python — pick the interpreter the venv is built from. Order:
+# $UTTER_PYTHON, then an existing app venv, then /usr/bin/python3 (distro gi),
+# then whatever `python3` is on PATH. Among the first existing candidates we
+# prefer one that can already import gi, so a11y works after install.
+choose_base_python() {
+    local cands=() c first=""
+    [[ -n "${UTTER_PYTHON:-}" ]] && cands+=("${UTTER_PYTHON}")
+    cands+=("$SHARE_DIR/.venv-agent/bin/python" "/usr/bin/python3")
+    c="$(command -v python3 2>/dev/null || true)"
+    [[ -n "$c" ]] && cands+=("$c")
+    for c in "${cands[@]}"; do
+        [[ -n "$c" ]] || continue
+        if command -v "$c" >/dev/null 2>&1 || [[ -x "$c" ]]; then
+            [[ -n "$first" ]] || first="$c"
+            if py_has_gi "$c"; then printf '%s' "$c"; return 0; fi
+        fi
+    done
+    printf '%s' "$first"
+}
+
+# venv_is_isolated <venv> — true when an existing venv was created WITHOUT
+# --system-site-packages (so it cannot see the distro gi/Atspi). Such a venv
+# must be recreated for a11y to work.
+venv_is_isolated() {
+    local cfg="$1/pyvenv.cfg"
+    [[ -f "$cfg" ]] || return 1
+    grep -qiE '^include-system-site-packages[[:space:]]*=[[:space:]]*false' "$cfg"
+}
+
+# a11y_pkg_hint — the distro packages to install when gi/Atspi is missing.
+a11y_pkg_hint() {
+    case "$PKG_MGR" in
+        pacman) echo "python-gobject at-spi2-core" ;;
+        apt)    echo "python3-gi gir1.2-atspi-2.0 at-spi2-core" ;;
+        dnf)    echo "python3-gobject at-spi2-core" ;;
+        zypper) echo "python3-gobject at-spi2-core" ;;
+        *)      echo "python-gobject / python3-gi and at-spi2-core" ;;
+    esac
+}
+
 # ensure_python_deps — make `python -m assistant` and the utter_py plugin
 # importable. The core needs PyYAML + requests; the voice daemon also needs the
-# Linux voice runtime (numpy, evdev, sounddevice, pywhispercpp). Prefer an
-# existing venv in the core tree, create one if needed, else fall back to a
-# --user install. Uses python3 explicitly and never relies on a bare `python`.
+# Linux voice runtime (numpy, evdev, sounddevice, pywhispercpp); context/a11y
+# needs the distro PyGObject/Atspi bindings, which is why the venv is created
+# with --system-site-packages (matching the dev venv). Prefer an existing venv
+# in the core tree, create one if needed, else fall back to a --user install.
 # Sets ASSISTANT_PY to the interpreter that should run the plugin.
 ASSISTANT_PY=""
 ensure_python_deps() {
-    local py="" c
-    for c in "${UTTER_PYTHON:-}" "$SHARE_DIR/.venv-agent/bin/python" "$SHARE_DIR/.venv/bin/python"; do
-        [[ -n "$c" ]] || continue
-        if command -v "$c" >/dev/null 2>&1 || [[ -x "$c" ]]; then py="$c"; break; fi
-    done
-    if [[ -z "$py" ]] && command -v python3 >/dev/null 2>&1; then py="$(command -v python3)"; fi
-    [[ -n "$py" ]] || { warn "no python3 on PATH; cannot install assistant dependencies"; return 0; }
+    local py="" venv="$SHARE_DIR/.venv-agent" base=""
+    base="$(choose_base_python)"
+    [[ -n "$base" ]] || { warn "no python3 on PATH; cannot install assistant dependencies"; return 0; }
+    say_f "  base python: {1}" "$base"
+    if py_has_gi "$base"; then
+        say "  base python provides gi/Atspi (accessibility detection available)"
+    else
+        warn_f "base python has no gi/Atspi; install: {1}" "$(a11y_pkg_hint)"
+    fi
+    py="$base"
 
-    if "$py" -c 'import yaml, requests, numpy, evdev, sounddevice, pywhispercpp' >/dev/null 2>&1; then
+    if "$py" -c 'import yaml, requests, numpy, evdev, sounddevice, pywhispercpp' >/dev/null 2>&1 \
+        && { [[ ! -x "$venv/bin/python" ]] || ! venv_is_isolated "$venv"; }; then
         say "  assistant Python dependencies already present"
         ASSISTANT_PY="$py"
         return 0
     fi
 
-    local venv="$SHARE_DIR/.venv-agent"
     if (( DRY_RUN )); then
         ASSISTANT_PY="$venv/bin/python"
-        run_f "create {1}" "$venv" python3 -m venv "$venv"
+        # Recreate an isolated venv (or build one) with system site-packages so
+        # the distro gi/Atspi bindings are importable, matching the dev venv.
+        if venv_is_isolated "$venv"; then
+            run_f "recreate {1} (system site-packages)" "$venv" "$base" -m venv --system-site-packages --clear "$venv"
+        else
+            run_f "create {1} (system site-packages)" "$venv" "$base" -m venv --system-site-packages "$venv"
+        fi
         run "install PyYAML + requests + Linux voice runtime" "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp
+        say "  [dry-run] verify gi/Atspi import in the venv"
         return 0
     fi
 
-    if [[ ! -x "$venv/bin/python" ]] && command -v python3 >/dev/null 2>&1; then
-        python3 -m venv "$venv" >/dev/null 2>&1 || true
+    # Build or repair the venv. An isolated venv cannot see the distro gi, so
+    # recreate it with --clear when it already exists without system packages.
+    local need_create=0
+    [[ -x "$venv/bin/python" ]] || need_create=1
+    venv_is_isolated "$venv" && need_create=1
+    if (( need_create )); then
+        local flags=(-m venv --system-site-packages)
+        [[ -e "$venv" ]] && flags+=(--clear)
+        "$base" "${flags[@]}" "$venv" >/dev/null 2>&1 || true
     fi
     if [[ -x "$venv/bin/python" ]] \
         && "$venv/bin/python" -m pip install --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp >/dev/null 2>&1; then
         ok_f "installed PyYAML + requests + Linux voice runtime into {1}" "$venv"
         ASSISTANT_PY="$venv/bin/python"
+        if ! py_has_gi "$ASSISTANT_PY"; then
+            warn_f "venv cannot import gi/Atspi (a11y context detection disabled); install: {1}" "$(a11y_pkg_hint)"
+        fi
         return 0
     fi
     if "$py" -m pip install --user --quiet --disable-pip-version-check PyYAML requests numpy evdev sounddevice pywhispercpp >/dev/null 2>&1; then

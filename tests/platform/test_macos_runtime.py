@@ -123,7 +123,9 @@ class TestMacosRuntime(unittest.TestCase):
 
     def test_probe_runtime_linux_structure(self):
         with forced_platform("linux"):
-            rep = runtime.probe_runtime()
+            # Hermetic: pass an explicit config so the probe never reads the
+            # developer's ~/.config/utter/config.toml.
+            rep = runtime.probe_runtime(cfg=Config())
             self.assertEqual(rep["platform"], "linux")
             self.assertIn(rep["device"], ("cuda", "rocm", "cpu"))
             self.assertEqual(rep["llm"]["provider"], "vllm")
