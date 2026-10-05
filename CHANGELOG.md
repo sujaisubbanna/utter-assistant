@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-10-05
+
+### Fixed
+- **Hugging Face model pulls now verify and succeed.** Every `hf:` download
+  failed with a "sha256 mismatch" after fetching the whole file, because the
+  model store compared it against Hugging Face's Xet dedup hash instead of the
+  file's real content hash. A fresh install could never obtain a speech or
+  vision model, so both were inert. Pulls now read the true content hash
+  (`X-Linked-ETag`) and verify.
+
 ## [0.4.2] - 2026-10-05
 
 ### Added
