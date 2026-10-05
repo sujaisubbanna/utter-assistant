@@ -15,7 +15,8 @@ import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { humanizeError } from "../lib/errors";
 import { useTauriEvent } from "../lib/events";
-import { SERVICES } from "../lib/services";
+import { usePlatform } from "../lib/platform";
+import { servicesFor } from "../lib/services";
 import { cn } from "../lib/utils";
 import type { DoctorReport } from "../lib/types";
 
@@ -49,8 +50,10 @@ type CapKey = keyof typeof CAP_KEYS;
 
 export function DiagnosticsPage() {
   const { t, tn } = useI18n();
+  const { isMac } = usePlatform();
   const toast = useToast();
-  const [unit, setUnit] = useState(SERVICES[0].unit);
+  const services = servicesFor(isMac);
+  const [unit, setUnit] = useState("utter-runner");
   const [follow, setFollow] = useState(true);
   const [lines, setLines] = useState<string[]>([]);
   const [report, setReport] = useState<DoctorReport | null>(null);
@@ -172,7 +175,7 @@ export function DiagnosticsPage() {
               <Row
                 leading={<Tile icon={report.ok ? "check-circle" : "alert"} tone={report.ok ? "ok" : "warn"} />}
                 title={t("diagnostics.health.overall")}
-                description={report.ok ? t("diagnostics.health.allGood") : report.error || t("diagnostics.health.issues")}
+                description={report.ok ? t("diagnostics.health.allGood") : humanizeError(report.error, t) || t("diagnostics.health.issues")}
               >
                 <Badge tone={report.ok ? "ok" : "warn"} dot>
                   {report.ok ? t("plugins.runner.healthy") : t("plugins.runner.issues")}
@@ -363,7 +366,7 @@ export function DiagnosticsPage() {
               value={unit}
               onChange={setUnit}
               ariaLabel={t("diagnostics.logs.service")}
-              options={SERVICES.map((service) => ({ value: service.unit, label: t(service.labelKey) }))}
+              options={services.map((service) => ({ value: service.unit, label: t(service.labelKey) }))}
               className="w-56"
             />
             <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">

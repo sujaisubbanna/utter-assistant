@@ -289,6 +289,7 @@ pub fn run() {
             commands::which_many,
             commands::engine_present,
             commands::open_installer_terminal,
+            commands::open_dep_fix,
             commands::start_mic,
             commands::stop_mic,
             commands::start_log_tail,

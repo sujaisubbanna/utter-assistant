@@ -103,6 +103,10 @@ export const api = {
   // terminal (the user sees and confirms it; we never run it silently).
   enginePresent: () => invoke<boolean>("engine_present"),
   openInstallerTerminal: () => invoke<void>("open_installer_terminal"),
+  // Run a known dependency fix in the user's terminal (never silently). The
+  // backend maps the dep id to a compile-time command, so no shell text crosses
+  // the boundary.
+  openDepFix: (dep: string) => invoke<void>("open_dep_fix", { dep }),
 
   startMic: () => invoke<void>("start_mic"),
   stopMic: () => invoke<void>("stop_mic"),

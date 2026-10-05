@@ -23,7 +23,8 @@ import { useConfig } from "../lib/config";
 import { humanizeError } from "../lib/errors";
 import { usePoll } from "../lib/hooks";
 import { resetOnboarding } from "../lib/onboarding";
-import { optionLabel, SERVICES, TRIGGERS } from "../lib/services";
+import { usePlatform } from "../lib/platform";
+import { optionLabel, servicesFor, TRIGGERS } from "../lib/services";
 import { useRunnerStatus } from "../lib/status";
 import type { UnitStatus } from "../lib/types";
 import { sameJson } from "../lib/utils";
@@ -96,12 +97,16 @@ function StatusHero({ onStart, busy }: { onStart: () => void; busy: boolean }) {
 export function GeneralPage() {
   const { t } = useI18n();
   const toast = useToast();
+  const { isMac } = usePlatform();
   const { get, set } = useConfig();
   const { connected, reload: reloadStatus } = useRunnerStatus();
   const [units, setUnits] = useState<UnitStatus[] | null>(null);
   const [unitError, setUnitError] = useState<string | null>(null);
   const [enabled, setEnabled] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [installingAgents, setInstallingAgents] = useState(false);
+  // macOS only shows the two launchd agents; Linux/Windows show every unit.
+  const services = servicesFor(isMac);
   // Real config location, honouring XDG_CONFIG_HOME — not a hardcoded path.
   const [configPath, setConfigPath] = useState("~/.config/utter/config.toml");
 
@@ -115,7 +120,7 @@ export function GeneralPage() {
   const load = useCallback(async () => {
     try {
       const [list, state] = await Promise.all([
-        api.systemctlShow(SERVICES.map((service) => service.unit)),
+        api.systemctlShow(services.map((service) => service.unit)),
         api.systemctl("is-enabled", RUNNER),
       ]);
       setUnits((prev) => (sameJson(prev, list) ? prev : list));
@@ -125,7 +130,7 @@ export function GeneralPage() {
     } catch (error) {
       setUnitError(humanizeError(error, t));
     }
-  }, [t]);
+  }, [t, services]);
 
   useEffect(() => {
     void load();
@@ -143,7 +148,7 @@ export function GeneralPage() {
 
   const control = async (action: string, unit: string) => {
     setBusy(unit);
-    const name = t(SERVICES.find((service) => service.unit === unit)?.labelKey ?? "general.serviceNames.runner");
+    const name = t(services.find((service) => service.unit === unit)?.labelKey ?? "general.serviceNames.runner");
     try {
       const result = await api.systemctl(action, unit);
       const detail = humanizeError((result.stderr || result.stdout).trim().slice(0, 140), t);
@@ -161,6 +166,29 @@ export function GeneralPage() {
       await reloadStatus();
     } finally {
       setBusy(null);
+    }
+  };
+
+  // macOS: (re)install the launchd agents for the bundled runtime. Used by the
+  // service rows when a label is missing, so "Not installed" is never a dead end.
+  const installAgents = async () => {
+    setInstallingAgents(true);
+    try {
+      const next = await api.macosReinstallAgents();
+      toast(
+        next.agents_installed ? t("setup.runtime.done") : t("general.services.failedAction", {
+          action: t("common.install").toLowerCase(),
+          name: t("general.serviceNames.runner"),
+          detail: t("common.unknown"),
+        }),
+        next.agents_installed ? "ok" : "error",
+      );
+      await load();
+      await reloadStatus();
+    } catch (error) {
+      toast(t("common.saveFailed", { what: t("setup.agent.title"), error: humanizeError(error, t) }), "error");
+    } finally {
+      setInstallingAgents(false);
     }
   };
 
@@ -267,11 +295,13 @@ export function GeneralPage() {
           {unitError && units === null ? (
             <ErrorState message={unitError} onRetry={() => void load()} />
           ) : units === null ? (
-            <SkeletonRows count={5} />
+            <SkeletonRows count={services.length} />
           ) : (
-            SERVICES.map((service) => {
-              const info = describeUnit(unitMap.get(service.unit));
+            services.map((service) => {
+              const unit = unitMap.get(service.unit);
+              const info = describeUnit(unit);
               const name = t(service.labelKey);
+              const missing = isMac && (!unit || unit.load_state === "not-found" || unit.load_state === "masked");
               return (
                 <Row
                   key={service.unit}
@@ -283,34 +313,46 @@ export function GeneralPage() {
                   title={name}
                   description={t(service.descKey)}
                 >
-                  <span className="hidden text-xs text-muted-foreground sm:inline" title={`${service.unit}.service${info.raw ? ` · ${info.raw}` : ""}`}>
+                  <span className="hidden text-xs text-muted-foreground sm:inline" title={`${service.unit}${isMac ? "" : ".service"}${info.raw ? ` · ${info.raw}` : ""}`}>
                     {t(info.key)}
                   </span>
-                  <Menu
-                    label={t("general.services.control", { name })}
-                    items={[
-                      {
-                        label: t("general.services.start"),
-                        icon: "play",
-                        disabled: busy === service.unit,
-                        onSelect: () => void control("start", service.unit),
-                      },
-                      {
-                        label: t("general.services.restart"),
-                        icon: "refresh",
-                        disabled: busy === service.unit,
-                        onSelect: () => void control("restart", service.unit),
-                      },
-                      { separator: true },
-                      {
-                        label: t("general.services.stop"),
-                        icon: "square",
-                        danger: true,
-                        disabled: busy === service.unit,
-                        onSelect: () => void control("stop", service.unit),
-                      },
-                    ]}
-                  />
+                  {missing ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon="download"
+                      loading={installingAgents}
+                      onClick={() => void installAgents()}
+                    >
+                      {t("setup.runtime.install")}
+                    </Button>
+                  ) : (
+                    <Menu
+                      label={t("general.services.control", { name })}
+                      items={[
+                        {
+                          label: t("general.services.start"),
+                          icon: "play",
+                          disabled: busy === service.unit,
+                          onSelect: () => void control("start", service.unit),
+                        },
+                        {
+                          label: t("general.services.restart"),
+                          icon: "refresh",
+                          disabled: busy === service.unit,
+                          onSelect: () => void control("restart", service.unit),
+                        },
+                        { separator: true },
+                        {
+                          label: t("general.services.stop"),
+                          icon: "square",
+                          danger: true,
+                          disabled: busy === service.unit,
+                          onSelect: () => void control("stop", service.unit),
+                        },
+                      ]}
+                    />
+                  )}
                 </Row>
               );
             })

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../components/icons";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { ConfigSwitch, ConfigText, SelectSetting } from "../components/Setting";
+import { DepInstallButton } from "../components/DepInstall";
 import { Badge } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
@@ -139,9 +140,16 @@ export function VoiceMacPage() {
             onChange={(next) => void set("macos", "stt_backend", next)}
             extra={
               backendLink && backendDef ? (
-                <LinkButton href={backendLink}>
-                  {t("voice.stt.getEngine", { name: optionLabel(backendDef, t).split(" (")[0] })}
-                </LinkButton>
+                <div className="flex items-center gap-2">
+                  <DepInstallButton
+                    dep={backend}
+                    title={optionLabel(backendDef, t).split(" (")[0]}
+                    href={backendLink}
+                  />
+                  <LinkButton href={backendLink}>
+                    {t("voice.stt.getEngine", { name: optionLabel(backendDef, t).split(" (")[0] })}
+                  </LinkButton>
+                </div>
               ) : undefined
             }
           />

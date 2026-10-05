@@ -73,15 +73,22 @@ def cmd_macos_permissions(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    client = RunnerClient(util.runner_sock_path(), timeout=args.timeout)
+    sock_path = util.runner_sock_path()
+    client = RunnerClient(sock_path, timeout=args.timeout)
     try:
         client.connect()
     except OSError as exc:
-        if args.json:
-            util.emit({"ok": False, "connected": False,
-                       "error": f"runner socket unavailable: {exc}"})
+        hint = doctor._runner_start_hint()
+        if isinstance(exc, FileNotFoundError):
+            detail = f"the runner isn't running: no socket at {sock_path}"
         else:
-            util.eprint(f"runner socket unavailable: {exc}")
+            detail = f"couldn't reach the runner at {sock_path}: {exc}"
+        message = f"{detail}. {hint}"
+        if args.json:
+            util.emit({"ok": False, "connected": False, "socket": sock_path,
+                       "error": message})
+        else:
+            util.eprint(message)
         return 1
     try:
         status = client.call("runner.status", {})

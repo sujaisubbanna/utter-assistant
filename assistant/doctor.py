@@ -64,6 +64,9 @@ def _runner_start_hint() -> str:
 
     if platform.is_windows():
         return "start the Utter service from Settings"
+    if platform.is_macos():
+        return ("Start it with: brew services start utter "
+                "(or: launchctl kickstart gui/$(id -u)/com.utter.runner)")
     return "Start it with: systemctl --user start utter-runner.service"
 
 

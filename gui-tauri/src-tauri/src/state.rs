@@ -93,13 +93,6 @@ impl AppState {
             .env("PYTHONPATH", repo.to_string_lossy().into_owned())
     }
 
-    /// `systemctl --user …` (the Linux runner is a user service). Kept for the
-    /// call sites that historically restarted the runner this way; the
-    /// platform-aware path is `crate::service::control`.
-    pub fn systemctl(&self, args: &[&str]) -> Cmd {
-        Cmd::new("systemctl").arg("--user").args(args.iter().copied())
-    }
-
     pub fn kill_child(&self, id: &str) {
         if let Some(mut child) = self.children.lock().unwrap().remove(id) {
             let _ = child.kill();

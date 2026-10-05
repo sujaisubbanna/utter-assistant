@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { ConfigRange, ConfigSwitch, ConfigText, SelectSetting } from "../components/Setting";
+import { DepInstallButton } from "../components/DepInstall";
 import { Badge } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
 import { Section } from "../components/ui/Card";
@@ -81,7 +82,10 @@ export function LlmPage() {
             options={LLM_PROVIDERS.map((item) => ({ value: item.value, label: optionLabel(item, t) }))}
             extra={
               providerLink && providerDef ? (
-                <LinkButton href={providerLink}>{t("llm.provider.getIt", { name: optionLabel(providerDef, t) })}</LinkButton>
+                <div className="flex items-center gap-2">
+                  <DepInstallButton dep={provider} title={optionLabel(providerDef, t)} href={providerLink} />
+                  <LinkButton href={providerLink}>{t("llm.provider.getIt", { name: optionLabel(providerDef, t) })}</LinkButton>
+                </div>
               ) : undefined
             }
             onChange={(next) => {
