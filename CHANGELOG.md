@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-10-05
+
+### Added
+- **UI sounds can target a specific output device.** Set `[sounds] sink` in
+  `config.toml` (or `UTTER_SOUND_SINK`) to a PipeWire sink name so the
+  activation/notification sounds play on your speakers or headset instead of the
+  system default (which can be a virtual streaming sink).
+
+### Fixed
+- **The Homebrew formula installs and runs the voice daemon.** It now installs
+  the macOS runtime extra (PyObjC, sounddevice, numpy, pywhispercpp) and starts
+  `python -m utter.daemon` instead of the non-existent `utter --daemon`.
+
 ## [0.4.6] - 2026-10-05
 
 ### Fixed
