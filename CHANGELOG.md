@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.14] - 2026-10-05
+
+### Added
+- **Install the vision + planner models from the settings app.** The sharded
+  UI-TARS and planner checkpoints can't be pulled by the single-file model
+  store, so the Models page (and the missing-vision dialog) now offers a
+  one-click download with consent and live progress. Adds
+  `assistant inference install|status [--json]`.
+- **Windows inference provisioning.** The vision + planner stack can be
+  installed on Windows (and macOS) via the same UI/CLI, using transformers +
+  torch instead of vLLM.
+- **The installers install the required models by default**, and can be
+  unselected — the Linux wizard defaults the vision + planner engine on when a
+  ≥8 GB NVIDIA GPU is detected.
+
+### Changed
+- **The whisper.cpp speech model is mandatory on Linux, macOS and Windows.**
+  `install.sh`, `install.ps1` and `macos/setup.sh` download it and cannot skip
+  it; the onboarding requires it and the settings app re-offers it if deferred.
+  `pywhispercpp>=1.5` is now in the `windows` extra (win_amd64 wheels).
+- **Provisioning is cross-platform Python** (`assistant.inference`):
+  `vllm` on Linux, `transformers`/`torch`/`accelerate` on macOS and Windows;
+  `scripts/install_inference.sh` is now a thin wrapper.
+
+### Fixed
+- **`install.ps1 -DryRun` is side-effect-free**, and CI now parses and runs the
+  installer on `windows-latest` and asserts the mandatory model step.
+
 ## [0.4.13] - 2026-10-05
 
 ### Added
