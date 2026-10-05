@@ -6,7 +6,7 @@ class Utter < Formula
 
   desc "Local, offline, context-aware voice to desktop-action assistant"
   homepage "https://github.com/sujaisubbanna/utter-assistant"
-  url "https://github.com/sujaisubbanna/utter-assistant/archive/refs/tags/v0.4.6.tar.gz"
+  url "https://github.com/sujaisubbanna/utter-assistant/archive/refs/tags/v0.4.7.tar.gz"
   license "Apache-2.0"
   head "https://github.com/sujaisubbanna/utter-assistant.git", branch: "main"
 
@@ -17,7 +17,10 @@ class Utter < Formula
   def install
     # Install Python package and its dependencies into libexec virtualenv
     venv = virtualenv_create(libexec, "python3.12")
-    venv.pip_install_and_link(buildpath)
+    # Install the macOS runtime extra too (PyObjC, sounddevice, numpy,
+    # pywhispercpp) — the same set macos/setup.sh installs. Without it the CLI
+    # has only PyYAML/requests and the voice daemon cannot start.
+    venv.pip_install_and_link "#{buildpath}[macos]"
 
     # Binaries linked to Homebrew's bin
     bin.install_symlink libexec/"bin/utter" if (libexec/"bin/utter").exist?
@@ -29,7 +32,8 @@ class Utter < Formula
   end
 
   service do
-    run [opt_bin/"utter", "--daemon"]
+    # The voice daemon is a module — the `utter` CLI has no `--daemon` flag.
+    run [opt_libexec/"bin/python", "-m", "utter.daemon"]
     keep_alive true
     log_path var/"log/utter/utter.log"
     error_log_path var/"log/utter/utter.log"
