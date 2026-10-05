@@ -793,9 +793,10 @@ class Utter:
                     return
                 try:
                     ok = self.handle_utterance(text)
-                except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                except Exception:  # noqa: BLE001 - a bad utterance must not kill the daemon
+                    log.exception("handle_utterance failed; ignoring %r", text)
                     osd.idle()
-                    raise
+                    return
                 _play("detected" if ok else "not_detected")
                 # ``final`` schedules its own dismiss after [osd] dismiss_ms.
                 osd.final(text, bool(ok))
@@ -1013,10 +1014,11 @@ class Utter:
                     return
                 try:
                     ok = self.handle_utterance(text)
-                except Exception:  # noqa: BLE001 - clear the OSD, keep the loop alive
+                except Exception:  # noqa: BLE001 - a bad utterance must not kill the daemon
+                    log.exception("handle_utterance failed; ignoring %r", text)
                     osd.idle()
                     native.idle()
-                    raise
+                    return
                 _play("detected" if ok else "not_detected")
                 osd.final(text, bool(ok))
                 native.final(text, bool(ok), dismiss_ms, lane=mode)
