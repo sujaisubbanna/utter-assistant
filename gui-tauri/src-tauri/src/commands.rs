@@ -855,18 +855,15 @@ pub async fn inference_status(state: State<'_, AppState>) -> Result<Value, Strin
 /// Download the sharded vision + planner models, streaming NDJSON progress as
 /// `inference://progress` and a final `inference://done`.
 ///
-/// Mirrors `start_models_pull`: the CLI (`assistant inference install --json`)
-/// is POSIX-only and exits 1 on Windows, so this only spawns on non-Windows
-/// hosts; callers hide the action there.
+/// Mirrors `start_models_pull`. The CLI (`assistant inference install --json`)
+/// now provisions on every platform (torch + transformers on Windows/macOS,
+/// vLLM on Linux), so this spawns the same way everywhere.
 #[tauri::command(rename_all = "camelCase")]
 pub fn start_inference_install(
     app: AppHandle,
     state: State<AppState>,
     id: String,
 ) -> Result<(), String> {
-    if cfg!(windows) {
-        return Err("inference install is not supported on Windows yet".to_string());
-    }
     let cmd = state.assistant(&["inference", "install", "--json"]);
     let mut child = cmd.spawn_piped().map_err(|error| io_message(&error))?;
     let stdout = child.stdout.take().ok_or_else(|| err("no stdout pipe"))?;

@@ -13,6 +13,8 @@ on:
       - "tests/platform/**"
       - "tests/voice/**"
       - "pyproject.toml"
+      - "install.ps1"
+      - "docs/WINDOWS.md"
       - ".github/workflows/windows.yml"
   pull_request:
     paths:
@@ -22,6 +24,8 @@ on:
       - "tests/platform/**"
       - "tests/voice/**"
       - "pyproject.toml"
+      - "install.ps1"
+      - "docs/WINDOWS.md"
       - ".github/workflows/windows.yml"
 
 permissions:
@@ -80,6 +84,59 @@ jobs:
           python tests/platform/test_windows_backends_context.py
           python tests/platform/test_windows_backends.py
           python tests/voice/test_windows_backends.py
+
+      # install.ps1 was only ever parsed on Linux. Prove on a real Windows host
+      # that it is syntactically valid AND that -DryRun is fully side-effect-free:
+      # it resolves `<latest>` offline, prints the whole plan, and creates nothing.
+      # The mandatory whisper.cpp STT/model step must appear in that plan.
+      - name: Parse install.ps1 (PowerShell AST)
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ./install.ps1).Path, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_ }
+            throw "install.ps1 has $($errors.Count) parse error(s)"
+          }
+          Write-Host "install.ps1 parses cleanly ($($tokens.Count) tokens)"
+
+      - name: Installer dry-run (side-effect-free plan)
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $prefix = Join-Path $env:RUNNER_TEMP 'utter-ci-dryrun'
+          $models = Join-Path $env:RUNNER_TEMP 'utter-ci-dryrun-models'
+          $config = Join-Path $env:APPDATA 'utter\config.toml'
+          $env:UTTER_PREFIX = $prefix
+          $env:UTTER_MODELS = $models
+
+          # Separate process so the exit code is unambiguous. No -Version: the
+          # dry run must resolve `<latest>` without any network call. Capture all
+          # streams without letting a non-zero exit become a terminating error,
+          # so the real exit code can be asserted explicitly below.
+          $ErrorActionPreference = 'Continue'
+          $plan = pwsh -NoProfile -File ./install.ps1 -DryRun -SkipGui *>&1 | Out-String
+          $code = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          Write-Host $plan
+          if ($code -ne 0) { throw "install.ps1 -DryRun exited with code $code" }
+
+          # side-effect assertions: DryRun must not create anything
+          if (Test-Path -LiteralPath $prefix) { throw "dry-run created the prefix: $prefix" }
+          if (Test-Path -LiteralPath $models) { throw "dry-run created the model store: $models" }
+          if (Test-Path -LiteralPath $config) { throw "dry-run wrote the config: $config" }
+
+          # the mandatory STT/model step must be visible in the plan
+          if ($plan -notmatch 'whisper\.cpp STT model \(mandatory\)') {
+            throw "dry-run plan does not mention the mandatory whisper.cpp STT model step"
+          }
+          if ($plan -notmatch 'assistant models pull hf:ggerganov/whisper\.cpp:ggml-small\.en\.bin') {
+            throw "dry-run plan does not show the mandatory model pull command"
+          }
+          Write-Host "install.ps1 -DryRun plan ok (side-effect-free; STT model step present)"
 
       # NOTE: `python -m runner._selftest` is intentionally *not* run here. Its
       # non-e2e suite is bound to Unix runtime primitives that do not exist on

@@ -80,11 +80,13 @@ echo "== platform: macOS detection + backend selection (runs on Linux) =="
 "$PY" tests/platform/test_macos_runtime.py || rc=1
 "$PY" tests/platform/test_macos_wiring.py || rc=1
 "$PY" tests/platform/test_macos_background_input.py || rc=1
+"$PY" tests/platform/test_macos_stt.py || rc=1
 "$PY" tests/platform/test_windows_backends_context.py || rc=1
 "$PY" tests/platform/test_windows_backends.py || rc=1
 
 echo "== platform: Windows detection + path/dependency seams (runs on Linux/macOS) =="
 "$PY" tests/platform/test_windows_detection.py || rc=1
+"$PY" tests/platform/test_windows_stt.py || rc=1
 "$PY" tests/test_windows_paths.py || rc=1
 
 echo "== runner: cross-platform transport (Windows TCP path exercised on Linux) =="
@@ -104,6 +106,7 @@ echo "== guardrails: runner stdlib, provenance, installer contract =="
 "$PY" tests/test_gui_profile_contract.py || rc=1
 "$PY" tests/test_gui_unwired_config.py || rc=1
 "$PY" tests/test_installer_contract.py || rc=1
+"$PY" tests/test_installer_defaults.py || rc=1
 "$PY" tests/test_models_store.py || rc=1
 "$PY" tests/test_models_hf_hash.py || rc=1
 "$PY" tests/test_recommend_source.py || rc=1
@@ -161,6 +164,9 @@ if [ -f tests/m5/test_serve_model_resolution.py ]; then
 fi
 if [ -f tests/m5/test_inference_cli.py ]; then
     "$PY" tests/m5/test_inference_cli.py || rc=1
+fi
+if [ -f tests/m5/test_inference_plan.py ]; then
+    "$PY" tests/m5/test_inference_plan.py || rc=1
 fi
 
 echo

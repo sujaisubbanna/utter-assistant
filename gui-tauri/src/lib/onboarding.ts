@@ -29,6 +29,9 @@ export const ONBOARDING_STEPS = [
 
 export type OnboardingStepId = (typeof ONBOARDING_STEPS)[number];
 
+/** Index of the Models step, used to re-offer the mandatory speech install. */
+export const MODELS_STEP_INDEX = ONBOARDING_STEPS.indexOf("models");
+
 export interface OnboardingData {
   /** Index into ONBOARDING_STEPS of the step to resume on. */
   step: number;
@@ -41,6 +44,14 @@ export interface OnboardingData {
   /** Set once the app list has loaded and defaults were applied. */
   appsLoaded?: boolean;
   modelChoice?: ModelChoice;
+  /** Whether the first run should install the required engine + models. */
+  installRuntime?: boolean;
+  /**
+   * Whether the required whisper.cpp speech model is installed. `false` means
+   * the user deferred it on the Models step: setup stays incomplete and the
+   * install is offered again on the next run.
+   */
+  sttInstalled?: boolean;
   /** The user reached the finish screen. */
   tried?: boolean;
 }
@@ -68,10 +79,15 @@ function read(): Stored | null {
 export function loadOnboarding(): OnboardingData {
   const stored = read();
   if (!stored) return { ...EMPTY };
-  const step =
+  const raw =
     typeof stored.step === "number" && stored.step >= 0 && stored.step < ONBOARDING_STEPS.length
       ? Math.floor(stored.step)
       : 0;
+  // The speech model is required and can't be skipped. If the user deferred it,
+  // always resume at the Models step so the install is offered again instead of
+  // being silently lost further down the wizard.
+  const deferred = stored.sttInstalled === false;
+  const step = deferred && raw > MODELS_STEP_INDEX ? MODELS_STEP_INDEX : raw;
   return {
     step,
     language: stored.language,
@@ -80,6 +96,8 @@ export function loadOnboarding(): OnboardingData {
     apps: Array.isArray(stored.apps) ? stored.apps.filter((id) => typeof id === "string") : undefined,
     appsLoaded: Boolean(stored.appsLoaded),
     modelChoice: stored.modelChoice,
+    installRuntime: typeof stored.installRuntime === "boolean" ? stored.installRuntime : undefined,
+    sttInstalled: stored.sttInstalled === true ? true : deferred ? false : undefined,
     tried: Boolean(stored.tried),
   };
 }
@@ -98,11 +116,16 @@ export function saveOnboarding(patch: Partial<OnboardingData>): OnboardingData {
   return next;
 }
 
-/** True once the wizard has reached its final step. */
+/**
+ * True once the wizard has reached its final step. A deferred speech install
+ * keeps it false: the required model still has to be downloaded.
+ */
 export function isOnboardingComplete(): boolean {
   try {
     const stored = read();
-    return Boolean(stored && stored.step >= ONBOARDING_STEPS.length - 1);
+    return Boolean(
+      stored && stored.step >= ONBOARDING_STEPS.length - 1 && stored.sttInstalled !== false,
+    );
   } catch {
     return false;
   }
@@ -110,7 +133,9 @@ export function isOnboardingComplete(): boolean {
 
 /**
  * Mark the wizard finished. The record is left in place as the resume point
- * (step = last), so `isOnboardingComplete` is stable across reloads.
+ * (step = last), so `isOnboardingComplete` is stable across reloads. A deferred
+ * speech install (`sttInstalled === false`) is preserved, so the run stays
+ * incomplete and is offered again.
  */
 export function completeOnboarding(): void {
   saveOnboarding({ step: ONBOARDING_STEPS.length - 1, tried: true });

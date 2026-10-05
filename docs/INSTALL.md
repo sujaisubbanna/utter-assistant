@@ -3,7 +3,8 @@
 Target: Linux on Wayland — **niri** first, plus **KDE Plasma (KWin)** implemented and unit-tested
 (not yet exercised on a live Plasma session), other compositors get partial support (dictation,
 typing, launching; no window actions). Dictation and the assistant key work on Linux and macOS.
-**macOS is natively supported** (see [`MACOS.md`](MACOS.md)); Windows is not supported.
+**macOS is natively supported** (see [`MACOS.md`](MACOS.md)); Windows is supported
+experimentally (see [`WINDOWS.md`](WINDOWS.md)).
 
 ## 1. Installer
 
@@ -28,6 +29,10 @@ install/install.sh --yes --no-deps   # skip distro packages, only wire the servi
 
 The walk below (steps 1–7) describes the **full root `install.sh` wizard**, which is what the
 hosted one-liner runs; `install/install.sh` covers steps 1, 3–4 and 7 only.
+
+This wizard is **Linux-only**. **macOS** installs the signed app/DMG (and its model runtimes)
+through the app's first-run **onboarding** wizard, not through `install.sh`; see
+[`MACOS.md`](MACOS.md) and [`ONBOARDING.md`](ONBOARDING.md).
 
 **Agent-driven install.** Any of these can also be driven by an AI coding agent: point it at
 [`INSTALL-AGENT.md`](INSTALL-AGENT.md) (also on the site as
@@ -58,9 +63,14 @@ What it does:
 6. Records what it did in `$XDG_STATE_HOME/utter/install.json` (reversible).
 7. Runs `python3 -m assistant doctor --json` (or `recommend --json`) to verify.
 
-The wizard also walks the optional components — the **Perception** step (default **No**) is the
-one that provisions the vision + planner stack via `scripts/install_inference.sh`; see
-[§4 Model store](#4-model-store).
+The wizard also walks the component steps. The speech model backend (**STT**) is
+**mandatory**: the curated whisper.cpp model is always installed and the STT step cannot be
+skipped — not by answering "no"/"skip all" in the wizard, and not with `--skip` or `--only`.
+On a machine with a usable NVIDIA GPU the **Perception** step is also on by default — it
+provisions the vision + planner stack via `scripts/install_inference.sh`; see
+[§4 Model store](#4-model-store). Perception stays **optional and selectable** either way:
+unselect it by answering "no" in the wizard or with `--skip perception`, or force it with
+`--only perception`. Every other step can be unselected in the same way.
 
 On first launch the settings app opens the **first-run setup wizard** — language, permissions,
 push-to-talk keys, which apps Utter may control, and a model to run. It is documented in
@@ -126,31 +136,44 @@ it, so uninstalling the core tree keeps your models. An older store at
   atomic rename, pull lock, disk-space preflight.
 - `rm` drops the manifest and any now-unreferenced blobs; `prune` GCs orphans.
 
-The installer offers the model tiers (default **No**) and, for each tier you accept, pulls a
-**curated default source** through the store. On the 24 GB reference machine (RTX 3090 Ti) those
-defaults are:
+The installer offers the model tiers and pulls a **curated default source** through the store
+for each tier you accept. The **STT tier is mandatory** and always pulled: the whisper.cpp
+speech model cannot be unselected in the wizard and `--skip models`/`--skip stt`/`--only …`
+cannot remove it. On the 24 GB reference machine (RTX 3090 Ti) those defaults
+are:
 
 | Tier | Default source | Notes |
 |---|---|---|
 | STT | `hf:ggerganov/whisper.cpp:ggml-small.en.bin` | ~466 MB; runs on CPU or GPU |
-| Vision | — | UI-TARS repos are multi-file (sharded safetensors); the single-file store cannot pull them. `scripts/install_inference.sh` downloads the full repo |
-| Decision / planner | `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit` | multi-file 4-bit AWQ; provisioned by `scripts/install_inference.sh`, not the store. `UTTER_MODEL_DECISION` overrides it with any source you trust |
+| Vision | — | UI-TARS repos are multi-file (sharded safetensors); the single-file store cannot pull them. The inference provisioner downloads the full repo |
+| Decision / planner | `cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit` | multi-file 4-bit AWQ; provisioned by the inference provisioner, not the store. `UTTER_MODEL_DECISION` overrides it with any source you trust |
 
 Vision and the decision/planner model are **provisioned**, not store-pulled: both ship as
-multi-file (sharded safetensors) repos and the store fetches a single file. The wizard's optional
-**Perception** component (default **No**) runs `scripts/install_inference.sh` when you accept it —
-it creates `.venv`, installs vLLM + `huggingface_hub`, and downloads UI-TARS vision and the
-Qwen3-4B AWQ planner into `models/` (several GB). Then start
-`scripts/serve_vision.sh` (`:8000`) and `scripts/serve_planner.sh` (`:8001`). Nothing is
-downloaded without consent; `--yes` leaves the perception component off, like every other model
-tier. `UTTER_MODEL_STT` / `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults.
+multi-file (sharded safetensors) repos and the store fetches a single file. The provisioner is
+`assistant/inference.py` (the wizard's **Perception** component, run through
+`scripts/install_inference.sh`, which is a thin wrapper). When you accept it, it creates
+`.venv`, installs the platform runtime + `huggingface_hub`, and downloads UI-TARS vision and the
+Qwen3-4B AWQ planner into `models/` with `huggingface_hub.snapshot_download` (several GB).
 
-The settings UI can run the same provisioner through
+Because that stack runs under vLLM on an NVIDIA GPU, the Perception step is **on by default only
+when `nvidia-smi` reports a card with at least 8 GB VRAM**; on any other machine it defaults off
+(installing it would waste disk). It stays selectable either way — answer "yes" in the wizard or
+pass `--only perception` — and nothing is downloaded without consent. With `--yes` the
+recommended defaults are accepted, so Perception is installed on a supported GPU. `UTTER_MODEL_STT`
+/ `UTTER_MODEL_VISION` / `UTTER_MODEL_DECISION` override the defaults.
+
+The runtime and serving path are platform-specific:
+
+| Platform | Runtime | Serve |
+|---|---|---|
+| Linux | `vllm>=0.10` | `scripts/serve_vision.sh` (`:8000`) + `scripts/serve_planner.sh` (`:8001`) |
+| macOS | `transformers` + `torch` (Metal/MPS) + `accelerate` (no vLLM wheel) | `scripts/serve_vision_transformers.py` |
+| Windows | `torch` (CUDA when an NVIDIA GPU is present, else the CPU wheel) + `transformers` + `accelerate` | `scripts/serve_vision_transformers.py` |
+
+The settings UI runs the same provisioner through
 `python -m assistant inference install [--json]` (NDJSON progress, see
 [CLI.md](CLI.md#inference-models-vision--planner)); `python -m assistant inference status --json`
-reports whether the two model dirs are complete. On **macOS** there is no vLLM wheel: the same
-script installs `transformers` + `torch` (Metal/MPS) + `accelerate` and the vision model is served
-by `scripts/serve_vision_transformers.py` instead of `scripts/serve_vision.sh`.
+reports whether the two model dirs are complete.
 
 ### Spoken language and downloads
 

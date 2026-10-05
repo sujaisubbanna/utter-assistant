@@ -114,9 +114,10 @@ def cmd_status(args: argparse.Namespace) -> int:
 def cmd_inference(args: argparse.Namespace) -> int:
     """Provision (download) and inspect the vision + planner models.
 
-    ``install`` streams ``scripts/install_inference.sh``; with ``--json`` it
-    speaks NDJSON (start / progress / done|error) so the settings UI can follow
-    along. ``status`` reports whether the two model dirs look complete.
+    ``install`` runs the Python provisioner (``assistant/inference.py``); with
+    ``--json`` it speaks NDJSON (start / progress / done|error) so the settings
+    UI can follow along. Works on Linux, macOS and Windows.
+    ``status`` reports whether the two model dirs look complete.
     """
     action = args.inference_action
     if action == "install":

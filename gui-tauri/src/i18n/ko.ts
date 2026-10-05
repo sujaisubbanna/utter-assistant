@@ -116,6 +116,16 @@ export const ko: Messages = {
       decision: "판단 모델 · {model}",
       vision: "화면 비전 · {model}",
       rules: "내장 규칙만",
+      runtimeTitle: "Install what Utter needs",
+      runtimeBody: "Screen vision, planning and the speech model. Utter downloads and sets them up for you.",
+      runtimeSize: "About 8 GB in total",
+      required: "Required",
+      sttRequiredNote:
+        "The speech model is required. Utter can't listen without it, so it can't be skipped.",
+      installNow: "Install and continue",
+      installLater: "Install later",
+      installLaterHint:
+        "If you install later, setup stays unfinished until the speech model is ready.",
     },
     firstAction: {
       eyebrow: "마지막으로",
@@ -673,6 +683,14 @@ export const ko: Messages = {
       title: "Vision + planner models",
       description:
         "The screen-understanding and planning models. They aren't in the model store, so Utter downloads and sets them up for you.",
+      requiredTitle: "Required models",
+      requiredDescription:
+        "Utter needs the speech model, plus screen vision and planning. It downloads and sets them up for you.",
+      required: "Required",
+      repair: "Install / repair",
+      speech: "Speech recognition",
+      speechModel: "whisper.cpp · ggml-small.en.bin",
+      speechSize: "~470 MB",
       vision: "Screen vision",
       visionModel: "UI-TARS-2B-SFT",
       visionSize: "~4.5 GB",
@@ -705,7 +723,6 @@ export const ko: Messages = {
       retry: "Try again",
       notNow: "Not now",
       exitFailed: "Download stopped (code {code})",
-      unsupported: "Not supported on Windows yet",
       website: "Project website",
     },
     storage: {

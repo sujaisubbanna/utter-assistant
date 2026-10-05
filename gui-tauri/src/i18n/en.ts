@@ -224,6 +224,17 @@ export const en = {
       decision: "Decision model · {model}",
       vision: "Screen vision · {model}",
       rules: "Built-in rules only",
+      runtimeTitle: "Install what Utter needs",
+      runtimeBody:
+        "Screen vision, planning and the speech model. Utter downloads and sets them up for you.",
+      runtimeSize: "About 8 GB in total",
+      required: "Required",
+      sttRequiredNote:
+        "The speech model is required. Utter can't listen without it, so it can't be skipped.",
+      installNow: "Install and continue",
+      installLater: "Install later",
+      installLaterHint:
+        "If you install later, setup stays unfinished until the speech model is ready.",
     },
     firstAction: {
       eyebrow: "One more thing",
@@ -670,6 +681,14 @@ export const en = {
       title: "Vision + planner models",
       description:
         "The screen-understanding and planning models. They aren't in the model store, so Utter downloads and sets them up for you.",
+      requiredTitle: "Required models",
+      requiredDescription:
+        "Utter needs the speech model, plus screen vision and planning. It downloads and sets them up for you.",
+      required: "Required",
+      repair: "Install / repair",
+      speech: "Speech recognition",
+      speechModel: "whisper.cpp · ggml-small.en.bin",
+      speechSize: "~470 MB",
       vision: "Screen vision",
       visionModel: "UI-TARS-2B-SFT",
       visionSize: "~4.5 GB",
@@ -702,7 +721,6 @@ export const en = {
       retry: "Try again",
       notNow: "Not now",
       exitFailed: "Download stopped (code {code})",
-      unsupported: "Not supported on Windows yet",
       website: "Project website",
     },
     storage: {

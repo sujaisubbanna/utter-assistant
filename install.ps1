@@ -10,10 +10,13 @@
       2. download utter-core-<ver>.tar.gz + sha256sums.txt, verify the sha256
          and extract the core into %LOCALAPPDATA%\utter (or $env:UTTER_PREFIX);
       3. create the agent venv at <core>\.venv-agent with py -3.12 / python and
-         install the CPU-first runtime deps;
-      4. register the per-user Scheduled Tasks utter-runner and utter.service;
-      5. write %APPDATA%\utter\config.toml from the shipped default if absent;
-      6. download and silently install the settings GUI (Tauri NSIS *-setup.exe
+         install the CPU-first `windows` extra (incl. pywhispercpp);
+      4. pull the MANDATORY whisper.cpp STT model (ggml-small.en.bin) into the
+         model store and verify it. This step cannot be skipped: a failure
+         aborts the install (Windows STT does not work without it);
+      5. register the per-user Scheduled Tasks utter-runner and utter.service;
+      6. write %APPDATA%\utter\config.toml from the shipped default if absent;
+      7. download and silently install the settings GUI (Tauri NSIS *-setup.exe
          with /S, else the .msi with msiexec /i <file> /qn).
 
     The runner + voice daemon run as Scheduled Tasks at logon, not as Session 0
@@ -46,8 +49,10 @@
 .NOTES
     The Windows installers (NSIS/MSI) are currently UNSIGNED. SmartScreen may
     warn; the hash is checked against the release sha256sums when available.
+    STT is mandatory: install.ps1 always pulls and verifies the whisper.cpp
+    ggml-small.en.bin model (no flag skips it) so voice works out of the box.
     Environment: UTTER_REPO, UTTER_VERSION, UTTER_BASE_URL (local testing),
-    UTTER_PREFIX, GITHUB_TOKEN / GH_TOKEN.
+    UTTER_PREFIX, UTTER_MODELS, GITHUB_TOKEN / GH_TOKEN.
 #>
 [CmdletBinding()]
 param(
@@ -81,6 +86,14 @@ $Script:AppData = [Environment]::GetFolderPath('ApplicationData')
 $Script:ConfigDir = Join-Path $Script:AppData 'utter'
 $Script:ConfigFile = Join-Path $Script:ConfigDir 'config.toml'
 $Script:Tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('utter-install-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+
+# Mandatory Windows STT: whisper.cpp (pywhispercpp, CPU-first) + its ggml model.
+# The model is pinned by size and content sha256; install.ps1 fails loudly if it
+# cannot be pulled and verified. There is deliberately no skip flag.
+$Script:WhisperModelSource = 'hf:ggerganov/whisper.cpp:ggml-small.en.bin'
+$Script:WhisperModelName   = 'whisper.cpp'
+$Script:WhisperModelSha256 = 'c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d'
+$Script:WhisperModelBytes  = 487614201
 
 # --------------------------------------------------------------------------- #
 # output helpers -- fixed short tokens, no silent failures
@@ -311,7 +324,9 @@ function Get-TarExe {
 # --------------------------------------------------------------------------- #
 function Install-Core {
     Write-Section "install core (runner + CLI)"
-    New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
+    if (-not $DryRun) {
+        New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
+    }
     $tarballName = "utter-core-$($Script:VerNum).tar.gz"
     $sumsName = 'sha256sums.txt'
     $tarball = Join-Path $Script:Tmp $tarballName
@@ -372,7 +387,7 @@ function Install-AgentVenv {
 
     if ($DryRun) {
         Write-Info "  [dry-run] $($base.Exe) $($base.Args -join ' ') -m venv `"$($Script:Venv)`""
-        Write-Info "  [dry-run] pip install PyYAML requests numpy sounddevice pywin32 uiautomation comtypes mss"
+        Write-Info "  [dry-run] $($Script:VenvPython) -m pip install `"$($Script:Core)[windows]`""
         return
     }
 
@@ -380,13 +395,80 @@ function Install-AgentVenv {
         $arguments = @($base.Args) + @('-m', 'venv', $Script:Venv)
         Invoke-Native -FilePath $base.Exe -Arguments $arguments
     }
+    # Install the CPU-first `windows` extra from the extracted core. It is the
+    # single source of truth for the runtime set and now includes pywhispercpp,
+    # so this is mandatory (a failure aborts the install rather than degrading).
     Invoke-Native -FilePath $Script:VenvPython -Arguments @(
         '-m', 'pip', 'install', '--quiet', '--disable-pip-version-check',
-        'PyYAML', 'requests', 'numpy', 'sounddevice', 'pywin32',
-        'uiautomation', 'comtypes', 'mss'
+        "$($Script:Core)[windows]"
     )
-    Write-Ok "installed runtime deps into $($Script:Venv)"
-    Write-Note "optional STT: pywhispercpp or faster-whisper; GPU STT needs CUDA 12 + cuDNN"
+    Write-Ok "installed the Windows runtime (`windows` extra, incl. pywhispercpp) into $($Script:Venv)"
+}
+
+# --------------------------------------------------------------------------- #
+# mandatory whisper.cpp STT model
+# --------------------------------------------------------------------------- #
+function Verify-WhisperModel {
+    # True when $Path is the pinned ggml blob: exact size and content sha256.
+    param([string]$Path)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $false }
+    try {
+        if ((Get-Item -LiteralPath $Path).Length -ne $Script:WhisperModelBytes) { return $false }
+        $got = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLower()
+    }
+    catch {
+        return $false
+    }
+    return ($got -eq $Script:WhisperModelSha256)
+}
+
+function Test-WhisperModel {
+    # Idempotency probe: the pinned blob is already in the store and verifies.
+    # Queries `assistant models show` so a UTTER_MODELS override (or the legacy
+    # store) is honoured without hard-coding a path. Never throws; $false means
+    # "pull it".
+    if (-not (Test-Path -LiteralPath $Script:VenvPython)) { return $false }
+    $raw = & $Script:VenvPython -m assistant models show $Script:WhisperModelName --json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) { return $false }
+    try {
+        $data = ($raw | Out-String) | ConvertFrom-Json
+    }
+    catch {
+        return $false
+    }
+    foreach ($entry in @($data.models)) {
+        foreach ($f in @($entry.files)) {
+            if ($f.sha256 -ne $Script:WhisperModelSha256) { continue }
+            if (Verify-WhisperModel -Path $f.path) { return $true }
+        }
+    }
+    return $false
+}
+
+function Install-WhisperModel {
+    # MANDATORY: Windows STT is whisper.cpp only. There is no flag that skips
+    # this, and any failure is fatal.
+    Write-Section "whisper.cpp STT model (mandatory)"
+    if ($DryRun) {
+        Write-Info "  [dry-run] $($Script:VenvPython) -m assistant models pull $($Script:WhisperModelSource)"
+        Write-Info "  [dry-run] require $($Script:WhisperModelBytes) bytes sha256 $($Script:WhisperModelSha256)"
+        return
+    }
+    if (Test-WhisperModel) {
+        Write-Ok "whisper.cpp model already present and verified"
+        return
+    }
+    Write-Info "  pulling $($Script:WhisperModelSource) (resumable, ~$([math]::Round($Script:WhisperModelBytes / 1MB)) MiB)"
+    $code = Invoke-Native -FilePath $Script:VenvPython -Arguments @(
+        '-m', 'assistant', 'models', 'pull', $Script:WhisperModelSource
+    ) -AllowFailure
+    if ($code -ne 0) {
+        Fail "mandatory whisper.cpp model download failed (exit $code): $($Script:WhisperModelSource). Windows STT cannot work without it."
+    }
+    if (-not (Test-WhisperModel)) {
+        Fail "mandatory whisper.cpp model is missing or failed verification (sha256 $($Script:WhisperModelSha256)): $($Script:WhisperModelSource)"
+    }
+    Write-Ok "whisper.cpp model verified (sha256 $($Script:WhisperModelSha256.Substring(0, 16))...)"
 }
 
 # --------------------------------------------------------------------------- #
@@ -639,7 +721,11 @@ function Main {
         return
     }
 
-    New-Item -ItemType Directory -Force -Path $Script:Tmp | Out-Null
+    # DryRun is fully side-effect-free: nothing below may touch the filesystem
+    # or the network. The scratch dir would be created (and removed) otherwise.
+    if (-not $DryRun) {
+        New-Item -ItemType Directory -Force -Path $Script:Tmp | Out-Null
+    }
     Resolve-Release
     Write-Banner
     Write-Info "  release: $($Script:Ver)"
@@ -649,6 +735,7 @@ function Main {
 
     Install-Core
     Install-AgentVenv
+    Install-WhisperModel
     Install-ServiceTasks
     Install-Config
     Install-Gui
