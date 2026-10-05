@@ -76,6 +76,14 @@ impl Cmd {
         if let Some(dir) = &self.cwd {
             command.current_dir(dir);
         }
+        // The AppImage's linuxdeploy AppRun exports PYTHONHOME / PYTHONPATH /
+        // LD_LIBRARY_PATH pointing at its read-only mount. Inheriting those
+        // breaks the venv Python we spawn ("Failed to import encodings") and can
+        // shadow system libraries for any child. Drop them; an explicit env()
+        // below (e.g. PYTHONPATH=<repo>) still wins.
+        command.env_remove("PYTHONHOME");
+        command.env_remove("PYTHONPATH");
+        command.env_remove("LD_LIBRARY_PATH");
         for (key, value) in &self.env {
             command.env(key, value);
         }
