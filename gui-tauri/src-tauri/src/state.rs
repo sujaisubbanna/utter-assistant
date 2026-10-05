@@ -93,7 +93,9 @@ impl AppState {
             .env("PYTHONPATH", repo.to_string_lossy().into_owned())
     }
 
-    /// `systemctl --user …` (the runner is a user service).
+    /// `systemctl --user …` (the Linux runner is a user service). Kept for the
+    /// call sites that historically restarted the runner this way; the
+    /// platform-aware path is `crate::service::control`.
     pub fn systemctl(&self, args: &[&str]) -> Cmd {
         Cmd::new("systemctl").arg("--user").args(args.iter().copied())
     }

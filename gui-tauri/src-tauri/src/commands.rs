@@ -14,6 +14,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::config;
 use crate::profiles;
 use crate::process::{io_message, Cmd, CmdResult};
+use crate::service::{self, ServiceBackend, UnitStatus};
 use crate::state::AppState;
 use crate::theme::{self, Palette};
 use crate::zip;
@@ -26,6 +27,17 @@ const UNITS: &[&str] = &[
     "utter-planner",
     "utter-audio-defaults",
 ];
+
+/// Extra task names Windows exposes. The UI shows the voice daemon as
+/// `utter.service` (its systemd unit); on Windows that string is reused verbatim
+/// as the Scheduled Task name, so it must pass the allow-list there.
+const WINDOWS_UNITS: &[&str] = &["utter.service"];
+
+/// Whether `unit` may be controlled on `backend`. Linux/macOS keep the exact
+/// allow-list they always had; Windows additionally accepts its task names.
+fn unit_allowed(unit: &str, backend: ServiceBackend) -> bool {
+    UNITS.contains(&unit) || (backend == ServiceBackend::Schtasks && WINDOWS_UNITS.contains(&unit))
+}
 
 const SYSTEMCTL_ACTIONS: &[&str] = &[
     "start",
@@ -77,65 +89,11 @@ fn err(message: impl Into<String>) -> String {
 // --------------------------------------------------------------------------- //
 pub const IS_MACOS: bool = cfg!(target_os = "macos");
 
-/// systemd unit -> launchd label. Units with no macOS counterpart map to None
-/// and are reported as "not-found", so the General page needs no platform code.
-fn launchd_label(unit: &str) -> Option<&'static str> {
-    match unit {
-        "utter-runner" => Some("com.utter.runner"),
-        "utter-bridge" => Some("com.utter.assistant"),
-        _ => None,
-    }
-}
-
 fn launchd_log(unit: &str) -> Option<&'static str> {
     match unit {
         "utter-runner" => Some("runner.log"),
         "utter-bridge" => Some("utter.log"),
         _ => None,
-    }
-}
-
-fn current_uid() -> String {
-    std::process::Command::new("id")
-        .arg("-u")
-        .output()
-        .ok()
-        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| fallback_uid().to_string())
-}
-
-fn launchd_target(label: &str) -> String {
-    format!("gui/{}/{label}", current_uid())
-}
-
-/// `launchctl print gui/<uid>/<label>` -> the UnitStatus shape systemd users expect.
-fn parse_launchctl_print(unit: &str, text: &str, found: bool) -> UnitStatus {
-    if !found {
-        return UnitStatus {
-            id: unit.to_string(),
-            load_state: "not-found".to_string(),
-            ..Default::default()
-        };
-    }
-    let mut state = String::new();
-    let mut pid: Option<String> = None;
-    for raw in text.lines() {
-        let line = raw.trim();
-        if let Some(value) = line.strip_prefix("state = ") {
-            state = value.trim().to_string();
-        } else if let Some(value) = line.strip_prefix("pid = ") {
-            pid = Some(value.trim().to_string());
-        }
-    }
-    let running = state == "running" || pid.is_some();
-    UnitStatus {
-        id: unit.to_string(),
-        load_state: "loaded".to_string(),
-        active_state: if running { "active" } else { "inactive" }.to_string(),
-        sub_state: if running { "running" } else { "dead" }.to_string(),
-        // launchd agents installed by macos/setup.sh run at login.
-        unit_file_state: "enabled".to_string(),
     }
 }
 
@@ -294,13 +252,17 @@ pub struct AppInfo {
     pub runner_sock: String,
 }
 
-/// `$UTTER_MODELS`, else `$XDG_DATA_HOME/utter-models` — mirrors
+/// `$UTTER_MODELS`, else `$XDG_DATA_HOME/utter-models` on Linux/macOS and
+/// `%LOCALAPPDATA%\utter\models` on Windows — mirrors
 /// `assistant/util.py::models_root`.
 fn models_path() -> PathBuf {
     if let Ok(value) = std::env::var("UTTER_MODELS") {
         if !value.is_empty() {
             return PathBuf::from(value);
         }
+    }
+    if cfg!(target_os = "windows") {
+        return crate::data_home().join("utter/models");
     }
     let data_home = std::env::var("XDG_DATA_HOME")
         .ok()
@@ -320,6 +282,12 @@ pub fn app_info(state: State<AppState>) -> AppInfo {
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| {
+            if cfg!(target_os = "windows") {
+                return crate::data_home()
+                    .join("utter/runtime/runner.sock")
+                    .to_string_lossy()
+                    .into_owned();
+            }
             let runtime = std::env::var("XDG_RUNTIME_DIR")
                 .unwrap_or_else(|_| format!("/run/user/{}", fallback_uid()));
             format!("{runtime}/utter/runner.sock")
@@ -432,6 +400,22 @@ fn read_runner_policy(path: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Restart the runner so a config change takes effect. Windows drives its
+/// Scheduled Task; Linux/macOS keep the historical `systemctl --user` call
+/// (and its failure semantics) exactly as before.
+fn restart_runner(state: &AppState) -> bool {
+    if ServiceBackend::detect() == ServiceBackend::Schtasks {
+        return service::control(ServiceBackend::Schtasks, "restart", "utter-runner")
+            .map(|result| result.ok)
+            .unwrap_or(false);
+    }
+    state
+        .systemctl(&["restart", "utter-runner"])
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
+}
+
 #[derive(Serialize)]
 pub struct RunnerPolicy {
     /// The runner config file the policy was read from / written to.
@@ -477,11 +461,7 @@ pub fn set_runner_policy(
     );
     config::set_key_at(&path, &default_config, "policy", "enabled_ops", &value)?;
     // The runner reads policy once at startup: restart so the change applies.
-    let restarted = state
-        .systemctl(&["restart", "utter-runner"])
-        .output()
-        .map(|out| out.status.success())
-        .unwrap_or(false);
+    let restarted = restart_runner(&state);
     Ok(RunnerPolicy {
         path: path.display().to_string(),
         enabled_ops,
@@ -543,7 +523,7 @@ pub fn set_runner_plugins(
     );
     config::set_key_at(&path, &default_config, "plugins", "disabled", &value)?;
     // Plugin enablement is read once at startup.
-    let _ = state.systemctl(&["restart", "utter-runner"]).output();
+    let _ = restart_runner(&state);
     Ok(disabled)
 }
 
@@ -867,129 +847,49 @@ pub fn cancel_models_pull(state: State<AppState>, pull_id: String) -> Result<(),
 }
 
 // --------------------------------------------------------------------------- //
-// systemd
+// services (systemd | launchd | schtasks)
 // --------------------------------------------------------------------------- //
-#[derive(Default, Serialize)]
-pub struct UnitStatus {
-    pub id: String,
-    pub load_state: String,
-    pub active_state: String,
-    pub sub_state: String,
-    pub unit_file_state: String,
+// The frontend has always called `systemctl_show` / `systemctl`; those names stay
+// as thin aliases so the TypeScript surface is unchanged. The real work lives
+// behind `service_show` / `service_control`, dispatched by the platform backend.
+async fn show_impl(units: Vec<String>) -> Result<Vec<UnitStatus>, String> {
+    let backend = ServiceBackend::detect();
+    blocking(move || service::show_units(backend, &units)).await
 }
 
-fn parse_systemctl_show(text: &str) -> Vec<UnitStatus> {
-    let mut units: Vec<UnitStatus> = Vec::new();
-    let mut current: Option<UnitStatus> = None;
-    for raw in text.lines() {
-        let line = raw.trim();
-        if line.is_empty() {
-            if let Some(unit) = current.take() {
-                units.push(unit);
-            }
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        if key == "Id" {
-            if let Some(unit) = current.take() {
-                units.push(unit);
-            }
-            // systemctl reports the canonical name (`foo.service`); callers use
-            // the bare unit name.
-            let id = value.strip_suffix(".service").unwrap_or(value);
-            current = Some(UnitStatus {
-                id: id.to_string(),
-                ..Default::default()
-            });
-        } else if let Some(unit) = current.as_mut() {
-            match key {
-                "LoadState" => unit.load_state = value.to_string(),
-                "ActiveState" => unit.active_state = value.to_string(),
-                "SubState" => unit.sub_state = value.to_string(),
-                "UnitFileState" => unit.unit_file_state = value.to_string(),
-                _ => {}
-            }
-        }
-    }
-    if let Some(unit) = current.take() {
-        units.push(unit);
-    }
-    units
-}
-
-#[tauri::command]
-pub async fn systemctl_show(
-    state: State<'_, AppState>,
-    units: Vec<String>,
-) -> Result<Vec<UnitStatus>, String> {
-    if IS_MACOS {
-        return blocking(move || {
-            let mut statuses = Vec::new();
-            for unit in &units {
-                let status = match launchd_label(unit) {
-                    None => parse_launchctl_print(unit, "", false),
-                    Some(label) => {
-                        let out = Cmd::new("launchctl")
-                            .args(["print", &launchd_target(label)])
-                            .output();
-                        match out {
-                            Ok(out) if out.status.success() => {
-                                parse_launchctl_print(unit, &String::from_utf8_lossy(&out.stdout), true)
-                            }
-                            _ => parse_launchctl_print(unit, "", false),
-                        }
-                    }
-                };
-                statuses.push(status);
-            }
-            Ok(statuses)
-        })
-        .await;
-    }
-    let mut cmd = state.systemctl(&["show"]);
-    for unit in &units {
-        cmd = cmd.arg(unit.clone());
-    }
-    cmd = cmd.arg("--property=Id,LoadState,ActiveState,SubState,UnitFileState");
-    blocking(move || {
-        let out = cmd.output().map_err(|error| error.to_string())?;
-        Ok(parse_systemctl_show(&String::from_utf8_lossy(&out.stdout)))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn systemctl(
-    state: State<'_, AppState>,
-    action: String,
-    unit: String,
-) -> Result<CmdResult, String> {
+async fn control_impl(action: String, unit: String) -> Result<CmdResult, String> {
     if !SYSTEMCTL_ACTIONS.contains(&action.as_str()) {
         return Err(format!("action not allowed: {action}"));
     }
-    if !UNITS.contains(&unit.as_str()) {
+    let backend = ServiceBackend::detect();
+    if !unit_allowed(&unit, backend) {
         return Err(format!("unit not allowed: {unit}"));
     }
-    if IS_MACOS {
-        let Some(label) = launchd_label(&unit) else {
-            return Err(format!("{unit} has no launchd agent on macOS"));
-        };
-        let target = launchd_target(label);
-        let cmd = match action.as_str() {
-            "start" => Cmd::new("launchctl").args(["kickstart", &target]),
-            "restart" => Cmd::new("launchctl").args(["kickstart", "-k", &target]),
-            "stop" => Cmd::new("launchctl").args(["kill", "SIGTERM", &target]),
-            "enable" => Cmd::new("launchctl").args(["enable", &target]),
-            "disable" => Cmd::new("launchctl").args(["disable", &target]),
-            "is-active" | "is-enabled" => Cmd::new("launchctl").args(["print", &target]),
-            other => return Err(format!("action not allowed: {other}")),
-        };
-        return blocking(move || Ok(CmdResult::from_output(cmd.output()))).await;
-    }
-    let cmd = state.systemctl(&[action.as_str(), unit.as_str()]);
-    blocking(move || Ok(CmdResult::from_output(cmd.output()))).await
+    blocking(move || service::control(backend, &action, &unit)).await
+}
+
+/// Status of the service rows on the resolved platform backend.
+#[tauri::command]
+pub async fn service_show(units: Vec<String>) -> Result<Vec<UnitStatus>, String> {
+    show_impl(units).await
+}
+
+/// Start/stop/restart/enable/disable a service on the resolved platform backend.
+#[tauri::command]
+pub async fn service_control(action: String, unit: String) -> Result<CmdResult, String> {
+    control_impl(action, unit).await
+}
+
+/// Back-compat alias used by the existing UI.
+#[tauri::command]
+pub async fn systemctl_show(units: Vec<String>) -> Result<Vec<UnitStatus>, String> {
+    show_impl(units).await
+}
+
+/// Back-compat alias used by the existing UI.
+#[tauri::command]
+pub async fn systemctl(action: String, unit: String) -> Result<CmdResult, String> {
+    control_impl(action, unit).await
 }
 
 // --------------------------------------------------------------------------- //
@@ -1635,14 +1535,18 @@ pub async fn export_bundle(
             entries.push((format!("logs/{unit}.log"), text.into_bytes()));
         }
 
-        let install_json = std::env::var("XDG_STATE_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::env::var("HOME")
-                    .map(|home| PathBuf::from(home).join(".local/state"))
-                    .unwrap_or_else(|_| PathBuf::from("."))
-            })
-            .join("utter/install.json");
+        let install_json = if cfg!(target_os = "windows") {
+            crate::data_home().join("utter/state/install.json")
+        } else {
+            std::env::var("XDG_STATE_HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| {
+                    std::env::var("HOME")
+                        .map(|home| PathBuf::from(home).join(".local/state"))
+                        .unwrap_or_else(|_| PathBuf::from("."))
+                })
+                .join("utter/install.json")
+        };
         if let Ok(text) = std::fs::read_to_string(&install_json) {
             entries.push(("install.json".to_string(), text.into_bytes()));
         }

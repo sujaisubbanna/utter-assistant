@@ -33,7 +33,9 @@
   "bundle": {
     "active": true,
     "targets": [
-      "deb"
+      "deb",
+      "nsis",
+      "msi"
     ],
     "category": "Utility",
     "shortDescription": "Settings for Utter, the offline voice assistant",
