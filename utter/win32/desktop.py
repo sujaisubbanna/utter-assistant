@@ -29,6 +29,7 @@ from typing import Optional
 
 from utter import platform
 from utter.types import Context, FocusedWindow, Monitor, Rect, WindowInfo
+from utter.win32.dpi import ensure_dpi_aware as _ensure_dpi_aware
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ def _raw_windows() -> list[dict]:
     """Visible top-level windows as ``{id,pid,app_id,title,is_focused}`` dicts."""
     from ctypes import wintypes
 
+    _ensure_dpi_aware()
     user32, _ = _dlls()
     foreground = int(user32.GetForegroundWindow() or 0)
     rows: list[dict] = []
@@ -196,6 +198,7 @@ def _raw_windows() -> list[dict]:
 
 
 def _focused_window() -> Optional[FocusedWindow]:
+    _ensure_dpi_aware()
     user32, _ = _dlls()
     hwnd = int(user32.GetForegroundWindow() or 0)
     if not hwnd or not user32.IsWindow(hwnd):
@@ -255,6 +258,7 @@ def find_windows(app_id: Optional[str] = None,
 def _list_monitors() -> list[Monitor]:
     from ctypes import wintypes
 
+    _ensure_dpi_aware()
     user32, _ = _dlls()
 
     class _MONITORINFO(ctypes.Structure):

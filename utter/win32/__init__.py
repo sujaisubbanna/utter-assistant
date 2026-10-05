@@ -22,8 +22,9 @@ Modules:
     hotkey       push-to-talk via a ``WH_KEYBOARD_LL`` low-level hook
     inject       key chords + typed text via ``SendInput`` (``KEYEVENTF_UNICODE``)
     pointer      mouse movement/clicks via ``SetCursorPos`` / ``mouse_event``
+    dpi          best-effort per-monitor DPI awareness (no-op off Windows)
 """
 from __future__ import annotations
 
 __all__ = ["desktop", "axtree", "clipboard", "launch", "permissions",
-           "hotkey", "inject", "pointer"]
+           "hotkey", "inject", "pointer", "dpi"]

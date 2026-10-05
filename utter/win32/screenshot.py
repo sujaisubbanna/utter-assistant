@@ -4,13 +4,12 @@
 screencapture backends: the PNG of the primary monitor plus its geometry as an
 :class:`utter.types.Rect`.
 
-DPI awareness is intentionally **not** handled yet. ``mss`` reports the physical
-pixel bounds of each monitor, so on a display with scaling the Rect is in
-physical pixels while the rest of the assistant (pointer clicks) may work in
-logical pixels; grounding works on normalised coordinates so the factor mostly
-cancels out. A later pass will make the process DPI-aware (``SetProcessDpiAwareness``)
-and translate the Rect to logical units. Until then, treat a scaled-display
-offset as this known gap rather than a grounding bug.
+DPI awareness is handled best-effort by :func:`utter.win32.dpi.ensure_dpi_aware`,
+which is invoked before the first capture: it makes the process per-monitor
+DPI-aware so the ``mss`` physical-pixel bounds and the pointer APIs share one
+coordinate space on scaled displays. Off Windows (or on an old Windows without
+the API) the call is a no-op, so the module still imports and the tests still
+run on Linux/macOS.
 
 ``mss`` is imported lazily, so this module imports on Linux/macOS too.
 """
@@ -21,6 +20,7 @@ import tempfile
 from pathlib import Path
 
 from utter.types import Rect
+from utter.win32.dpi import ensure_dpi_aware as _ensure_dpi_aware
 
 # Stable directory so repeated captures overwrite instead of leaking files.
 _SHOT_DIR = Path(os.environ.get("UTTER_SHOT_DIR", tempfile.gettempdir())) / "utter-vision"
@@ -61,6 +61,9 @@ def capture_output(monitor_index: int) -> tuple[str, Rect]:
     ``mss.monitors[0]`` is the union of all monitors, so the real monitors start
     at index 1; the caller-facing index is therefore offset by one.
     """
+    # Per-monitor DPI awareness before mss reports monitor rectangles, so the
+    # returned Rect is in the same physical pixel space as the pointer APIs.
+    _ensure_dpi_aware()
     monitors = _monitors()
     if monitor_index < 0 or monitor_index + 1 >= len(monitors):
         raise KeyError(
@@ -82,6 +85,7 @@ def capture() -> tuple[str, Rect]:
 
 def total_geometry() -> Rect:
     """Bounding box covering all real monitors."""
+    _ensure_dpi_aware()
     rects = [monitor_rect(m) for m in _monitors()[1:]]
     if not rects:
         return Rect(0, 0, 0, 0)
