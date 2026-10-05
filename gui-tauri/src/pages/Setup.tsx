@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon, type IconName } from "../components/icons";
+import { EngineInstallCard } from "../components/EngineInstall";
 import { PageBody, PageHeader, PageNote } from "../components/PageHeader";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -402,6 +403,8 @@ export function SetupPage() {
       <>
         <PageHeader title={t("setup.linuxTitle")} description={t("setup.linuxDescription")} />
         <PageBody>
+          {/* A GUI-only install has no engine: offer the installer first. */}
+          <EngineInstallCard />
           {/* status hero */}
           <section className="relative overflow-hidden rounded-lg bg-card p-5 shadow-card" aria-live="polite">
             <div className="flex items-center gap-4">
@@ -475,6 +478,8 @@ export function SetupPage() {
     <>
       <PageHeader title={t("setup.title")} description={t("setup.description")} />
       <PageBody>
+        {/* A GUI-only install has no engine: offer the installer first. */}
+        <EngineInstallCard />
         {/* progress hero */}
         <section className="relative overflow-hidden rounded-lg bg-card p-5 shadow-card" aria-live="polite">
           <div className="flex items-center gap-4">

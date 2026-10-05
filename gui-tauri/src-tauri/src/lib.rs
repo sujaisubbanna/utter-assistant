@@ -260,6 +260,8 @@ pub fn run() {
             commands::app_profiles_set_enabled,
             commands::app_profile_reset,
             commands::which_many,
+            commands::engine_present,
+            commands::open_installer_terminal,
             commands::start_mic,
             commands::stop_mic,
             commands::start_log_tail,

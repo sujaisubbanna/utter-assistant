@@ -248,6 +248,18 @@ export const zh: Messages = {
     system: "匹配系统({name})",
   },
 
+  engine: {
+    missing: {
+      eyebrow: "Get the engine",
+      title: "Install the Utter engine",
+      body: "This app is only the settings shell. Install the engine to hear you, decide and act. Copy the command below, or open it in a terminal for me.",
+      openTerminal: "Open installer in terminal",
+      opened: "Opening your terminal…",
+      copyFailed: "Couldn't copy the command",
+      openFailed: "Couldn't open a terminal: {error}",
+    },
+  },
+
   status: {
     checking: "检查…",
     online: "助理跑步",
